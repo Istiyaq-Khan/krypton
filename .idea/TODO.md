@@ -114,77 +114,77 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 **Objective**: Construct the core operating system layer, user home folder bootstrap, native keyring credential vault, model provider gateways, process isolation jails, and static AST security linters.
 
 ### 1. Daemon Workspace & Engine Bootstrap
-- [ ] Configure package manifest and dependencies in [packages/agent-runtime/package.json](../packages/agent-runtime/package.json).
-- [ ] Set up TypeScript build configuration in [packages/agent-runtime/tsconfig.json](../packages/agent-runtime/tsconfig.json) referencing `@krypton/shared-types`.
-- [ ] Implement system folder provisioner in [packages/agent-runtime/src/filesystem/bootstrap.ts](../packages/agent-runtime/src/filesystem/bootstrap.ts):
+- [x] Configure package manifest and dependencies in [packages/agent-runtime/package.json](../packages/agent-runtime/package.json).
+- [x] Set up TypeScript build configuration in [packages/agent-runtime/tsconfig.json](../packages/agent-runtime/tsconfig.json) referencing `@krypton/shared-types`.
+- [x] Implement system folder provisioner in [packages/agent-runtime/src/filesystem/bootstrap.ts](../packages/agent-runtime/src/filesystem/bootstrap.ts):
   - Resolve cross-platform home directory (`%USERPROFILE%\.krypton` on Windows, `$HOME/.krypton` on POSIX).
   - Provision required directory tree on first launch: `config.json`, `credentials.enc`, `cache/outputs/`, `pty_sessions/`, `telemetry/`, `agents/`, `worktrees/`, `tools/python/`, `tools/typescript/`, `browser_profiles/default/`, `logs/`.
   - Seed default orchestrator agent templates (`AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`).
-- [ ] Implement Markdown metadata parser and serializer in [packages/agent-runtime/src/filesystem/parser.ts](../packages/agent-runtime/src/filesystem/parser.ts) to parse YAML frontmatter and markdown sections.
-- [ ] Implement high-efficiency file watcher in [packages/agent-runtime/src/filesystem/watcher.ts](../packages/agent-runtime/src/filesystem/watcher.ts) with debounced reload hooks when agent configs are edited.
+- [x] Implement Markdown metadata parser and serializer in [packages/agent-runtime/src/filesystem/parser.ts](../packages/agent-runtime/src/filesystem/parser.ts) to parse YAML frontmatter and markdown sections.
+- [x] Implement high-efficiency file watcher in [packages/agent-runtime/src/filesystem/watcher.ts](../packages/agent-runtime/src/filesystem/watcher.ts) with debounced reload hooks when agent configs are edited.
 
 ### 2. Native OS Secret Vault & Encryption
-- [ ] Implement OS Keyring bridge in [packages/agent-runtime/src/providers/vault.ts](../packages/agent-runtime/src/providers/vault.ts):
+- [x] Implement OS Keyring bridge in [packages/agent-runtime/src/providers/vault.ts](../packages/agent-runtime/src/providers/vault.ts):
   - Integrate native OS credential storage (Windows Credential Manager, macOS Keychain, Linux Secret Service).
   - Implement AES-256-GCM fallback encryption for storing credentials into `~/.krypton/credentials.enc` using a machine-specific hardware derivative key when native keyring daemon is unavailable.
   - Provide secure async methods: `storeSecret(key, value)`, `getSecret(key)`, `deleteSecret(key)`, `hasSecret(key)`.
 
 ### 3. Model Provider Gateways
-- [ ] Implement OpenAI-compatible gateway in [packages/agent-runtime/src/providers/openai.ts](../packages/agent-runtime/src/providers/openai.ts):
+- [x] Implement OpenAI-compatible gateway in [packages/agent-runtime/src/providers/openai.ts](../packages/agent-runtime/src/providers/openai.ts):
   - Support OpenAI, DeepSeek, Groq, vLLM, and local Ollama / llama-server endpoints.
   - Implement streaming token handling, exponential backoff retries on rate limits (429), and standardized function calling formatting.
-- [ ] Implement Anthropic native gateway in [packages/agent-runtime/src/providers/anthropic.ts](../packages/agent-runtime/src/providers/anthropic.ts):
+- [x] Implement Anthropic native gateway in [packages/agent-runtime/src/providers/anthropic.ts](../packages/agent-runtime/src/providers/anthropic.ts):
   - Map universal messages to Anthropic `/v1/messages` format, handling isolated system prompt strings and `input_schema` tool definitions.
   - Implement content block streaming (`text_delta`, `input_json_delta`) and handle tool call assembling.
-- [ ] Implement provider factory router in [packages/agent-runtime/src/providers/index.ts](../packages/agent-runtime/src/providers/index.ts) dispatching requests based on agent `IDENTITY.md` configuration.
+- [x] Implement provider factory router in [packages/agent-runtime/src/providers/index.ts](../packages/agent-runtime/src/providers/index.ts) dispatching requests based on agent `IDENTITY.md` configuration.
 
 ### 4. Static AST Safety Linter (Failure Prevention: Shell Escapes & Destructive Code)
-- [ ] Implement TypeScript/JavaScript AST validator in [packages/agent-runtime/src/sandbox/linter.ts](../packages/agent-runtime/src/sandbox/linter.ts):
+- [x] Implement TypeScript/JavaScript AST validator in [packages/agent-runtime/src/sandbox/linter.ts](../packages/agent-runtime/src/sandbox/linter.ts):
   - Parse code with Babel parser / TypeScript compiler API into an AST.
   - Scan for hazardous module imports and identifiers: `child_process`, `cluster`, `worker_threads`, `process.exit`, dangerous file system write calls on root drives (`rmSync('/')`, `unlinkSync('C:\\Windows')`).
   - Check for dynamic evaluation expressions: `eval()`, `new Function()`, `vm.runInThisContext()`.
-- [ ] Implement Python AST validator in [packages/agent-runtime/src/sandbox/linter.ts](../packages/agent-runtime/src/sandbox/linter.ts):
+- [x] Implement Python AST validator in [packages/agent-runtime/src/sandbox/linter.ts](../packages/agent-runtime/src/sandbox/linter.ts):
   - Run static inspection script against generated Python code.
   - Block calls: `os.system`, `subprocess.Popen`, `subprocess.run`, `shutil.rmtree('/')`, `pty.spawn`, socket network binds unless permitted.
-- [ ] Construct permission check escalation bridge: if a script contains flagged operations, trigger a `ClarificationRequest` asking the user to approve execution.
+- [x] Construct permission check escalation bridge: if a script contains flagged operations, trigger a `ClarificationRequest` asking the user to approve execution.
 
 ### 5. OS Subprocess Sandbox & Execution Jail
-- [ ] Implement process execution manager in [packages/agent-runtime/src/sandbox/runner.ts](../packages/agent-runtime/src/sandbox/runner.ts):
+- [x] Implement process execution manager in [packages/agent-runtime/src/sandbox/runner.ts](../packages/agent-runtime/src/sandbox/runner.ts):
   - Windows: Wrap execution within a restricted Windows Job Object via native FFI or helper binary to impose memory caps (e.g. 512MB max), CPU limits, and prevent unauthorized child processes.
   - Linux/macOS: Enforce execution limits via `posix_spawn` / `rlimit` (RLIMIT_AS, RLIMIT_CPU, RLIMIT_NPROC) and unprivileged execution folders.
   - Assign an ephemeral workspace directory for every execution inside `~/.krypton/sandbox_workspace/<exec-id>`.
   - Enforce strict execution timeout caps (default 30s) using AbortSignals and forced process-tree kills (`tree-kill`).
   - Capture and sanitize stdout/stderr with memory limit caps to prevent buffer overflows.
-- [ ] Create execution starter templates in [packages/agent-runtime/src/sandbox/templates/python_runner.py](../packages/agent-runtime/src/sandbox/templates/python_runner.py) and [packages/agent-runtime/src/sandbox/templates/ts_runner.ts](../packages/agent-runtime/src/sandbox/templates/ts_runner.ts).
+- [x] Create execution starter templates in [packages/agent-runtime/src/sandbox/templates/python_runner.py](../packages/agent-runtime/src/sandbox/templates/python_runner.py) and [packages/agent-runtime/src/sandbox/templates/ts_runner.ts](../packages/agent-runtime/src/sandbox/templates/ts_runner.ts).
 
 ### 6. Context Window Optimization & Output Masking (Failure Prevention: Context Exhaustion)
-- [ ] Implement tool observation offloader in [packages/agent-runtime/src/context/offloader.ts](../packages/agent-runtime/src/context/offloader.ts):
+- [x] Implement tool observation offloader in [packages/agent-runtime/src/context/offloader.ts](../packages/agent-runtime/src/context/offloader.ts):
   - Intercept tool results; if byte length or token count exceeds threshold (>1,500 tokens / ~6KB), persist the raw output into `~/.krypton/cache/outputs/run_step_<id>.log`.
   - Inject a masked summary into context containing the first 25 lines, total line count, byte size, file path on disk, and the last 25 lines.
-- [ ] Implement context compactor in [packages/agent-runtime/src/context/condenser.ts](../packages/agent-runtime/src/context/condenser.ts):
+- [x] Implement context compactor in [packages/agent-runtime/src/context/condenser.ts](../packages/agent-runtime/src/context/condenser.ts):
   - Calculate context window token utilization percentage before every LLM invocation.
   - When utilization exceeds 90%, trigger compaction: generate an LLM state summarization turn preserving core objective, active task DAG state, and file diff references, while discarding stale intermediate conversational tool loops.
 
 ### 7. Event Sourcing & Crash Recovery
-- [ ] Implement append-only event log writer in [packages/agent-runtime/src/event-sourcing/event-store.ts](../packages/agent-runtime/src/event-sourcing/event-store.ts):
+- [x] Implement append-only event log writer in [packages/agent-runtime/src/event-sourcing/event-store.ts](../packages/agent-runtime/src/event-sourcing/event-store.ts):
   - Stream all system events directly to `~/.krypton/agents/<agent_name>/short_term/events.jsonl`.
   - Maintain atomic sync with sequence numbers and timestamps.
-- [ ] Implement state rehydration in [packages/agent-runtime/src/event-sourcing/recovery.ts](../packages/agent-runtime/src/event-sourcing/recovery.ts):
+- [x] Implement state rehydration in [packages/agent-runtime/src/event-sourcing/recovery.ts](../packages/agent-runtime/src/event-sourcing/recovery.ts):
   - On runtime startup, scan `events.jsonl` files for incomplete tasks.
   - Rehydrate `AgentState`, reconnect to existing Git worktrees, and resume execution without starting over.
 
 ### 8. Mid-Flight Asynchronous Steering Queue
-- [ ] Implement dual-buffer event queue in [packages/agent-runtime/src/steering/dual-buffer-queue.ts](../packages/agent-runtime/src/steering/dual-buffer-queue.ts):
+- [x] Implement dual-buffer event queue in [packages/agent-runtime/src/steering/dual-buffer-queue.ts](../packages/agent-runtime/src/steering/dual-buffer-queue.ts):
   - Buffer A: Primary execution sequence read by the agent loop.
   - Buffer B: High-priority steering interrupt queue receiving user inputs from Voice HUD, CLI, or UI.
   - Swap and evaluate between every tool execution step to support dynamic user course correction without crashing running sub-agents.
 
 ### Phase 2 Verification Gate
-- [ ] **Filesystem Bootstrap Test**: Run integration test verifying `~/.krypton` directory provisioning and default file scaffolding.
-- [ ] **AST Safety Linter Test Suite**: Execute test suite in `packages/agent-runtime/__tests__/linter.test.ts` verifying that malicious scripts (`rm -rf`, `os.system`, `child_process.exec`) are 100% blocked with specific AST rejection errors.
-- [ ] **Sandbox Isolation Test**: Execute a script exceeding memory and timeout bounds in `packages/agent-runtime/__tests__/sandbox.test.ts` to verify process tree termination.
-- [ ] **Context Offload & Compaction Test**: Verify large stdout payload is offloaded to disk and context is compacted when exceeding 90% mock threshold.
-- [ ] **Secret Vault Roundtrip Test**: Run mock keyring storage and retrieval test ensuring zero plaintext leaks.
+- [x] **Filesystem Bootstrap Test**: Run integration test verifying `~/.krypton` directory provisioning and default file scaffolding.
+- [x] **AST Safety Linter Test Suite**: Execute test suite in `packages/agent-runtime/__tests__/linter.test.ts` verifying that malicious scripts (`rm -rf`, `os.system`, `child_process.exec`) are 100% blocked with specific AST rejection errors.
+- [x] **Sandbox Isolation Test**: Execute a script exceeding memory and timeout bounds in `packages/agent-runtime/__tests__/sandbox.test.ts` to verify process tree termination.
+- [x] **Context Offload & Compaction Test**: Verify large stdout payload is offloaded to disk and context is compacted when exceeding 90% mock threshold.
+- [x] **Secret Vault Roundtrip Test**: Run mock keyring storage and retrieval test ensuring zero plaintext leaks.
 
 ---
 
