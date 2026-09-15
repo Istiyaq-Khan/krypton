@@ -273,64 +273,64 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 **Objective**: Build the sensory and environmental execution layer: stealth accessibility-tree browser automation, cubic Bézier mouse humanizer, persistent PTY terminal pool, Tree-sitter code intelligence, and OS-level accessibility automation.
 
 ### 1. Stealth Playwright & CDP Browser Engine (Failure Prevention: Browser Memory Leaks)
-- [ ] Implement browser context pool in [packages/agent-runtime/src/browser/browser.ts](../packages/agent-runtime/src/browser/browser.ts):
+- [x] Implement browser context pool in [packages/agent-runtime/src/browser/browser.ts](../packages/agent-runtime/src/browser/browser.ts):
   - Enforce a strict pool limit: maximum of 2 active browser contexts at any time.
   - Implement idle context recycler: terminate and clean up contexts idle for >15 minutes.
   - Store shared session cookies and local storage persistently in `~/.krypton/browser_profiles/default/`.
   - Connect to user browser via remote debugging port (CDP) or launch isolated Chromium instance.
-- [ ] Implement anti-bot stealth evasions in [packages/agent-runtime/src/browser/browser.ts](../packages/agent-runtime/src/browser/browser.ts):
+- [x] Implement anti-bot stealth evasions in [packages/agent-runtime/src/browser/browser.ts](../packages/agent-runtime/src/browser/browser.ts):
   - Override `navigator.webdriver` via CDP scripts.
   - Spoof WebGL vendor/renderer strings, audio context signatures, and plugins array.
   - Randomize viewport dimensions within realistic desktop display ranges.
 
 ### 2. Accessibility Tree (AXTree) Blind Navigation
-- [ ] Implement accessibility tree extractor in [packages/agent-runtime/src/browser/axtree.ts](../packages/agent-runtime/src/browser/axtree.ts):
+- [x] Implement accessibility tree extractor in [packages/agent-runtime/src/browser/axtree.ts](../packages/agent-runtime/src/browser/axtree.ts):
   - Query Chrome DevTools Protocol `Accessibility.getFullAXTree` directly.
   - Prune non-interactive structural elements (`<div>`, `<span>`) to reduce payload by up to 90%.
   - Assign sequential transient numeric IDs (`[id=1]`, `[id=2]`) to actionable nodes (buttons, inputs, links, dropdowns).
   - Generate a lightweight, semantic page snapshot with node IDs, roles, names, and bounding boxes.
-- [ ] Implement high-level blind navigation actions in [packages/agent-runtime/src/browser/actions.ts](../packages/agent-runtime/src/browser/actions.ts):
+- [x] Implement high-level blind navigation actions in [packages/agent-runtime/src/browser/actions.ts](../packages/agent-runtime/src/browser/actions.ts):
   - Implement `click(id)`, `type(id, text)`, `select(id, value)`, `scroll(direction)`, `hover(id)`.
   - Add fallback to vision/CDP raw DOM snapshot if the accessibility node is obscured or missing.
 
 ### 3. Humanized Interaction & Agent Visual Cursor
-- [ ] Implement mouse and keystroke humanizer in [packages/agent-runtime/src/browser/humanizer.ts](../packages/agent-runtime/src/browser/humanizer.ts):
+- [x] Implement mouse and keystroke humanizer in [packages/agent-runtime/src/browser/humanizer.ts](../packages/agent-runtime/src/browser/humanizer.ts):
   - Generate cubic Bézier movement trajectories with randomized control points and natural velocity profiles.
   - Introduce micro-overshoot and target correction jitter simulating real human motor control.
   - Simulate typing with Gaussian-distributed keypress delays (60ms–140ms per stroke) and realistic pause intervals.
-- [ ] Implement visual cursor overlay injection in [packages/agent-runtime/src/browser/actions.ts](../packages/agent-runtime/src/browser/actions.ts):
+- [x] Implement visual cursor overlay injection in [packages/agent-runtime/src/browser/actions.ts](../packages/agent-runtime/src/browser/actions.ts):
   - Inject a visible, non-interfering DOM cursor overlay onto the page showing real-time agent mouse coordinates.
   - Render an agent badge at the bottom of the cursor displaying the active agent name (e.g. `[ScraperBot]`).
 
 ### 4. Persistent Interactive PTY Terminal Pool
-- [ ] Implement pseudo-terminal manager in [packages/agent-runtime/src/terminal/pty-pool.ts](../packages/agent-runtime/src/terminal/pty-pool.ts):
+- [x] Implement pseudo-terminal manager in [packages/agent-runtime/src/terminal/pty-pool.ts](../packages/agent-runtime/src/terminal/pty-pool.ts):
   - Manage long-running process sessions using `node-pty`.
   - Persist terminal sockets and session outputs in `~/.krypton/pty_sessions/<session-id>.log`.
   - Support background execution of persistent servers (`npm run dev`, `docker compose up`) without blocking the agent loop.
   - Expose methods for interactive stdin injection (e.g., answering interactive CLI prompts, entering passwords).
-- [ ] Implement ANSI/VT100 escape cleaner in [packages/agent-runtime/src/terminal/ansi-cleaner.ts](../packages/agent-runtime/src/terminal/ansi-cleaner.ts):
+- [x] Implement ANSI/VT100 escape cleaner in [packages/agent-runtime/src/terminal/ansi-cleaner.ts](../packages/agent-runtime/src/terminal/ansi-cleaner.ts):
   - Strip control codes, color escapes, cursor positioning sequences to produce clean plain text for LLM observation ingestion.
 
 ### 5. Codebase Intelligence (Tree-sitter & LSP Client)
-- [ ] Implement Tree-sitter AST parser in [packages/agent-runtime/src/intelligence/tree-sitter.ts](../packages/agent-runtime/src/intelligence/tree-sitter.ts):
+- [x] Implement Tree-sitter AST parser in [packages/agent-runtime/src/intelligence/tree-sitter.ts](../packages/agent-runtime/src/intelligence/tree-sitter.ts):
   - Support language grammars: TypeScript, JavaScript, Python, Rust, Go.
   - Index code repositories, extracting function signatures, classes, exported interfaces, and import graphs with zero compilation cost.
-- [ ] Implement headless LSP client in [packages/agent-runtime/src/intelligence/lsp-client.ts](../packages/agent-runtime/src/intelligence/lsp-client.ts):
+- [x] Implement headless LSP client in [packages/agent-runtime/src/intelligence/lsp-client.ts](../packages/agent-runtime/src/intelligence/lsp-client.ts):
   - Spawn language servers (`typescript-language-server`, `pyright`) over stdio.
   - Query compiler diagnostics, jump-to-definition, find-references, and type hover information to validate code edits before committing.
 
 ### 6. Native Desktop OS Automation
-- [ ] Implement OS accessibility tree reader in [packages/agent-runtime/src/desktop-os/native-tree.ts](../packages/agent-runtime/src/desktop-os/native-tree.ts):
+- [x] Implement OS accessibility tree reader in [packages/agent-runtime/src/desktop-os/native-tree.ts](../packages/agent-runtime/src/desktop-os/native-tree.ts):
   - Windows: Query UI Automation (UIA) APIs to inspect native desktop controls and window elements.
   - macOS: Query AXUIElement accessibility tree for native macOS controls.
-- [ ] Implement native window controller in [packages/agent-runtime/src/desktop-os/window-manager.ts](../packages/agent-runtime/src/desktop-os/window-manager.ts):
+- [x] Implement native window controller in [packages/agent-runtime/src/desktop-os/window-manager.ts](../packages/agent-runtime/src/desktop-os/window-manager.ts):
   - Support listing open application windows, bringing windows to foreground, minimizing, and positioning.
 
 ### Phase 4 Verification Gate
-- [ ] **Browser Memory Leak & Pooling Test**: Run automated script launching 10 sequential browser sessions; verify that context count never exceeds 2, idle timer terminates contexts, and memory is recycled.
-- [ ] **AXTree Extraction Benchmark**: Test AXTree extraction against a complex mock web page; verify interactive node labeling and 90% size reduction compared to raw DOM.
-- [ ] **PTY Interactive Session Test**: Run interactive bash/powershell session via `node-pty`, send interactive input via stdin, and verify clean ANSI-stripped output in log.
-- [ ] **Tree-sitter Symbol Indexing Test**: Execute Tree-sitter indexing on a sample TypeScript/Python repo and assert symbol map generation.
+- [x] **Browser Memory Leak & Pooling Test**: Run automated script launching 10 sequential browser sessions; verify that context count never exceeds 2, idle timer terminates contexts, and memory is recycled.
+- [x] **AXTree Extraction Benchmark**: Test AXTree extraction against a complex mock web page; verify interactive node labeling and 90% size reduction compared to raw DOM.
+- [x] **PTY Interactive Session Test**: Run interactive bash/powershell session via `node-pty`, send interactive input via stdin, and verify clean ANSI-stripped output in log.
+- [x] **Tree-sitter Symbol Indexing Test**: Execute Tree-sitter indexing on a sample TypeScript/Python repo and assert symbol map generation.
 
 ---
 

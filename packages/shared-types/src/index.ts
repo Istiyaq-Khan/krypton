@@ -26,3 +26,9 @@ export * from "./events.js";
 
 // Filesystem & Configuration Schemas
 export * from "./config.js";
+
+// Phase 4: Perception & Interaction Engine Contracts
+export * from "./browser.js";
+export * from "./terminal.js";
+export * from "./intelligence.js";
+export * from "./desktop.js";

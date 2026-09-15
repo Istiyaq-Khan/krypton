@@ -51,3 +51,22 @@ export * from "./interaction/resolver.js";
 // Phase 3: Model Context Protocol (MCP) Host
 export * from "./mcp/client.js";
 export * from "./mcp/registry.js";
+
+// Phase 4: Perception & Interaction Engine
+// Browser Automation & AXTree
+export * from "./browser/browser.js";
+export * from "./browser/axtree.js";
+export * from "./browser/humanizer.js";
+export * from "./browser/actions.js";
+
+// Persistent Interactive PTY Terminal Pool
+export * from "./terminal/ansi-cleaner.js";
+export * from "./terminal/pty-pool.js";
+
+// Codebase Intelligence (Tree-sitter & LSP)
+export * from "./intelligence/tree-sitter.js";
+export * from "./intelligence/lsp-client.js";
+
+// Native Desktop OS Automation
+export * from "./desktop-os/native-tree.js";
+export * from "./desktop-os/window-manager.js";

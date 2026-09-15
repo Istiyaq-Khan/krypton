@@ -57,6 +57,23 @@ import {
   AgentMemorySpecSchema,
   AgentBootstrapSpecSchema,
   VaultCredentialSchema,
+  // Phase 4: Perception & Interaction
+  AXNodeSchema,
+  AXTreeSnapshotSchema,
+  BrowserActionRequestSchema,
+  BrowserActionResultSchema,
+  BrowserPoolStatsSchema,
+  PtySessionConfigSchema,
+  PtySessionInfoSchema,
+  PtyOutputEventSchema,
+  CodeSymbolSchema,
+  ImportGraphEdgeSchema,
+  RepositoryIndexSchema,
+  LspDiagnosticSchema,
+  LspLocationSchema,
+  LspHoverInfoSchema,
+  DesktopWindowInfoSchema,
+  DesktopUINodeSchema,
 } from "../src/index.js";
 
 describe("Phase 1: Shared Core & Type Contracts Verification Suite", () => {
@@ -524,6 +541,109 @@ describe("Phase 1: Shared Core & Type Contracts Verification Suite", () => {
       });
       expect(cred.providerId).toBe("anthropic");
       expect(cred.apiKey).toBe("sk-ant-api03-sample");
+    });
+  });
+
+  describe("10. Phase 4: Perception & Interaction Engine Contracts", () => {
+    it("validates AXNode and AXTreeSnapshot schemas", () => {
+      const node = AXNodeSchema.parse({
+        id: 1,
+        role: "button",
+        name: "Submit Order",
+        bounds: { x: 120, y: 340, width: 100, height: 40 },
+        isActionable: true,
+        children: [],
+      });
+      expect(node.id).toBe(1);
+      expect(node.role).toBe("button");
+      expect(node.isActionable).toBe(true);
+
+      const snapshot = AXTreeSnapshotSchema.parse({
+        url: "https://example.com/checkout",
+        title: "Checkout",
+        totalRawNodes: 1200,
+        interactiveNodes: [node],
+        prunedNodeCount: 1199,
+        reductionPercentage: 99.9,
+      });
+      expect(snapshot.interactiveNodes).toHaveLength(1);
+      expect(snapshot.reductionPercentage).toBeGreaterThanOrEqual(90);
+    });
+
+    it("validates BrowserActionRequest and BrowserPoolStats", () => {
+      const action = BrowserActionRequestSchema.parse({
+        action: "click",
+        targetId: 1,
+        agentName: "ScraperBot",
+      });
+      expect(action.action).toBe("click");
+      expect(action.targetId).toBe(1);
+
+      const stats = BrowserPoolStatsSchema.parse({
+        activeContextCount: 2,
+        maxContexts: 2,
+        idleContextCount: 0,
+        recycledCount: 3,
+      });
+      expect(stats.activeContextCount).toBeLessThanOrEqual(stats.maxContexts);
+    });
+
+    it("validates PtySessionConfig and PtyOutputEvent", () => {
+      const config = PtySessionConfigSchema.parse({
+        command: "powershell.exe",
+        args: ["-NoProfile"],
+        cols: 120,
+        rows: 30,
+      });
+      expect(config.command).toBe("powershell.exe");
+
+      const event = PtyOutputEventSchema.parse({
+        sessionId: config.sessionId,
+        raw: "\x1b[32mSuccess\x1b[0m\n",
+        cleaned: "Success\n",
+      });
+      expect(event.cleaned).toBe("Success\n");
+    });
+
+    it("validates CodeSymbol and RepositoryIndex", () => {
+      const symbol = CodeSymbolSchema.parse({
+        name: "BrowserContextPool",
+        kind: "class",
+        filePath: "src/browser/browser.ts",
+        startLine: 10,
+        endLine: 150,
+        isExported: true,
+      });
+      expect(symbol.name).toBe("BrowserContextPool");
+
+      const repo = RepositoryIndexSchema.parse({
+        rootPath: "/workspace",
+        totalFiles: 10,
+        symbols: [symbol],
+        imports: [{ fromPath: "a.ts", toPath: "b.ts", importedSymbols: ["foo"] }],
+        indexedLanguages: ["typescript"],
+        durationMs: 42,
+      });
+      expect(repo.symbols).toHaveLength(1);
+    });
+
+    it("validates DesktopWindowInfo and DesktopUINode", () => {
+      const win = DesktopWindowInfoSchema.parse({
+        id: "win-1",
+        title: "Krypton Dashboard",
+        processName: "krypton.exe",
+        bounds: { x: 0, y: 0, width: 1920, height: 1080 },
+        isFocused: true,
+      });
+      expect(win.isFocused).toBe(true);
+
+      const uiNode = DesktopUINodeSchema.parse({
+        id: "btn-start",
+        name: "Start Task",
+        role: "button",
+        bounds: { x: 50, y: 100, width: 80, height: 30 },
+      });
+      expect(uiNode.role).toBe("button");
     });
   });
 });
