@@ -1,0 +1,570 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { EventEmitter } from "node:events";
+import {
+  AgentContext,
+  AgentContextSchema,
+  AgentState,
+  Message,
+  MessageSchema,
+  Role,
+  TokenBudget,
+  TokenBudgetSchema,
+  RecursionBoundary,
+  RecursionBoundarySchema,
+  ToolCall,
+  ToolResult,
+} from "@krypton/shared-types";
+import { AgentStateManager } from "./state.js";
+import {
+  ActorScheduler,
+  RecursionCeilingExceededError,
+  TokenBudgetExhaustedError,
+} from "./scheduler.js";
+import { DualBufferQueue } from "../steering/dual-buffer-queue.js";
+import { AgentEventStore } from "../event-sourcing/event-store.js";
+import { resolveKryptonHome } from "../filesystem/bootstrap.js";
+import { parseMarkdownWithFrontmatter } from "../filesystem/parser.js";
+import { LLMProvider } from "../providers/types.js";
+import { ObservationOffloader } from "../context/offloader.js";
+
+export interface AgentConfig {
+  agentId?: string;
+  name: string;
+  role?: string;
+  personaMetadata?: Record<string, unknown>;
+  parentAgentId?: string | null;
+  recursionDepth?: number;
+  tokenBudget?: Partial<TokenBudget>;
+  recursionBoundary?: Partial<RecursionBoundary>;
+  systemPrompt?: string;
+  soulDirectives?: string;
+  provider?: LLMProvider;
+  scheduler?: ActorScheduler;
+  eventStore?: AgentEventStore;
+  customRoot?: string;
+  toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
+}
+
+export interface SpawnChildOptions {
+  role: string;
+  taskDescription: string;
+  name?: string;
+  budgetAllocation?: number;
+  timeoutMs?: number;
+  provider?: LLMProvider;
+  toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
+}
+
+export interface AgentStepResult {
+  state: AgentState;
+  message?: Message;
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
+  terminal: boolean;
+}
+
+/**
+ * Universal Agent Actor Class.
+ * Every sub-agent is a universal Actor instance with private context,
+ * isolated messages, dynamic tool execution, and child delegation capabilities.
+ */
+export class Agent extends EventEmitter {
+  public readonly id: string;
+  public readonly name: string;
+  public readonly context: AgentContext;
+  public readonly stateManager: AgentStateManager;
+  public readonly steeringQueue: DualBufferQueue;
+  public readonly eventStore: AgentEventStore;
+  public readonly scheduler: ActorScheduler;
+
+  private messages: Message[] = [];
+  private provider?: LLMProvider;
+  private toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
+  private customRoot?: string;
+  private systemPrompt: string;
+  private soulDirectives: string;
+  private activeAbortController?: AbortController;
+  private cleanupAbort?: () => void;
+
+  constructor(config: AgentConfig) {
+    super();
+    this.id = config.agentId ?? crypto.randomUUID();
+    this.name = config.name;
+    this.customRoot = config.customRoot;
+    this.provider = config.provider;
+    this.toolExecutor = config.toolExecutor;
+    this.systemPrompt = config.systemPrompt ?? "";
+    this.soulDirectives = config.soulDirectives ?? "";
+
+    const parsedBudget = TokenBudgetSchema.parse({
+      hardLimit: config.tokenBudget?.hardLimit ?? 100_000,
+      usedTokens: config.tokenBudget?.usedTokens ?? 0,
+      warningThreshold: config.tokenBudget?.warningThreshold ?? 0.85,
+      childAllocationShare: config.tokenBudget?.childAllocationShare ?? 0.5,
+    });
+
+    const parsedBoundary = RecursionBoundarySchema.parse({
+      maxDepth: config.recursionBoundary?.maxDepth ?? 3,
+      maxConcurrentChildren: config.recursionBoundary?.maxConcurrentChildren ?? 5,
+      timeoutMs: config.recursionBoundary?.timeoutMs ?? 60_000,
+    });
+
+    this.context = AgentContextSchema.parse({
+      agentId: this.id,
+      name: this.name,
+      role: config.role ?? "general",
+      personaMetadata: config.personaMetadata ?? {},
+      parentAgentId: config.parentAgentId ?? null,
+      recursionDepth: config.recursionDepth ?? 0,
+      tokenBudget: parsedBudget,
+      recursionBoundary: parsedBoundary,
+      state: "idle",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    this.eventStore =
+      config.eventStore ?? new AgentEventStore(this.name, this.customRoot);
+    this.stateManager = new AgentStateManager({
+      agentId: this.id,
+      agentName: this.name,
+      initialState: "idle",
+      customRoot: this.customRoot,
+      eventStore: this.eventStore,
+    });
+
+    this.steeringQueue = new DualBufferQueue();
+    this.scheduler =
+      config.scheduler ??
+      ActorScheduler.getInstance({
+        maxDepth: parsedBoundary.maxDepth,
+        maxConcurrency: parsedBoundary.maxConcurrentChildren,
+        defaultTimeoutMs: parsedBoundary.timeoutMs,
+      });
+
+    // Mirror stateManager transitions to context
+    this.stateManager.on("stateChange", (event) => {
+      this.context.state = event.newState;
+      this.context.updatedAt = event.timestamp;
+      this.emit("stateChange", event);
+    });
+
+    // Initialize system prompt message if present
+    const combinedSystem = this.buildCombinedSystemPrompt();
+    if (combinedSystem) {
+      this.messages.push({
+        id: crypto.randomUUID(),
+        role: "system",
+        content: combinedSystem,
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  private buildCombinedSystemPrompt(): string {
+    const parts: string[] = [];
+    if (this.systemPrompt.trim()) {
+      parts.push(this.systemPrompt.trim());
+    }
+    if (this.soulDirectives.trim()) {
+      parts.push(`\n## Core Directives & Behavioral Guardrails\n${this.soulDirectives.trim()}`);
+    }
+    return parts.join("\n\n");
+  }
+
+  /**
+   * Factory method to load an agent configuration directly from its disk folder (~/.krypton/agents/<name>).
+   */
+  public static async fromWorkspace(
+    agentName: string,
+    options?: {
+      customRoot?: string;
+      provider?: LLMProvider;
+      scheduler?: ActorScheduler;
+      toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
+    }
+  ): Promise<Agent> {
+    const home = resolveKryptonHome(options?.customRoot);
+    const agentDir = path.join(home, "agents", agentName);
+
+    let systemPrompt = "";
+    let soulDirectives = "";
+    let maxDepth = 3;
+    let role = "general";
+
+    if (fs.existsSync(agentDir)) {
+      // 1. IDENTITY.md
+      const identityPath = path.join(agentDir, "IDENTITY.md");
+      if (fs.existsSync(identityPath)) {
+        const content = await fs.promises.readFile(identityPath, "utf-8");
+        const parsed = parseMarkdownWithFrontmatter<{ role?: string; model?: string }>(content);
+        systemPrompt = parsed.body;
+        if (parsed.frontmatter?.role) role = String(parsed.frontmatter.role);
+      }
+
+      // 2. SOUL.md
+      const soulPath = path.join(agentDir, "SOUL.md");
+      if (fs.existsSync(soulPath)) {
+        const content = await fs.promises.readFile(soulPath, "utf-8");
+        const parsed = parseMarkdownWithFrontmatter(content);
+        soulDirectives = parsed.body;
+      }
+
+      // 3. AGENTS.md (permissions & recursion limits)
+      const agentsPath = path.join(agentDir, "AGENTS.md");
+      if (fs.existsSync(agentsPath)) {
+        const content = await fs.promises.readFile(agentsPath, "utf-8");
+        const parsed = parseMarkdownWithFrontmatter<{ max_depth?: number }>(content);
+        if (parsed.frontmatter?.max_depth !== undefined) {
+          maxDepth = Number(parsed.frontmatter.max_depth);
+        }
+      }
+    }
+
+    return new Agent({
+      name: agentName,
+      role,
+      systemPrompt,
+      soulDirectives,
+      recursionBoundary: { maxDepth },
+      customRoot: options?.customRoot,
+      provider: options?.provider,
+      scheduler: options?.scheduler,
+      toolExecutor: options?.toolExecutor,
+    });
+  }
+
+  public getMessages(): Message[] {
+    return [...this.messages];
+  }
+
+  public getState(): AgentState {
+    return this.stateManager.getState();
+  }
+
+  public setProvider(provider: LLMProvider): void {
+    this.provider = provider;
+  }
+
+  public setToolExecutor(
+    executor: (toolCall: ToolCall) => Promise<ToolResult>
+  ): void {
+    this.toolExecutor = executor;
+  }
+
+  /**
+   * Spawns an isolated sub-agent under hierarchical recursion limits.
+   * Ensures parent context is never leaked, only the clean task objective is injected.
+   */
+  public async spawnChild(options: SpawnChildOptions): Promise<Agent> {
+    const nextDepth = this.context.recursionDepth + 1;
+    const canSpawn = this.scheduler.canSpawnChild(this.context.recursionDepth);
+
+    if (!canSpawn.allowed) {
+      throw new RecursionCeilingExceededError(
+        nextDepth,
+        this.context.recursionBoundary.maxDepth
+      );
+    }
+
+    // Allocate token budget from parent
+    const remainingParentTokens =
+      this.context.tokenBudget.hardLimit - this.context.tokenBudget.usedTokens;
+    let childAllocation = options.budgetAllocation;
+
+    if (!childAllocation || childAllocation <= 0) {
+      childAllocation = Math.floor(
+        remainingParentTokens * this.context.tokenBudget.childAllocationShare
+      );
+    }
+
+    if (childAllocation > remainingParentTokens) {
+      childAllocation = remainingParentTokens;
+    }
+
+    // Acquire concurrency slot (max 5)
+    await this.scheduler.acquireSlot(this.activeAbortController?.signal);
+
+    const childName =
+      options.name ??
+      `${this.name}_child_${options.role}_${crypto.randomUUID().slice(0, 6)}`;
+
+    // Create child timeout abort controller bound to parent
+    const timeoutMs =
+      options.timeoutMs ?? this.context.recursionBoundary.timeoutMs;
+    const { controller, cleanup } = this.scheduler.createChildAbortController(
+      this.activeAbortController?.signal,
+      timeoutMs
+    );
+
+    const childAgent = new Agent({
+      agentId: crypto.randomUUID(),
+      name: childName,
+      role: options.role,
+      parentAgentId: this.id,
+      recursionDepth: nextDepth,
+      customRoot: this.customRoot,
+      provider: options.provider ?? this.provider,
+      toolExecutor: options.toolExecutor ?? this.toolExecutor,
+      scheduler: this.scheduler,
+      tokenBudget: {
+        hardLimit: Math.max(childAllocation, 1_000),
+        usedTokens: 0,
+        warningThreshold: this.context.tokenBudget.warningThreshold,
+        childAllocationShare: this.context.tokenBudget.childAllocationShare,
+      },
+      recursionBoundary: {
+        maxDepth: this.context.recursionBoundary.maxDepth,
+        maxConcurrentChildren:
+          this.context.recursionBoundary.maxConcurrentChildren,
+        timeoutMs,
+      },
+    });
+
+    childAgent.activeAbortController = controller;
+    childAgent.cleanupAbort = cleanup;
+
+    // Register in scheduler
+    this.scheduler.registerActor({
+      agentId: childAgent.id,
+      name: childAgent.name,
+      depth: childAgent.context.recursionDepth,
+      tokenBudget: childAgent.context.tokenBudget,
+      abortController: controller,
+      parentAgentId: this.id,
+      startedAt: Date.now(),
+    });
+
+    // Cleanup upon child termination
+    childAgent.stateManager.on("stateChange", (event) => {
+      if (childAgent.stateManager.isTerminal()) {
+        cleanup();
+        this.scheduler.releaseActor(childAgent.id);
+        // Track child tokens used back into parent
+        const childUsed = childAgent.context.tokenBudget.usedTokens;
+        if (childUsed > 0) {
+          try {
+            this.scheduler.deductTokens(this.id, childUsed);
+            this.context.tokenBudget.usedTokens += childUsed;
+          } catch {
+            // Handled via budget exhaustion
+          }
+        }
+      }
+    });
+
+    // Seed child's message history strictly with its task description (zero parent conversation leak)
+    childAgent.messages.push({
+      id: crypto.randomUUID(),
+      role: "user",
+      content: options.taskDescription,
+      timestamp: Date.now(),
+    });
+
+    // Log spawn event
+    await this.eventStore.appendEvent({
+      eventType: "AgentSpawned",
+      agentId: this.id,
+      payload: {
+        childAgentId: childAgent.id,
+        childName: childAgent.name,
+        childRole: options.role,
+        recursionDepth: nextDepth,
+        allocatedTokens: childAllocation,
+      },
+    });
+
+    return childAgent;
+  }
+
+  /**
+   * Executes a single autonomous step:
+   * Observe -> Plan/Reflect -> Tool Execution -> Verification.
+   */
+  public async step(): Promise<AgentStepResult> {
+    if (this.stateManager.isTerminal()) {
+      return { state: this.getState(), terminal: true };
+    }
+
+    // 1. Observe: Check steering interrupts
+    if (this.steeringQueue.hasSteeringInterrupt()) {
+      const steeringEvents = this.steeringQueue.drainSteering();
+      for (const steering of steeringEvents) {
+        this.messages.push({
+          id: crypto.randomUUID(),
+          role: "user",
+          content: `[MID-FLIGHT STEERING INTERRUPT]: ${steering.instruction}`,
+          timestamp: Date.now(),
+        });
+        await this.eventStore.appendEvent({
+          eventType: "SteeringInterrupted",
+          agentId: this.id,
+          payload: { instruction: steering.instruction, source: steering.source },
+        });
+      }
+    }
+
+    // 2. Plan / Reflect
+    await this.stateManager.transitionTo("planning");
+
+    if (!this.provider) {
+      // Mock / fallback step when no provider is attached
+      await this.stateManager.transitionTo("completed");
+      return {
+        state: "completed",
+        terminal: true,
+      };
+    }
+
+    // Generate LLM response
+    let generateResult;
+    try {
+      generateResult = await this.provider.generate({
+        agentId: this.id,
+        messages: this.messages,
+        abortSignal: this.activeAbortController?.signal,
+      });
+    } catch (err: any) {
+      await this.stateManager.transitionTo("failed", err?.message || String(err));
+      return {
+        state: "failed",
+        terminal: true,
+      };
+    }
+
+    // Deduct tokens
+    if (generateResult.usage?.totalTokens) {
+      try {
+        this.scheduler.deductTokens(this.id, generateResult.usage.totalTokens);
+      } catch (err) {
+        if (err instanceof TokenBudgetExhaustedError) {
+          await this.stateManager.transitionTo("aborted", "Token budget exhausted");
+          return { state: "aborted", terminal: true };
+        }
+        throw err;
+      }
+    }
+
+    const assistantMsg = generateResult.message;
+    this.messages.push(assistantMsg);
+
+    const toolCalls = generateResult.toolCalls || [];
+
+    // If no tool calls, completion reached
+    if (toolCalls.length === 0) {
+      await this.stateManager.transitionTo("completed");
+      return {
+        state: "completed",
+        message: assistantMsg,
+        terminal: true,
+      };
+    }
+
+    // 3. Tool Execution
+    await this.stateManager.transitionTo("executing");
+    const toolResults: ToolResult[] = [];
+
+    for (const toolCall of toolCalls) {
+      await this.eventStore.appendEvent({
+        eventType: "ToolExecuting",
+        agentId: this.id,
+        payload: { toolName: toolCall.name, toolCallId: toolCall.id },
+      });
+
+      let result: ToolResult;
+      if (this.toolExecutor) {
+        try {
+          result = await this.toolExecutor(toolCall);
+        } catch (err: any) {
+          result = {
+            toolCallId: toolCall.id,
+            toolName: toolCall.name,
+            content: `Tool execution error: ${err?.message || String(err)}`,
+            isError: true,
+          };
+        }
+      } else {
+        result = {
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          content: `No tool executor configured for tool '${toolCall.name}'`,
+          isError: true,
+        };
+      }
+
+      // Check output offloading (>1500 tokens / 6KB)
+      const offloader = new ObservationOffloader({ customRoot: this.customRoot });
+      const offloadRes = offloader.offloadIfNeeded(result.content, toolCall.id);
+
+      const sanitizedResult: ToolResult = {
+        toolCallId: result.toolCallId,
+        toolName: result.toolName,
+        content: offloadRes.content,
+        isError: result.isError,
+        metadata: {
+          ...result.metadata,
+          offloaded: offloadRes.isOffloaded,
+          offloadDiskPath: offloadRes.offloadDiskPath,
+        },
+      };
+
+      toolResults.push(sanitizedResult);
+
+      await this.eventStore.appendEvent({
+        eventType: "ToolFinished",
+        agentId: this.id,
+        payload: {
+          toolName: toolCall.name,
+          toolCallId: toolCall.id,
+          isError: sanitizedResult.isError,
+          offloaded: offloadRes.isOffloaded,
+        },
+      });
+    }
+
+    // Append tool results to messages
+    const toolResultMsg: Message = {
+      id: crypto.randomUUID(),
+      role: "tool",
+      content: toolResults.map((r) => r.content).join("\n\n"),
+      toolResults,
+      timestamp: Date.now(),
+    };
+    this.messages.push(toolResultMsg);
+
+    return {
+      state: this.getState(),
+      message: assistantMsg,
+      toolCalls,
+      toolResults,
+      terminal: this.stateManager.isTerminal(),
+    };
+  }
+
+  /**
+   * Autonomous execution loop running until completion, failure, or maxSteps.
+   */
+  public async run(objective: string, maxSteps = 20): Promise<string> {
+    this.messages.push({
+      id: crypto.randomUUID(),
+      role: "user",
+      content: objective,
+      timestamp: Date.now(),
+    });
+
+    let currentStep = 0;
+    while (!this.stateManager.isTerminal() && currentStep < maxSteps) {
+      currentStep++;
+      const stepRes = await this.step();
+      if (stepRes.terminal) break;
+    }
+
+    if (!this.stateManager.isTerminal() && currentStep >= maxSteps) {
+      await this.stateManager.transitionTo("failed", "Max steps exceeded");
+    }
+
+    const lastMsg = this.messages[this.messages.length - 1];
+    return lastMsg?.content ?? "";
+  }
+}

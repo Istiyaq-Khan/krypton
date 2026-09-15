@@ -193,78 +193,78 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 **Objective**: Build the heart of Krypton's autonomous problem-solving engine: the universal Actor agent class, hierarchical scheduling, dynamic Todo DAG planner, Git worktree isolation, autonomous semantic commits, and the Model Context Protocol (MCP) host.
 
 ### 1. Universal Actor Engine
-- [ ] Implement core `Agent` actor class in [packages/agent-runtime/src/actor/agent.ts](../packages/agent-runtime/src/actor/agent.ts):
+- [x] Implement core `Agent` actor class in [packages/agent-runtime/src/actor/agent.ts](../packages/agent-runtime/src/actor/agent.ts):
   - Initialize instance with isolated `AgentContext`, unique UUID, system prompt from `IDENTITY.md`, behavioral rules from `SOUL.md`, and permissions from `AGENTS.md`.
   - Provide an autonomous step loop: Observe -> Plan/Reflect -> Tool Execution -> Verification.
   - Maintain private message context without leaking parent conversation history.
   - Implement sub-agent spawning method `spawnChild(role, taskDescription, budgetAllocation)`.
-- [ ] Implement actor lifecycle and memory synchronization in [packages/agent-runtime/src/actor/state.ts](../packages/agent-runtime/src/actor/state.ts):
+- [x] Implement actor lifecycle and memory synchronization in [packages/agent-runtime/src/actor/state.ts](../packages/agent-runtime/src/actor/state.ts):
   - Manage state transitions and emit state change events to the event bus.
   - Extract distilled insights on task completion and write to `~/.krypton/agents/<agent_name>/MEMORY.md`.
 
 ### 2. Actor Scheduler & Budget Governor (Failure Prevention: Infinite Recursion & Token Exhaustion)
-- [ ] Implement hierarchical scheduler in [packages/agent-runtime/src/actor/scheduler.ts](../packages/agent-runtime/src/actor/scheduler.ts):
+- [x] Implement hierarchical scheduler in [packages/agent-runtime/src/actor/scheduler.ts](../packages/agent-runtime/src/actor/scheduler.ts):
   - Enforce hard recursion limit: reject `spawnChild` calls when `current_depth >= max_depth` (depth <= 3).
   - Enforce global concurrency limiter: allow a maximum of 5 active concurrent sub-agents across the runtime; queue surplus tasks.
   - Enforce token budget limits: subtract token usage from child budget; trigger graceful termination when budget is exhausted.
   - Parent-controlled timeout: bind each child execution to a parent `AbortController` (default 60s per child task).
 
 ### 3. Dynamic Task Planner DAG & Error Replanner
-- [ ] Implement hierarchical task tree in [packages/agent-runtime/src/planner/task-tree.ts](../packages/agent-runtime/src/planner/task-tree.ts):
+- [x] Implement hierarchical task tree in [packages/agent-runtime/src/planner/task-tree.ts](../packages/agent-runtime/src/planner/task-tree.ts):
   - Decompose high-level instructions into an ordered DAG with dependency validation.
   - Provide DAG manipulation methods: `addTask`, `completeTask`, `failTask`, `getNextExecutableTasks`.
   - Synchronize live state into human-readable Markdown format in `~/.krypton/agents/<agent_name>/TODO.md`.
-- [ ] Implement dynamic replanner in [packages/agent-runtime/src/planner/replanner.ts](../packages/agent-runtime/src/planner/replanner.ts):
+- [x] Implement dynamic replanner in [packages/agent-runtime/src/planner/replanner.ts](../packages/agent-runtime/src/planner/replanner.ts):
   - Intercept step errors and task failures.
   - Pause downstream dependent tasks, evaluate failure diagnostics, and inject remediation tasks (e.g. `Task 2b: Fix compilation error in auth.ts`) into the DAG.
   - Emit plan restructuring events to all connected clients.
 
 ### 4. Git Worktree Version Control Engine (Krypton-VCS)
-- [ ] Implement worktree manager in [packages/agent-runtime/src/vcs/worktree.ts](../packages/agent-runtime/src/vcs/worktree.ts):
+- [x] Implement worktree manager in [packages/agent-runtime/src/vcs/worktree.ts](../packages/agent-runtime/src/vcs/worktree.ts):
   - Inspect target repository, verify clean base state, and create isolated worktrees under `~/.krypton/worktrees/<task-id>`.
   - Create dedicated task branch `krypton/<task-id>` without dirtying the user's active branch or working directory.
   - Safely prune and remove worktrees on task completion or cancellation (`git worktree remove --force`).
-- [ ] Implement autonomous commit generator in [packages/agent-runtime/src/vcs/commit.ts](../packages/agent-runtime/src/vcs/commit.ts):
+- [x] Implement autonomous commit generator in [packages/agent-runtime/src/vcs/commit.ts](../packages/agent-runtime/src/vcs/commit.ts):
   - Stage changes after every completed atomic task step (`git add -A`).
   - Generate semantic Conventional Commit messages based on the task description and AST diff.
   - Commit changes and record the verified commit hash into the trajectory.
-- [ ] Implement diff and rollback engine in [packages/agent-runtime/src/vcs/diff.ts](../packages/agent-runtime/src/vcs/diff.ts):
+- [x] Implement diff and rollback engine in [packages/agent-runtime/src/vcs/diff.ts](../packages/agent-runtime/src/vcs/diff.ts):
   - Calculate unified diffs between the worktree branch and the base commit.
   - Provide deterministic rollback: if unit tests or linters fail, reset hard (`git reset --hard <last_verified_commit>`).
   - Provide merge gateway preparation: generate conflict-free patch sets ready for user review.
 
 ### 5. Trajectory Logging & Verification (Prime-Agent Pattern)
-- [ ] Implement trajectory recorder in [packages/agent-runtime/src/trajectory/recorder.ts](../packages/agent-runtime/src/trajectory/recorder.ts):
+- [x] Implement trajectory recorder in [packages/agent-runtime/src/trajectory/recorder.ts](../packages/agent-runtime/src/trajectory/recorder.ts):
   - Record step-by-step frames `(action, observation, tool_call, delta)` into `~/.krypton/agents/<agent_name>/short_term/trajectories/<session-id>.json`.
   - Maintain an immutable audit log of all model reasoning and external interactions.
-- [ ] Implement pre-completion verification harness in [packages/agent-runtime/src/trajectory/verifier.ts](../packages/agent-runtime/src/trajectory/verifier.ts):
+- [x] Implement pre-completion verification harness in [packages/agent-runtime/src/trajectory/verifier.ts](../packages/agent-runtime/src/trajectory/verifier.ts):
   - Run automated verification checks (linter, compiler typecheck, unit test execution, or browser screenshot assertion) before marking any task as `completed`.
   - If verification fails, flag the task as `failed` and trigger the dynamic replanner.
 
 ### 6. Human-in-the-Loop Clarification Bus
-- [ ] Implement multi-channel prompt dispatcher in [packages/agent-runtime/src/interaction/prompt-bus.ts](../packages/agent-runtime/src/interaction/prompt-bus.ts):
+- [x] Implement multi-channel prompt dispatcher in [packages/agent-runtime/src/interaction/prompt-bus.ts](../packages/agent-runtime/src/interaction/prompt-bus.ts):
   - Dispatch `ClarificationRequest` packets across all active client transports (Desktop UI, CLI, Voice HUD, external channels).
   - Enforce timeout and cancelation tokens.
-- [ ] Implement async input resolver in [packages/agent-runtime/src/interaction/resolver.ts](../packages/agent-runtime/src/interaction/resolver.ts):
+- [x] Implement async input resolver in [packages/agent-runtime/src/interaction/resolver.ts](../packages/agent-runtime/src/interaction/resolver.ts):
   - Block agent execution promise awaiting user answer.
   - First valid response unblocks the agent and cancels pending prompts on other channels.
 
 ### 7. Extensible Model Context Protocol (MCP) Host
-- [ ] Implement MCP Client Manager in [packages/agent-runtime/src/mcp/client.ts](../packages/agent-runtime/src/mcp/client.ts):
+- [x] Implement MCP Client Manager in [packages/agent-runtime/src/mcp/client.ts](../packages/agent-runtime/src/mcp/client.ts):
   - Support spawning local stdio MCP servers with automatic restart and health checks.
   - Support connecting to remote HTTP/SSE MCP endpoints.
   - Implement strict process isolation so MCP servers cannot inspect sibling servers.
-- [ ] Implement dynamic tool registry in [packages/agent-runtime/src/mcp/registry.ts](../packages/agent-runtime/src/mcp/registry.ts):
+- [x] Implement dynamic tool registry in [packages/agent-runtime/src/mcp/registry.ts](../packages/agent-runtime/src/mcp/registry.ts):
   - Discover tools via `tools/list` on all connected servers.
   - Convert tools into unified JSON schema definitions compatible with OpenAI and Anthropic formatters.
   - Namespace tools (e.g. `server_name__tool_name`) to prevent collisions.
   - Handle tool invocation routing and result formatting.
 
 ### Phase 3 Verification Gate
-- [ ] **Recursive Spawning & Limiter Test**: Execute test in `packages/agent-runtime/__tests__/actor_recursion.test.ts` to verify recursion is strictly halted at depth 3, max concurrency is capped at 5, and token budget exhaustion cleanly halts children.
-- [ ] **Task DAG Replanner Test**: Injected error test verifying that when a task fails, downstream tasks pause and a repair sub-task is dynamically inserted.
-- [ ] **VCS Worktree & Rollback Test**: Test creating a Git worktree, staging changes, committing semantic steps, and executing a hard rollback to the previous commit hash upon an injected failure.
-- [ ] **MCP Client Stdio Test**: Spawn a mock stdio MCP server, discover tools, execute a call, and verify result roundtrip.
+- [x] **Recursive Spawning & Limiter Test**: Execute test in `packages/agent-runtime/__tests__/actor_recursion.test.ts` to verify recursion is strictly halted at depth 3, max concurrency is capped at 5, and token budget exhaustion cleanly halts children.
+- [x] **Task DAG Replanner Test**: Injected error test verifying that when a task fails, downstream tasks pause and a repair sub-task is dynamically inserted.
+- [x] **VCS Worktree & Rollback Test**: Test creating a Git worktree, staging changes, committing semantic steps, and executing a hard rollback to the previous commit hash upon an injected failure.
+- [x] **MCP Client Stdio Test**: Spawn a mock stdio MCP server, discover tools, execute a call, and verify result roundtrip.
 
 ---
 

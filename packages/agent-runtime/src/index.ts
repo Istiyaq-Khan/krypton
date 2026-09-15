@@ -25,3 +25,29 @@ export * from "./event-sourcing/recovery.js";
 
 // Mid-flight steering queue
 export * from "./steering/dual-buffer-queue.js";
+
+// Phase 3: Recursive Actor Engine & Scheduler
+export * from "./actor/state.js";
+export * from "./actor/scheduler.js";
+export * from "./actor/agent.js";
+
+// Phase 3: Dynamic Task Planner DAG & Replanner
+export * from "./planner/task-tree.js";
+export * from "./planner/replanner.js";
+
+// Phase 3: Git Worktree Version Control Engine (Krypton-VCS)
+export * from "./vcs/worktree.js";
+export * from "./vcs/commit.js";
+export * from "./vcs/diff.js";
+
+// Phase 3: Trajectory Logging & Verification (Prime-Agent Pattern)
+export * from "./trajectory/recorder.js";
+export * from "./trajectory/verifier.js";
+
+// Phase 3: Human-in-the-Loop Clarification Bus
+export * from "./interaction/prompt-bus.js";
+export * from "./interaction/resolver.js";
+
+// Phase 3: Model Context Protocol (MCP) Host
+export * from "./mcp/client.js";
+export * from "./mcp/registry.js";
