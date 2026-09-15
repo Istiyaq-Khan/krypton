@@ -42,13 +42,13 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 **Objective**: Establish the foundation of truth across the monorepo. Define all TypeScript type definitions, Zod validation schemas, IPC protocols, and event contracts before any runtime or UI logic is constructed.
 
 ### 1. Monorepo & Package Infrastructure
-- [ ] Initialize root and workspace configs in [pnpm-workspace.yaml](../pnpm-workspace.yaml) and [package.json](../package.json).
-- [ ] Configure shared compiler rules in [tsconfig.base.json](../tsconfig.base.json) for strict typing, composite project references, and module resolution.
-- [ ] Configure package manifest and build scripts in [packages/shared-types/package.json](../packages/shared-types/package.json) targeting modern ESM and DTS output.
-- [ ] Setup TypeScript configuration in [packages/shared-types/tsconfig.json](../packages/shared-types/tsconfig.json) extending base configs.
+- [x] Initialize root and workspace configs in [pnpm-workspace.yaml](../pnpm-workspace.yaml) and [package.json](../package.json).
+- [x] Configure shared compiler rules in [tsconfig.base.json](../tsconfig.base.json) for strict typing, composite project references, and module resolution.
+- [x] Configure package manifest and build scripts in [packages/shared-types/package.json](../packages/shared-types/package.json) targeting modern ESM and DTS output.
+- [x] Setup TypeScript configuration in [packages/shared-types/tsconfig.json](../packages/shared-types/tsconfig.json) extending base configs.
 
 ### 2. Universal Agent & Context Contracts
-- [ ] Create core agent data models in [packages/shared-types/src/agent.ts](../packages/shared-types/src/agent.ts):
+- [x] Create core agent data models in [packages/shared-types/src/agent.ts](../packages/shared-types/src/agent.ts):
   - Universal `Message`, `Role` (`system`, `user`, `assistant`, `tool`), `ToolCall`, and `ToolResult` interfaces.
   - `AgentContext` interface tracking agent ID, name, persona metadata, active token budget, current recursion depth, and parent agent ID.
   - `AgentState` enum (`uninitialized`, `idle`, `planning`, `executing`, `awaiting_input`, `compacting`, `verifying`, `completed`, `failed`, `aborted`).
@@ -56,56 +56,56 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
   - `TokenBudget` structure defining hard limits, warning thresholds, and sub-agent allocation shares.
 
 ### 3. Task DAG & Planner Contracts
-- [ ] Define task tree and dynamic DAG models in [packages/shared-types/src/tasks.ts](../packages/shared-types/src/tasks.ts):
+- [x] Define task tree and dynamic DAG models in [packages/shared-types/src/tasks.ts](../packages/shared-types/src/tasks.ts):
   - `TaskNode` model including unique UUID, human-readable title, operational description, assigned agent ID, dependencies (`dependsOn: string[]`), state (`pending`, `in_progress`, `completed`, `failed`, `blocked`), and execution metadata.
   - `TaskTree` DAG container structure supporting topological sorting, cycle detection, and sub-task nesting.
   - `PlanPatch` schema defining dynamic DAG operations: `insertTask`, `removeTask`, `updateDependencies`, `retryTask`, and `markFailed`.
   - Serialization contracts for synchronizing in-memory DAGs to human-readable Markdown format (`TODO.md`).
 
 ### 4. MCP & Tool Specification Contracts
-- [ ] Create Model Context Protocol and local tool contracts in [packages/shared-types/src/mcp.ts](../packages/shared-types/src/mcp.ts):
+- [x] Create Model Context Protocol and local tool contracts in [packages/shared-types/src/mcp.ts](../packages/shared-types/src/mcp.ts):
   - Standard JSON-Schema definitions for MCP Tool definitions matching OpenAI and Anthropic function calling specifications.
   - Transport configuration types: `StdioTransportConfig` (command, args, env, cwd) and `SseTransportConfig` (url, headers, reconnection options).
   - `ToolExecutionRequest` and `ToolExecutionResult` contracts with stdout, stderr, execution duration, and exit status.
   - `SynthesizedToolMetadata` schema tracking ad-hoc synthesized scripts (language, safety linter status, verification state, reusable tag).
 
 ### 5. Version Control & Worktree Contracts
-- [ ] Define Git VCS data structures in [packages/shared-types/src/vcs.ts](../packages/shared-types/src/vcs.ts):
+- [x] Define Git VCS data structures in [packages/shared-types/src/vcs.ts](../packages/shared-types/src/vcs.ts):
   - `WorktreeContext` schema defining task ID, target repo path, isolated worktree path in `~/.krypton/worktrees/<task-id>`, base commit hash, and branch name (`krypton/<task-id>`).
   - `SemanticCommitMeta` type defining Conventional Commit types (`feat`, `fix`, `refactor`, `test`), task ID reference, and step index.
   - `DiffSummary` and `FilePatch` models capturing added, modified, deleted lines, and merge conflicts.
   - `RollbackRequest` and `MergeApprovalRequest` contracts for human-in-the-loop audit gates.
 
 ### 6. Human-in-the-Loop (HITL) Interaction Contracts
-- [ ] Define clarification schemas in [packages/shared-types/src/interaction.ts](../packages/shared-types/src/interaction.ts):
+- [x] Define clarification schemas in [packages/shared-types/src/interaction.ts](../packages/shared-types/src/interaction.ts):
   - `ClarificationRequest` interface containing request ID, querying agent ID, prompt text, options (`ChoiceOption[]`), allowFreeform boolean, and timeout milliseconds.
   - `ChoiceOption` type containing option ID, display label, description, and keyboard hotkey hint.
   - `ClarificationResponse` interface capturing selected option IDs, custom freeform text, responding channel (`desktop_ui`, `cli`, `voice_hud`, `telegram`, `discord`, `whatsapp`, `slack`, `signal`), and timestamp.
 
 ### 7. IPC, RPC & WebSocket Wire Protocols
-- [ ] Define cross-process event signatures in [packages/shared-types/src/ipc.ts](../packages/shared-types/src/ipc.ts):
+- [x] Define cross-process event signatures in [packages/shared-types/src/ipc.ts](../packages/shared-types/src/ipc.ts):
   - JSON-RPC 2.0 request/response envelope schemas between Tauri Rust layer, TypeScript Daemon, and CLI client.
   - WebSocket streaming packet types: `TokenStreamChunk`, `AgentLogEvent`, `TaskTreeUpdatedEvent`, `ClarificationRequestedEvent`, `SteeringInputEvent`, `VoiceTranscribedEvent`.
   - Platform-native communication schemas for Windows Named Pipes (`\\.\pipe\krypton-ipc`) and POSIX Domain Sockets (`/tmp/krypton.sock`).
 
 ### 8. Event-Sourcing & Trajectory Contracts
-- [ ] Define event store and trajectory audit contracts in [packages/shared-types/src/events.ts](../packages/shared-types/src/events.ts):
+- [x] Define event store and trajectory audit contracts in [packages/shared-types/src/events.ts](../packages/shared-types/src/events.ts):
   - Append-only event store record type `KryptonSystemEvent` with discrete event types (`AgentSpawned`, `PlanUpdated`, `ToolExecuting`, `ToolFinished`, `StateCheckpointed`, `CrashResumed`).
   - Trajectory step record schema `TrajectoryStep` (`stepId`, `agentId`, `taskId`, `action`, `observation`, `diffSummary`, `verificationStatus`).
   - Serialization rules for NDJSON (`events.jsonl`).
 
 ### 9. Filesystem & Configuration Schemas
-- [ ] Define system directory and configuration schemas in [packages/shared-types/src/config.ts](../packages/shared-types/src/config.ts):
+- [x] Define system directory and configuration schemas in [packages/shared-types/src/config.ts](../packages/shared-types/src/config.ts):
   - Global configuration schema for `~/.krypton/config.json` (active providers, default model routes, hotkeys, port allocations).
   - Agent workspace specification models for `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `MEMORY.md`, and `BOOTSTRAP.md`.
   - Provider credentials schema for native vault storage.
 
 ### 10. Centralized Type Exporter
-- [ ] Export all types and validation schemas from [packages/shared-types/src/index.ts](../packages/shared-types/src/index.ts).
+- [x] Export all types and validation schemas from [packages/shared-types/src/index.ts](../packages/shared-types/src/index.ts).
 
 ### Phase 1 Verification Gate
-- [ ] **Typecheck Execution**: Execute `pnpm --filter @krypton/shared-types run build` (or `tsc --noEmit -p packages/shared-types/tsconfig.json`) to guarantee zero compiler diagnostics.
-- [ ] **Schema Validation Suite**: Create and execute unit tests in `packages/shared-types/__tests__/schemas.test.ts` validating representative mock payloads against all Zod schemas (validating task DAG, HITL requests, agent context, and IPC packets).
+- [x] **Typecheck Execution**: Execute `pnpm --filter @krypton/shared-types run build` (or `tsc --noEmit -p packages/shared-types/tsconfig.json`) to guarantee zero compiler diagnostics.
+- [x] **Schema Validation Suite**: Create and execute unit tests in `packages/shared-types/__tests__/schemas.test.ts` validating representative mock payloads against all Zod schemas (validating task DAG, HITL requests, agent context, and IPC packets).
 
 ---
 
