@@ -1,0 +1,27 @@
+#!/bin/sh
+# ------------------------------------------------------------------------------
+# Krypton Git Pre-Push Hook: Monorepo Verification Gate
+# Runs all tests, typechecks, and Cargo Rust validation before allowing push to remote.
+# ------------------------------------------------------------------------------
+
+echo ""
+echo "⚡ [Krypton Pre-Push] Verifying all monorepo test suites before push..."
+
+# Prevent outer Git environment variables from leaking into nested repository tests
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX
+
+pnpm run test:all
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "❌ [Krypton Pre-Push Failed] Monorepo verification failed with error code $STATUS."
+  echo "Push aborted. Please ensure all tests and Rust checks pass before pushing."
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✔ [Krypton Pre-Push Passed] All monorepo checks passed. Proceeding with push."
+echo ""
+exit 0

@@ -43,6 +43,7 @@ pub fn run() {
             get_audio_devices,
             set_stt_provider,
             submit_chat_turn,
+            install_cli_to_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running krypton desktop application");

@@ -412,67 +412,67 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 **Objective**: Complete the external messaging bridge (Telegram, Discord, WhatsApp, Slack, Signal), develop the native Ink terminal CLI (`krypton-cli`), automate single-binary daemon compilation, and configure cross-platform distribution installers.
 
 ### 1. Multi-Platform Channel Adapters
-- [ ] Implement channel session router in [packages/agent-runtime/src/channels/router.ts](../packages/agent-runtime/src/channels/router.ts):
+- [x] Implement channel session router in [packages/agent-runtime/src/channels/router.ts](../packages/agent-runtime/src/channels/router.ts):
   - Maintain persistent routing table mapping channel threads and user IDs to specific agents.
   - Normalize incoming payloads (text, images, voice notes, documents) into universal message formats.
   - Normalize outgoing markdown to platform-compatible syntax (Telegram HTML, WhatsApp markdown, Discord markdown).
-- [ ] Implement Telegram adapter in [packages/agent-runtime/src/channels/telegram.ts](../packages/agent-runtime/src/channels/telegram.ts):
+- [x] Implement Telegram adapter in [packages/agent-runtime/src/channels/telegram.ts](../packages/agent-runtime/src/channels/telegram.ts):
   - Integrate grammY bot framework; support commands, thread-locking, and inline keyboard buttons for HITL clarification requests.
-- [ ] Implement Discord adapter in [packages/agent-runtime/src/channels/discord.ts](../packages/agent-runtime/src/channels/discord.ts):
+- [x] Implement Discord adapter in [packages/agent-runtime/src/channels/discord.ts](../packages/agent-runtime/src/channels/discord.ts):
   - Integrate Discord.js; handle guild channels, thread creation per task, and action row button components for HITL prompts.
-- [ ] Implement WhatsApp adapter in [packages/agent-runtime/src/channels/whatsapp.ts](../packages/agent-runtime/src/channels/whatsapp.ts):
+- [x] Implement WhatsApp adapter in [packages/agent-runtime/src/channels/whatsapp.ts](../packages/agent-runtime/src/channels/whatsapp.ts):
   - Integrate Baileys socket connection; store session credentials in `~/.krypton/browser_profiles/whatsapp/`.
   - Format HITL choices as numbered reply menus for mobile interaction.
-- [ ] Implement Slack adapter in [packages/agent-runtime/src/channels/slack.ts](../packages/agent-runtime/src/channels/slack.ts):
+- [x] Implement Slack adapter in [packages/agent-runtime/src/channels/slack.ts](../packages/agent-runtime/src/channels/slack.ts):
   - Integrate `@slack/bolt`; render task DAG updates and interactive Block Kit modals for user prompts.
-- [ ] Implement Signal adapter in [packages/agent-runtime/src/channels/signal.ts](../packages/agent-runtime/src/channels/signal.ts):
+- [x] Implement Signal adapter in [packages/agent-runtime/src/channels/signal.ts](../packages/agent-runtime/src/channels/signal.ts):
   - Wrap `signal-cli` JSON-RPC over stdio for end-to-end encrypted autonomous interaction.
 
 ### 2. Standalone Terminal CLI Engine (`krypton-cli`)
-- [ ] Set up package configuration in [packages/cli/package.json](../packages/cli/package.json) and [packages/cli/tsconfig.json](../packages/cli/tsconfig.json).
-- [ ] Implement IPC client in [packages/cli/src/ipc-client.ts](../packages/cli/src/ipc-client.ts):
+- [x] Set up package configuration in [packages/cli/package.json](../packages/cli/package.json) and [packages/cli/tsconfig.json](../packages/cli/tsconfig.json).
+- [x] Implement IPC client in [packages/cli/src/ipc-client.ts](../packages/cli/src/ipc-client.ts):
   - Connect to running `krypton-daemon` via platform pipe (Windows Named Pipe or POSIX Domain Socket).
   - Auto-spawn daemon in headless mode if not currently active.
-- [ ] Implement interactive terminal UI using React + Ink:
+- [x] Implement interactive terminal UI using React + Ink:
   - Build live task progress view in [packages/cli/src/ui/TaskListView.tsx](../packages/cli/src/ui/TaskListView.tsx) showing interactive spinners and task DAG states.
   - Build interactive question prompter in [packages/cli/src/ui/QuestionPrompt.tsx](../packages/cli/src/ui/QuestionPrompt.tsx) with arrow-key navigation and custom text entry.
-- [ ] Implement CLI command router in [packages/cli/src/index.ts](../packages/cli/src/index.ts):
+- [x] Implement CLI command router in [packages/cli/src/index.ts](../packages/cli/src/index.ts):
   - `krypton run "<instruction>"`: Dispatch instruction to orchestrator agent.
   - `krypton vcs [diff|rollback|merge]`: Review or approve pending Git worktree changes.
   - `krypton agents [list|create|edit]`: Manage agent personas and configurations.
   - `krypton tools [list|test]`: Inspect active MCP and synthesized tools.
-- [ ] Implement system PATH installer in [apps/desktop/src-tauri/src/commands/installer.rs](../apps/desktop/src-tauri/src/commands/installer.rs):
+- [x] Implement system PATH installer in [apps/desktop/src-tauri/src/commands/installer.rs](../apps/desktop/src-tauri/src/commands/installer.rs):
   - Automatically symlink or add `krypton` CLI binary into system PATH during first desktop app launch.
 
 ### 3. Standalone Binary Compilation & Sidecar Bundling
-- [ ] Implement daemon single-binary compiler script in [scripts/build-sidecar.mjs](../scripts/build-sidecar.mjs):
+- [x] Implement daemon single-binary compiler script in [scripts/build-sidecar.mjs](../scripts/build-sidecar.mjs):
   - Compile `packages/agent-runtime` into a standalone native binary using Bun (`bun build --compile`) or `@vercel/pkg`.
   - Output target-specific sidecar binaries into `apps/desktop/src-tauri/binaries/`:
     - `krypton-daemon-x86_64-pc-windows-msvc.exe`
     - `krypton-daemon-x86_64-apple-darwin`
     - `krypton-daemon-aarch64-apple-darwin`
     - `krypton-daemon-x86_64-unknown-linux-gnu`
-- [ ] Implement CLI single-binary compiler script in [scripts/build-cli.mjs](../scripts/build-cli.mjs):
+- [x] Implement CLI single-binary compiler script in [scripts/build-cli.mjs](../scripts/build-cli.mjs):
   - Compile `packages/cli` into a standalone executable (`krypton` / `krypton.exe`).
-- [ ] Implement runtime environment setup script in [scripts/setup-env.mjs](../scripts/setup-env.mjs):
+- [x] Implement runtime environment setup script in [scripts/setup-env.mjs](../scripts/setup-env.mjs):
   - Verify Playwright browser driver availability, audio dependencies, and Git version.
 
 ### 4. Cross-Platform Native Packaging & CI Release Pipeline
-- [ ] Configure GitHub Actions cross-compilation pipeline in [.github/workflows/release.yml](../.github/workflows/release.yml):
+- [x] Configure GitHub Actions cross-compilation pipeline in [.github/workflows/release.yml](../.github/workflows/release.yml):
   - Matrix builds across: Windows (`windows-latest`), macOS Intel (`macos-13`), macOS Apple Silicon (`macos-14`), and Linux (`ubuntu-22.04`).
   - Automated steps: Compile sidecar binary, build Next.js frontend assets, invoke `tauri build` to package final native bundles.
   - Generate platform artifacts:
     - Windows: `.msi` and NSIS `.exe` installer.
     - macOS: Notarized `.dmg` / `.app` bundle.
     - Linux: `.AppImage` and `.deb` packages.
-- [ ] Implement first-boot browser binary downloader in [packages/agent-runtime/src/filesystem/bootstrap.ts](../packages/agent-runtime/src/filesystem/bootstrap.ts):
+- [x] Implement first-boot browser binary downloader in [packages/agent-runtime/src/filesystem/bootstrap.ts](../packages/agent-runtime/src/filesystem/bootstrap.ts):
   - Ensure installer stays under 100MB by pulling Chromium binaries on-demand into `~/.krypton/browser_binaries` with desktop UI progress feedback.
 
 ### Phase 6 Verification Gate
-- [ ] **CLI Standalone Binary Test**: Execute `scripts/build-cli.mjs`; run `./krypton --help` to verify CLI executes independently without external Node/Bun runtime installed.
-- [ ] **Sidecar Binary Compilation Test**: Execute `scripts/build-sidecar.mjs`; test starting the compiled daemon binary and pinging its IPC socket.
-- [ ] **Channel Mock Dispatch Integration Test**: Run test suite in `packages/agent-runtime/__tests__/channels.test.ts` verifying incoming mock messages from Telegram/Discord trigger agent processing and return normalized responses.
-- [ ] **End-to-End System Packaging Test**: Execute `pnpm run build` across all workspace packages followed by `tauri build --debug` to verify complete desktop bundling.
+- [x] **CLI Standalone Binary Test**: Execute `scripts/build-cli.mjs`; run `./krypton --help` to verify CLI executes independently without external Node/Bun runtime installed.
+- [x] **Sidecar Binary Compilation Test**: Execute `scripts/build-sidecar.mjs`; test starting the compiled daemon binary and pinging its IPC socket.
+- [x] **Channel Mock Dispatch Integration Test**: Run test suite in `packages/agent-runtime/__tests__/channels.test.ts` verifying incoming mock messages from Telegram/Discord trigger agent processing and return normalized responses.
+- [x] **End-to-End System Packaging Test**: Execute `pnpm run build` across all workspace packages followed by `tauri build --debug` to verify complete desktop bundling.
 
 ---
 
@@ -491,9 +491,9 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 
 ## Master Progress Tracker
 
-- [ ] **Phase 1: Shared Core & Type Contracts** (0% Completed)
-- [ ] **Phase 2: Runtime Foundation & OS Sandbox** (0% Completed)
-- [ ] **Phase 3: Recursive Actor-Model Engine, Task Planner & VCS** (0% Completed)
-- [ ] **Phase 4: Perception & Interaction Engine** (0% Completed)
-- [ ] **Phase 5: Desktop App Shell & Micro-HUD** (0% Completed)
-- [ ] **Phase 6: Omni-Channel Gateway & Native Distribution** (0% Completed)
+- [x] **Phase 1: Shared Core & Type Contracts** (100% Completed)
+- [x] **Phase 2: Runtime Foundation & OS Sandbox** (100% Completed)
+- [x] **Phase 3: Recursive Actor-Model Engine, Task Planner & VCS** (100% Completed)
+- [x] **Phase 4: Perception & Interaction Engine** (100% Completed)
+- [x] **Phase 5: Desktop App Shell & Micro-HUD** (100% Completed)
+- [x] **Phase 6: Omni-Channel Gateway & Native Distribution** (100% Completed)

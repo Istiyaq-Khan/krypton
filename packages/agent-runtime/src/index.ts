@@ -70,3 +70,6 @@ export * from "./intelligence/lsp-client.js";
 // Native Desktop OS Automation
 export * from "./desktop-os/native-tree.js";
 export * from "./desktop-os/window-manager.js";
+
+// Phase 6: Omni-Channel Gateway
+export * from "./channels/index.js";

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@krypton/shared-types": "workspace:*",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "zod": "^3.24.2"
   },
   "devDependencies": {

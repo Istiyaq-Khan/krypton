@@ -1,261 +1,163 @@
-# Implementation Plan — Phase 5: Desktop App Shell & Micro-HUD
+# Implementation Plan — Phase 6: Omni-Channel Gateway & Native Distribution
 
-Implement the complete Phase 5 desktop runtime layer for Krypton, combining a multi-window **Tauri v2 (Rust)** application shell with a high-performance **React 19 / Next.js** dashboard, an always-on-top transparent floating **Voice Micro-HUD**, and the autonomous context-staging **Desktop Chatbar** per specification.
+Complete the external communication bridge, native terminal client, single-binary sidecar compilation, and native distribution packaging for **Krypton**.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Multi-Window Tauri Routing**: The application defines two decoupled windows in `tauri.conf.json`:
-> 1. `main`: Full workspace dashboard rendering at `/dashboard` (min 960x640, default 1280x840).
-> 2. `overlay`: Frameless, transparent floating Voice Micro-HUD rendering at `/overlay` (640x130, always-on-top, centered above cursor, toggled via `CommandOrControl+Shift+Space`).
-> In browser development mode (`next dev`), both `/dashboard` and `/overlay` are accessible directly via URL routes.
+> **Omni-Channel Architecture**: All channel adapters (Telegram, Discord, WhatsApp, Slack, Signal) normalize messages into universal Krypton message contracts and normalize outgoing Markdown to platform-specific formats (e.g. Telegram HTML `<b>`, WhatsApp `*bold*`, Slack Block Kit). Each adapter provides full mockable execution for headless tests and live production socket/client hooks.
 
 > [!NOTE]
-> **Dual-Mode IPC Bridge**: `useKryptonDaemon` and `useVoiceHud` will detect the Tauri environment via `@tauri-apps/api/core`'s `isTauri()`. When running inside Tauri, they invoke native Rust IPC commands (`spawn_daemon`, `toggle_overlay`, `start_audio_capture`, etc.) and listen to Tauri window events. When running outside Tauri (browser preview / Next.js tests), they gracefully fall back to local WebSocket connections (`ws://localhost:19840`) with rich mock simulation fixtures so UI development and tests can run reliably in any environment.
-
-## Design Philosophy & Skill Adherence
-
-Per user instructions, UI components and design must strictly adhere to:
-1. **/shadcn**:
-   - Built on top of the installed `@base-ui/react` primitives and `cn` utility matching the project's `base-vega` configuration.
-   - Semantic tokens (`bg-background`, `text-muted-foreground`, `bg-primary`, `border-border`).
-   - No `space-x-*`/`space-y-*` (use `flex flex-col gap-*`).
-   - Proper composition (`asChild` / `render`, `FieldGroup`, `Badge`, `Button` variants, `DialogTitle`).
-2. **/ui-ux-pro-max**:
-   - Dark-mode first Nova aesthetic (zinc-900/zinc-950 backdrop, violet `#8B5CF6` affirmative accent).
-   - Glassmorphism: `backdrop-blur-xl`, `border-zinc-800`, subtle ambient drop shadows.
-   - Fixed 24px viewBox Lucide icons (`lucide-react` exclusively, zero emojis as UI icons).
-   - Cursor pointer and smooth visual transitions on all clickable/interactive cards and elements.
-3. **/hallmark**:
-   - Anti-AI-slop structural variety and honest copy (no fabricated stats, no fake AI summaries, no fake mock browser chrome).
-   - 8-state interactive design (default, hover, focus-visible, active, disabled, loading, error, success).
-   - Strict mobile/desktop responsiveness, display headers with `overflow-wrap: anywhere`, no layout-shifting hover states.
-4. **Krypton Desktop Chatbar RFC (`.idea/Krypton Desktop Chatbar.md`)**:
-   - Floating pill bottom-anchored, smart paste ingestion (>=10 newlines or >=300 chars becomes a staged snippet chip), dynamic textarea growth clamped at 192px (`max-h-48`), autocomplete for `/` tools and `@` context, hover inspection displaying real lines/schemas, and reactive audio visualizer.
+> **Ink CLI Engine (`krypton-cli`)**: Built with React + Ink and TypeScript. It communicates with the background daemon over the platform IPC pipe (Windows Named Pipe `\\.\pipe\krypton-ipc` or POSIX domain socket `/tmp/krypton.sock`) and WebSocket, rendering interactive task DAG spinners and arrow-key HITL clarification prompts.
 
 ---
 
 ## Proposed Changes
 
-### 1. Monorepo Configuration & Shared Contracts
+### 1. Multi-Platform Channel Adapters (`packages/agent-runtime/src/channels/`)
 
-#### [MODIFY] [package.json](file:///e:/all%20my%20code/krypton/apps/desktop/package.json)
-- Add `"@krypton/shared-types": "workspace:*"` to dependencies so the desktop frontend has direct, zero-drift access to `TaskNode`, `TaskTree`, `ClarificationRequest`, `ClarificationResponse`, `AgentContext`, `VoiceTranscribedEvent`, `KryptonChatPayload`, etc.
+#### [NEW] [router.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/router.ts)
+- `ChannelSessionRouter`:
+  - Persistent routing table mapping `(channel, threadId, userId)` to target agent.
+  - Normalizes incoming payloads (text, images, voice notes, documents) to universal `ChannelIncomingMessage`.
+  - Normalizes outgoing markdown:
+    - `toTelegramHtml(markdown: string): string`
+    - `toWhatsAppMarkdown(markdown: string): string`
+    - `toDiscordMarkdown(markdown: string): string`
+    - `toSlackBlockKit(markdown: string): object`
+    - `toSignalText(markdown: string): string`
+  - Routes agent responses and HITL prompts back to originating channel.
 
----
+#### [NEW] [telegram.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/telegram.ts)
+- `TelegramChannelAdapter`:
+  - Command handling: `/start`, `/run <instruction>`, `/status`, `/help`.
+  - Thread-locking per autonomous task.
+  - Inline keyboard buttons for HITL clarification requests (maps `ClarificationRequest.options` to inline buttons, handles callback queries).
 
-### 2. Tauri v2 Rust Shell & Multi-Window Architecture (`apps/desktop/src-tauri`)
+#### [NEW] [discord.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/discord.ts)
+- `DiscordChannelAdapter`:
+  - Guild channel management and thread creation per task.
+  - Interactive ActionRow button components for HITL prompts.
 
-#### [MODIFY] [tauri.conf.json](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/tauri.conf.json)
-- Configure multi-window array:
-  - `main`: Dashboard window (`title: "Krypton"`, 1280x840, resizable, minWidth 960, minHeight 640).
-  - `overlay`: Floating Voice Micro-HUD (`title: "Krypton Voice HUD"`, url `/overlay`, 640x130, `transparent: true`, `decorations: false`, `alwaysOnTop: true`, `skipTaskbar: true`, `visible: false`).
-- Declare external sidecar binary: `"externalBin": ["binaries/krypton-daemon"]`.
-- Bundle icons and app identifier.
+#### [NEW] [whatsapp.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/whatsapp.ts)
+- `WhatsAppChannelAdapter`:
+  - Baileys socket integration with persistent credentials stored in `~/.krypton/browser_profiles/whatsapp/`.
+  - Numbered reply menus for mobile interaction (e.g. "Reply 1 for ..., Reply 2 for ...").
 
-#### [MODIFY] [capabilities/default.json](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/capabilities/default.json)
-- Authorize permissions for both `main` and `overlay` windows with `core:default`.
+#### [NEW] [slack.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/slack.ts)
+- `SlackChannelAdapter`:
+  - Block Kit modals for user prompts and task DAG checklist updates.
 
-#### [NEW] [paths.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/paths.rs)
-- Resolve `%USERPROFILE%\.krypton` on Windows and `$HOME/.krypton` on POSIX.
-- Implement directory verification and scaffolding for `cache/outputs`, `pty_sessions`, `agents`, `worktrees`, `logs`.
-- Expose Tauri command `get_krypton_paths` returning verified paths and permissions status.
+#### [NEW] [signal.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/signal.ts)
+- `SignalChannelAdapter`:
+  - Wrap `signal-cli` JSON-RPC over stdio for end-to-end encrypted autonomous interaction.
 
-#### [NEW] [commands/sidecar.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/commands/sidecar.rs)
-- Implement `DaemonSupervisor`:
-  - Manage spawning of `krypton-daemon` child process (with fallback to `node/bun` script in development mode).
-  - Monitor daemon stdout/stderr and health check ping.
-  - Graceful termination: kill process tree on app shutdown to prevent orphan processes.
-  - Expose Tauri commands: `spawn_daemon`, `stop_daemon`, `get_daemon_status`, `ping_daemon`.
+#### [NEW] [index.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/channels/index.ts)
+- Central export for all channel adapters.
 
-#### [NEW] [commands/hotkey.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/commands/hotkey.rs)
-- Global shortcut manager registering `CommandOrControl+Shift+Space`.
-- Handle hotkey trigger to toggle the floating Voice Micro-HUD overlay window.
-- Expose Tauri command `toggle_overlay`.
-
-#### [NEW] [overlay.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/overlay.rs)
-- Floating window positioning controller:
-  - Center overlay dynamically on active monitor / display.
-  - Toggle window visibility (`show()`, `hide()`, `set_focus()`).
-  - Expose Tauri commands: `show_overlay`, `hide_overlay`.
-
-#### [NEW] [commands/audio.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/commands/audio.rs)
-- Audio capture and speech-to-text bridge:
-  - Microphone capture state management.
-  - Transcribe bridge abstraction supporting local Parakeet v3 / Whisper and cloud Whisper API fallback.
-  - Event streaming: emits `VoiceTranscribedEvent` to frontend and daemon steering queue.
-  - Expose Tauri commands: `start_audio_capture`, `stop_audio_capture`, `get_audio_status`.
-
-#### [NEW] [commands/mod.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/commands/mod.rs)
-- Centralized export for all Tauri command handlers.
-
-#### [MODIFY] [lib.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/lib.rs)
-- Wire invoke handlers: `get_krypton_paths`, `spawn_daemon`, `stop_daemon`, `get_daemon_status`, `ping_daemon`, `toggle_overlay`, `show_overlay`, `hide_overlay`, `start_audio_capture`, `stop_audio_capture`, `get_audio_status`, `submit_chat_turn`.
-- Setup system tray icon with quick actions:
-  - "Show Dashboard"
-  - "Toggle Voice HUD"
-  - "Stop Active Agents"
-  - "Quit Krypton"
+#### [MODIFY] [index.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/index.ts)
+- Export channels subsystem from agent runtime.
 
 ---
 
-### 3. Shadcn UI Components (`apps/desktop/src/components/ui`)
+### 2. Standalone Terminal CLI Engine (`packages/cli/`)
 
-#### [NEW] [card.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/ui/card.tsx)
-- Full card composition: `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter` using `base-vega` zinc styles.
+#### [NEW] [package.json](file:///e:/all%20my%20code/krypton/packages/cli/package.json) & [tsconfig.json](file:///e:/all%20my%20code/krypton/packages/cli/tsconfig.json)
+- Package configuration with dependencies: `@krypton/shared-types`, `ink`, `react`, `commander`.
+- Bin entry: `"krypton": "./dist/index.js"`.
 
-#### [NEW] [tabs.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/ui/tabs.tsx)
-- Accessible tabs: `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` using `@base-ui/react/tabs`.
+#### [NEW] [ipc-client.ts](file:///e:/all%20my%20code/krypton/packages/cli/src/ipc-client.ts)
+- IPC client connecting to running `krypton-daemon` via platform pipe (`\\.\pipe\krypton-ipc` on Windows, `/tmp/krypton.sock` on Unix) or WebSocket.
+- Auto-spawns daemon in headless mode if not currently active.
 
-#### [NEW] [separator.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/ui/separator.tsx)
-- Semantic horizontal/vertical separator using `@base-ui/react/separator`.
+#### [NEW] [ui/TaskListView.tsx](file:///e:/all%20my%20code/krypton/packages/cli/src/ui/TaskListView.tsx)
+- Terminal UI task list view rendering animated spinners, task DAG status symbols (`[✓]`, `[⟳]`, `[✗]`, `[·]`), and progress statistics.
 
-#### [NEW] [input.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/ui/input.tsx)
-- Accessible styled input using `@base-ui/react/input` with focus rings and invalid states.
+#### [NEW] [ui/QuestionPrompt.tsx](file:///e:/all%20my%20code/krypton/packages/cli/src/ui/QuestionPrompt.tsx)
+- Interactive terminal question prompter with arrow-key option navigation, hotkey hints (`1`..`9`), and custom text input.
 
----
+#### [NEW] [commands/run.ts](file:///e:/all%20my%20code/krypton/packages/cli/src/commands/run.ts)
+- `krypton run "<instruction>"`: Dispatches instruction to orchestrator agent and renders live Ink task progress.
 
-### 4. Desktop Chatbar (`apps/desktop/src/components/chatbar/`)
+#### [NEW] [commands/vcs.ts](file:///e:/all%20my%20code/krypton/packages/cli/src/commands/vcs.ts)
+- `krypton vcs [diff|rollback|merge]`: Reviews diffs and confirms worktree merge/rollback.
 
-#### [NEW] [useChatbarState.ts](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/chatbar/useChatbarState.ts)
-- Custom state hook implementing the Chatbar state machine:
-  - Dynamic textarea height calculation clamped between 24px and 192px (`max-h-48`).
-  - Smart paste ingestion: cancels native paste and creates staged snippet chip when text has $\ge 10$ newlines or $\ge 300$ characters.
-  - Autocomplete trigger parsing: detects leading `/` (tools/actions) and `@` (workspace files/context) preceding cursor.
-  - Context staging tray management (adding/removing files, snippets, MCP tools, skills).
-  - Web Audio API integration for microphone recording and reactive volume metering.
-  - Payload serialization strictly conforming to `KryptonChatPayload`.
+#### [NEW] [commands/agents.ts](file:///e:/all%20my%20code/krypton/packages/cli/src/commands/agents.ts)
+- `krypton agents [list|create|edit]`: Lists agent fleet and configs.
 
-#### [NEW] [AttachmentTray.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/chatbar/AttachmentTray.tsx)
-- Horizontal flexbox tray with custom scroll styling.
-- Renders staged context chips with entity type icon (`FileCode`, `FileText`, `Wrench`, `Sparkles`), label, metadata pill (`124 lines`, `4.2 KB`), and remove button.
-- Triggers hover preview after 200ms.
+#### [NEW] [commands/tools.ts](file:///e:/all%20my%20code/krypton/packages/cli/src/commands/tools.ts)
+- `krypton tools [list|test]`: Inspects registered MCP and synthesized tools.
 
-#### [NEW] [HoverPreviewCard.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/chatbar/HoverPreviewCard.tsx)
-- Floating popover showing real textual lines (first 10 lines) with monospace styling or verified MCP tool description. Zero fabricated AI summary cards.
+#### [NEW] [index.ts](file:///e:/all%20my%20code/krypton/packages/cli/src/index.ts)
+- Main CLI executable router with commander commands and help formatting.
 
-#### [NEW] [CommandMenu.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/chatbar/CommandMenu.tsx)
-- Floating popover anchored above chatbar.
-- Keyboard navigable (`ArrowDown`, `ArrowUp`, `Enter`, `Tab`, `Escape`) for filtered lists of tools (`/`) and workspace files/agents (`@`).
-
-#### [NEW] [AudioWaveform.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/chatbar/AudioWaveform.tsx)
-- Reactive recording pill with 4 vertical scaling bars (4px to 20px) driven by live PCM decibel amplitude.
-
-#### [NEW] [Chatbar.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/chatbar/Chatbar.tsx)
-- Floating pill anchored at bottom-center of the dashboard.
-- Dark backdrop (`zinc-900/90`), `backdrop-blur-xl`, `border-zinc-800`, `shadow-2xl`.
-- Three vertically stacked regions: AttachmentTray, Text Processing Surface, and Action & Execution Toolbar.
+#### [NEW] [installer.rs](file:///e:/all%20my%20code/krypton/apps/desktop/src-tauri/src/commands/installer.rs)
+- Rust command `install_cli_to_path` automatically symlinking or adding `krypton` CLI binary into system PATH during desktop launch. Registered in `src-tauri/src/lib.rs`.
 
 ---
 
-### 5. Core Dashboard & Overlay Components (`apps/desktop/src/components/`)
+### 3. Standalone Binary Compilation & Sidecar Bundling (`scripts/`)
 
-#### [NEW] [TodoTree.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/TodoTree.tsx)
-- Interactive Task DAG visualizer:
-  - Visual status badges (`pending`, `in_progress`, `completed`, `failed`, `blocked`).
-  - Dependency arrows/tree view, assigned agent tag, execution duration.
-  - Visual pulse animation on newly inserted recovery tasks from dynamic replanning.
+#### [NEW] [build-sidecar.mjs](file:///e:/all%20my%20code/krypton/scripts/build-sidecar.mjs)
+- Standalone sidecar compiler script compiling `packages/agent-runtime` into target-specific single-binary executables under `apps/desktop/src-tauri/binaries/`:
+  - `krypton-daemon-x86_64-pc-windows-msvc.exe`
+  - `krypton-daemon-x86_64-apple-darwin`
+  - `krypton-daemon-aarch64-apple-darwin`
+  - `krypton-daemon-x86_64-unknown-linux-gnu`
 
-#### [NEW] [QuestionModal.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/QuestionModal.tsx)
-- Accessible HITL clarification modal:
-  - Option selector with numbered hotkey hints (`[1]`, `[2]`, `[3]`).
-  - Arrow key navigation and Enter to confirm.
-  - Freeform text response input field.
-  - Timeout countdown indicator.
+#### [NEW] [build-cli.mjs](file:///e:/all%20my%20code/krypton/scripts/build-cli.mjs)
+- Standalone CLI compiler compiling `packages/cli` into `krypton` / `krypton.exe`.
 
-#### [NEW] [VcsDiffViewer.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/components/VcsDiffViewer.tsx)
-- Visual Git worktree diff viewer:
-  - Side-by-side or unified view with syntax highlighting for additions (`+`) and deletions (`-`).
-  - Worktree branch badge (`krypton/<task-id>`) and base commit reference.
-  - Action buttons: "Approve & Merge to Working Branch", "Rollback Step", "Reject & Abort".
+#### [NEW] [setup-env.mjs](file:///e:/all%20my%20code/krypton/scripts/setup-env.mjs)
+- Prerequisites validator verifying Playwright, audio dependencies, Node/Bun, and Git.
 
 ---
 
-### 6. Desktop Next.js Pages & Layouts (`apps/desktop/src/app/`)
+### 4. Cross-Platform Native Packaging & CI Release Pipeline
 
-#### [MODIFY] [globals.css](file:///e:/all%20my%20code/krypton/apps/desktop/src/app/globals.css)
-- Enhance Nova dark-mode theme variables, custom scrollbars, glassmorphic utility classes, and audio bar animation keyframes.
+#### [NEW] [release.yml](file:///e:/all%20my%20code/krypton/.github/workflows/release.yml)
+- GitHub Actions matrix workflow across Windows, macOS Intel, macOS Apple Silicon, and Linux.
+- Compiles sidecar, builds Next.js frontend assets, packages native bundles via `tauri build`.
 
-#### [MODIFY] [layout.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/app/layout.tsx)
-- Ensure persistent `dark` theme class, layout shell, and title "Krypton — Autonomous Desktop AI Agent Runtime".
-
-#### [MODIFY] [page.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/app/page.tsx)
-- Route root page to dashboard workspace.
-
-#### [NEW] [dashboard/page.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/app/dashboard/page.tsx)
-- Primary workspace dashboard:
-  - Top header: Fleet status, live token spend pill (`14.2k / 100k`), active branch (`krypton/main`), Voice HUD toggle trigger, daemon status pill.
-  - Left panel: Active Agent Fleet and recursive sub-agent hierarchy.
-  - Center panel: Dynamic Todo DAG (`TodoTree`).
-  - Right panel: Live Execution Logs & Trajectory Stream.
-  - Floating bottom: Context-staging Chatbar with mid-flight prompt injection.
-  - Modals: Integrated `QuestionModal` and `VcsDiffViewer`.
-
-#### [NEW] [overlay/page.tsx](file:///e:/all%20my%20code/krypton/apps/desktop/src/app/overlay/page.tsx)
-- Floating Voice Micro-HUD window:
-  - Frameless, translucent Spotlight-style floating pill.
-  - Real-time reactive waveform visualizer.
-  - Target Agent Selector chip (`[Orchestrator]`, `[Coder]`, `[Scraper]`).
-  - Live streaming transcription text preview.
-  - Push-to-talk recording controls and quick status pill.
+#### [MODIFY] [bootstrap.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/src/filesystem/bootstrap.ts)
+- Implement `ensureBrowserBinaries` to download lightweight Chromium binaries on-demand into `~/.krypton/browser_binaries` keeping the desktop installer under 100MB.
 
 ---
 
-### 7. Frontend State Management & Hooks (`apps/desktop/src/hooks/`)
+### 5. Verification & Tests
 
-#### [NEW] [useKryptonDaemon.ts](file:///e:/all%20my%20code/krypton/apps/desktop/src/hooks/useKryptonDaemon.ts)
-- Persistent connection to daemon over Tauri IPC or WebSocket.
-- Synchronizes agent state, active task DAG, token spend, log events, and incoming `ClarificationRequest` packets.
-- Provides dispatch functions: `submitChatTurn`, `respondClarification`, `approveMerge`, `rollbackStep`.
-
-#### [NEW] [useVoiceHud.ts](file:///e:/all%20my%20code/krypton/apps/desktop/src/hooks/useVoiceHud.ts)
-- Push-to-talk audio recording, Web Audio API amplitude meter, streaming transcription state, and prompt dispatch to selected agent.
-
----
-
-### 8. Verification & Tests
-
-#### [NEW] [apps/desktop/__tests__/chatbar.test.ts](file:///e:/all%20my%20code/krypton/apps/desktop/__tests__/chatbar.test.ts)
-- Unit tests for Chatbar logic:
-  - Smart paste ingestion: verifies $\ge 10$ newlines and $\ge 300$ chars trigger snippet staging and prevents raw paste dump.
-  - Autocomplete trigger parsing: `/` triggers tools, `@` triggers context.
-  - Payload serialization conforms to `KryptonChatPayload`.
-
-#### [NEW] [apps/desktop/__tests__/smoke.test.ts](file:///e:/all%20my%20code/krypton/apps/desktop/__tests__/smoke.test.ts)
-- Integration smoke tests verifying:
-  - Multi-window configuration integrity in `tauri.conf.json`.
-  - Path resolver and command schemas.
-  - State hook event parsing and serialization.
+#### [NEW] [packages/agent-runtime/__tests__/channels.test.ts](file:///e:/all%20my%20code/krypton/packages/agent-runtime/__tests__/channels.test.ts)
+- Comprehensive test suite validating:
+  - ChannelSessionRouter thread session mapping.
+  - Markdown normalizers for Telegram HTML, WhatsApp markdown, Discord markdown, Slack Block Kit, Signal.
+  - Telegram, Discord, WhatsApp, Slack, Signal mock message dispatch and HITL clarification resolution.
 
 ---
 
 ## Verification Plan
 
 ### Automated Tests
-1. **Rust Backend Check**:
+1. **Channel Integration Test Suite**:
+   ```powershell
+   pnpm --filter @krypton/agent-runtime test __tests__/channels.test.ts
+   ```
+2. **CLI Build & Compilation**:
+   ```powershell
+   node scripts/build-cli.mjs
+   node scripts/build-sidecar.mjs
+   node scripts/setup-env.mjs
+   ```
+3. **Rust Backend Check**:
    ```powershell
    cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
    ```
-   Must pass with 0 errors.
-
-2. **Shared Types & Typecheck**:
-   ```powershell
-   pnpm --filter @krypton/shared-types build
-   ```
-
-3. **Desktop Frontend Build**:
+4. **Desktop Frontend Build**:
    ```powershell
    pnpm --filter desktop build
    ```
-   Must compile Next.js production bundle with 0 errors, validating all pages (`/`, `/dashboard`, `/overlay`).
-
-4. **Desktop Test Suite**:
+5. **Full Monorepo Build & Test**:
    ```powershell
-   pnpm test
+   pnpm --filter @krypton/shared-types test
+   pnpm --filter @krypton/agent-runtime test
+   pnpm --filter desktop test
    ```
-   Run automated test suite for chatbar, smoke, and component behavior.
-
-### Manual Verification
-- Verify that both `/dashboard` and `/overlay` routes render beautifully in dark-mode with zero visual glitches.
-- Test Chatbar paste interception with multi-line snippet.
-- Check off completed tasks in `.idea/TODO.md`.

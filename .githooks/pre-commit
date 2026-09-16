@@ -1,0 +1,27 @@
+#!/bin/sh
+# ------------------------------------------------------------------------------
+# Krypton Git Pre-Commit Hook: Monorepo Verification Gate
+# Runs all tests, typechecks, and Cargo Rust validation before allowing commit.
+# ------------------------------------------------------------------------------
+
+echo ""
+echo "⚡ [Krypton Pre-Commit] Running monorepo test suites and Rust check..."
+
+# Prevent outer Git environment variables from leaking into nested repository tests
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_PREFIX
+
+pnpm run test:all
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "❌ [Krypton Pre-Commit Failed] Verification gate failed with error code $STATUS."
+  echo "Commit aborted. Please fix the failing tests before committing."
+  echo ""
+  exit 1
+fi
+
+echo ""
+echo "✔ [Krypton Pre-Commit Passed] All 114+ tests and Rust checks succeeded. Proceeding with commit."
+echo ""
+exit 0

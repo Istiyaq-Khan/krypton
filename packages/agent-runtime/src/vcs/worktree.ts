@@ -17,8 +17,15 @@ export interface GitExecResult {
  */
 export async function runGit(args: string[], cwd: string): Promise<GitExecResult> {
   try {
+    const env = { ...process.env };
+    delete env.GIT_DIR;
+    delete env.GIT_INDEX_FILE;
+    delete env.GIT_WORK_TREE;
+    delete env.GIT_PREFIX;
+
     const { stdout, stderr } = await execFileAsync("git", args, {
       cwd,
+      env,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     });
     return {

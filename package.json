@@ -4,9 +4,11 @@
   "private": true,
   "description": "Krypton — Autonomous Desktop AI Agent Runtime",
   "scripts": {
-    "build": "pnpm --filter @krypton/shared-types build",
-    "typecheck": "pnpm --filter @krypton/shared-types typecheck",
-    "test": "pnpm --filter @krypton/shared-types test"
+    "build": "pnpm --filter @krypton/shared-types build && pnpm --filter @krypton/agent-runtime build && pnpm --filter @krypton/cli build",
+    "typecheck": "pnpm --filter @krypton/shared-types typecheck && pnpm --filter @krypton/agent-runtime typecheck && pnpm --filter @krypton/cli typecheck",
+    "test": "pnpm test:all",
+    "test:all": "pnpm --filter @krypton/shared-types test && pnpm --filter @krypton/agent-runtime test && pnpm --filter @krypton/cli test && pnpm --filter desktop test && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "keywords": [
     "ai",

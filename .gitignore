@@ -21,6 +21,10 @@ yarn-error.log*
 logs/
 *.log
 
+# Scratch & Temporary Testing Directories
+scratch/
+.scratch/
+
 # Next.js & Frontend Build Artifacts
 .next/
 out/
@@ -36,7 +40,7 @@ target/
 apps/desktop/src-tauri/binaries/*
 !apps/desktop/src-tauri/binaries/.gitkeep
 
-# Executables & Native Binaries
+# Executables & Native Binaries (Heavy Files)
 *.exe
 *.dll
 *.so
@@ -47,6 +51,16 @@ apps/desktop/src-tauri/binaries/*
 *.a
 *.lib
 *.pdb
+*.pdb.*
+
+# Local CLI Executables & Generated Batch Wrappers
+krypton
+krypton.exe
+krypton.cmd
+*.cmd
+packages/cli/krypton
+packages/cli/krypton.exe
+packages/cli/krypton.cmd
 
 # Krypton Local Runtime Artifacts (~/.krypton and local runtime dumps)
 .krypton/
