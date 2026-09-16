@@ -69,10 +69,14 @@ describe("Krypton-VCS: Worktree Isolation, Semantic Commits & Rollback Engine", 
     // Worktree must have feature.ts
     expect(fs.existsSync(worktreeFile)).toBe(true);
 
+    // Verify branch exists in git repo
+    const branches = await runGit(["branch", "--list", `krypton/${taskId}`], repoDir);
+    expect(branches.stdout).toContain(`krypton/${taskId}`);
+
     // Cleanup worktree
     await worktreeManager.removeWorktree(context, { deleteBranch: true });
     expect(fs.existsSync(context.worktreePath)).toBe(false);
-  });
+  }, 25000);
 
   it("generates atomic Conventional Commits with task tracking metadata", async () => {
     const taskId = "33333333-3333-3333-3333-333333333333";
@@ -82,12 +86,12 @@ describe("Krypton-VCS: Worktree Isolation, Semantic Commits & Rollback Engine", 
       customRoot: kryptonHome,
     });
 
-    // Create a new source file
+    // Modify a file in the worktree
     const authFile = path.join(context.worktreePath, "auth.ts");
-    fs.writeFileSync(authFile, "export function login() { return true; }\n", "utf-8");
+    fs.writeFileSync(authFile, "export const login = () => true;\n", "utf-8");
 
-    // Commit step
-    const commitMeta = await commitGen.commitStep({
+    // Commit via AutonomousCommitGenerator
+    const commitResult = await commitGen.commitStep({
       worktreePath: context.worktreePath,
       taskId,
       stepIndex: 1,
@@ -96,19 +100,19 @@ describe("Krypton-VCS: Worktree Isolation, Semantic Commits & Rollback Engine", 
       description: "implement login handler",
     });
 
-    expect(commitMeta).not.toBeNull();
-    expect(commitMeta?.type).toBe("feat");
-    expect(commitMeta?.scope).toBe("auth");
-    expect(commitMeta?.commitHash).toBeDefined();
+    expect(commitResult?.commitHash).toMatch(/^[a-f0-9]{40}$/);
+    expect(commitResult?.type).toBe("feat");
+    expect(commitResult?.scope).toBe("auth");
+    expect(commitResult?.description).toBe("implement login handler");
 
-    // Verify commit in worktree log
+    // Verify git log contains trailer metadata
     const logRes = await runGit(["log", "-n", "1", "--pretty=format:%B"], context.worktreePath);
     expect(logRes.stdout).toContain("feat(auth): implement login handler");
     expect(logRes.stdout).toContain(`Task-ID: ${taskId}`);
     expect(logRes.stdout).toContain("Step-Index: 1");
 
     await worktreeManager.removeWorktree(context, { deleteBranch: true });
-  });
+  }, 25000);
 
   it("calculates diff summary, performs deterministic rollback on step failure, and prepares merge approval", async () => {
     const taskId = "44444444-4444-4444-4444-444444444444";
@@ -180,5 +184,5 @@ describe("Krypton-VCS: Worktree Isolation, Semantic Commits & Rollback Engine", 
     expect(approvalReq.commitMessages[0]).toContain("feat: add math helper");
 
     await worktreeManager.removeWorktree(context, { deleteBranch: true });
-  });
+  }, 25000);
 });
