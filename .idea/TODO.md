@@ -339,71 +339,71 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 **Objective**: Construct the native Tauri v2 desktop application, the multi-window architecture, the floating voice HUD overlay, Parakeet v3 / Whisper audio bridge, global OS shortcuts, and the high-performance React dashboard.
 
 ### 1. Tauri v2 Rust Shell & Multi-Window Architecture
-- [ ] Configure Tauri manifest and permissions in [apps/desktop/src-tauri/tauri.conf.json](../apps/desktop/src-tauri/tauri.conf.json):
+- [x] Configure Tauri manifest and permissions in [apps/desktop/src-tauri/tauri.conf.json](../apps/desktop/src-tauri/tauri.conf.json):
   - Configure multi-window setup: `main` window (dashboard) and `overlay` window (voice HUD).
   - Configure overlay window properties: `transparent: true`, `decorations: false`, `alwaysOnTop: true`, `skipTaskbar: true`.
   - Declare sidecar configuration for `binaries/krypton-daemon`.
   - Configure system permissions: global shortcut listener, system tray, audio capture, native window management.
-- [ ] Set up Rust crate configuration in [apps/desktop/src-tauri/Cargo.toml](../apps/desktop/src-tauri/Cargo.toml) with Tauri v2 plugins.
-- [ ] Implement Tauri app initialization in [apps/desktop/src-tauri/src/main.rs](../apps/desktop/src-tauri/src/main.rs):
+- [x] Set up Rust crate configuration in [apps/desktop/src-tauri/Cargo.toml](../apps/desktop/src-tauri/Cargo.toml) with Tauri v2 plugins.
+- [x] Implement Tauri app initialization in [apps/desktop/src-tauri/src/main.rs](../apps/desktop/src-tauri/src/main.rs):
   - Setup system tray icon with quick actions (Show Dashboard, Toggle Voice HUD, Stop Active Agents, Quit).
   - Initialize window controllers and IPC command handlers.
-- [ ] Implement system path resolver in [apps/desktop/src-tauri/src/paths.rs](../apps/desktop/src-tauri/src/paths.rs) resolving `~/.krypton` and checking disk permissions.
+- [x] Implement system path resolver in [apps/desktop/src-tauri/src/paths.rs](../apps/desktop/src-tauri/src/paths.rs) resolving `~/.krypton` and checking disk permissions.
 
 ### 2. Rust Sidecar Lifecycle & Daemon Supervision
-- [ ] Implement sidecar supervisor in [apps/desktop/src-tauri/src/commands/sidecar.rs](../apps/desktop/src-tauri/src/commands/sidecar.rs):
+- [x] Implement sidecar supervisor in [apps/desktop/src-tauri/src/commands/sidecar.rs](../apps/desktop/src-tauri/src/commands/sidecar.rs):
   - Spawn `krypton-daemon` binary as a managed child process.
   - Monitor daemon stdout/stderr and expose health check ping over local IPC.
   - Ensure clean termination: kill daemon child process tree on app exit to prevent orphaned background processes.
 
 ### 3. Global Hotkeys & Transparent Floating Overlay Controller
-- [ ] Implement global shortcut manager in [apps/desktop/src-tauri/src/commands/hotkey.rs](../apps/desktop/src-tauri/src/commands/hotkey.rs):
+- [x] Implement global shortcut manager in [apps/desktop/src-tauri/src/commands/hotkey.rs](../apps/desktop/src-tauri/src/commands/hotkey.rs):
   - Register configurable system hotkey (default: `CommandOrControl+Shift+Space`).
   - Toggle the floating Voice Micro-HUD window visibility instantly.
-- [ ] Implement overlay positioning and window behavior in [apps/desktop/src-tauri/src/overlay.rs](../apps/desktop/src-tauri/src/overlay.rs):
+- [x] Implement overlay positioning and window behavior in [apps/desktop/src-tauri/src/overlay.rs](../apps/desktop/src-tauri/src/overlay.rs):
   - Center overlay dynamically above active display cursor position.
   - Manage focus stealing avoidance and click-through options when idle.
 
 ### 4. Audio Streaming & Speech-to-Text Bridge (Parakeet v3 / Whisper)
-- [ ] Implement microphone capture stream in [apps/desktop/src-tauri/src/commands/audio.rs](../apps/desktop/src-tauri/src/commands/audio.rs):
+- [x] Implement microphone capture stream in [apps/desktop/src-tauri/src/commands/audio.rs](../apps/desktop/src-tauri/src/commands/audio.rs):
   - Capture audio input stream via `cpal` with ring-buffer chunking.
   - Bind to local Whisper.cpp / Parakeet v3 engine for zero-latency local speech-to-text.
   - Provide fallback toggle to cloud transcription APIs (Groq/OpenAI Whisper) when local compute is constrained.
   - Stream transcribed text events directly into the frontend and daemon steering queue.
 
 ### 5. Desktop React Frontend: Dashboard Window
-- [ ] Configure layout and styling in [apps/desktop/src/app/layout.tsx](../apps/desktop/src/app/layout.tsx) and [apps/desktop/src/app/globals.css](../apps/desktop/src/app/globals.css):
+- [x] Configure layout and styling in [apps/desktop/src/app/layout.tsx](../apps/desktop/src/app/layout.tsx) and [apps/desktop/src/app/globals.css](../apps/desktop/src/app/globals.css):
   - Setup dark-mode first aesthetic, glassmorphic panels, and refined typography.
-- [ ] Build primary workspace dashboard in [apps/desktop/src/app/dashboard/page.tsx](../apps/desktop/src/app/dashboard/page.tsx):
+- [x] Build primary workspace dashboard in [apps/desktop/src/app/dashboard/page.tsx](../apps/desktop/src/app/dashboard/page.tsx):
   - Render agent fleet status, active sub-agent trees, live token spend, and current execution status.
   - Include mid-flight steering input bar to inject prompts during live executions.
-- [ ] Build interactive Todo DAG component in [apps/desktop/src/components/TodoTree.tsx](../apps/desktop/src/components/TodoTree.tsx):
+- [x] Build interactive Todo DAG component in [apps/desktop/src/components/TodoTree.tsx](../apps/desktop/src/components/TodoTree.tsx):
   - Render task dependency graph with visual status badges (`pending`, `in_progress`, `completed`, `failed`).
   - Animate dynamic plan restructuring and step insertions in real-time.
-- [ ] Build HITL clarification modal in [apps/desktop/src/components/QuestionModal.tsx](../apps/desktop/src/components/QuestionModal.tsx):
+- [x] Build HITL clarification modal in [apps/desktop/src/components/QuestionModal.tsx](../apps/desktop/src/components/QuestionModal.tsx):
   - Display questions with pill selectors, full keyboard navigation (numbers/arrows), and freeform response field.
-- [ ] Build Git worktree visual diff viewer in [apps/desktop/src/components/VcsDiffViewer.tsx](../apps/desktop/src/components/VcsDiffViewer.tsx):
+- [x] Build Git worktree visual diff viewer in [apps/desktop/src/components/VcsDiffViewer.tsx](../apps/desktop/src/components/VcsDiffViewer.tsx):
   - Display side-by-side syntax-highlighted diffs of agent modifications.
   - Provide user actions: "Approve & Merge to Working Branch", "Rollback Step", "Reject & Abort".
 
 ### 6. Desktop React Frontend: Floating Voice Micro-HUD
-- [ ] Build floating voice HUD interface in [apps/desktop/src/app/overlay/page.tsx](../apps/desktop/src/app/overlay/page.tsx):
+- [x] Build floating voice HUD interface in [apps/desktop/src/app/overlay/page.tsx](../apps/desktop/src/app/overlay/page.tsx):
   - Render compact, translucent, borderless Spotlight-style bar.
   - Include real-time audio waveform visualizer responding to mic input.
   - Include Target Agent Selector chip (`[Orchestrator]`, `[Coder]`, `[Scraper]`).
   - Display streaming live transcription preview and quick status pill.
 
 ### 7. Frontend State Management & Communication Hooks
-- [ ] Implement Tauri IPC and WebSocket state hooks in [apps/desktop/src/hooks/useKryptonDaemon.ts](../apps/desktop/src/hooks/useKryptonDaemon.ts):
+- [x] Implement Tauri IPC and WebSocket state hooks in [apps/desktop/src/hooks/useKryptonDaemon.ts](../apps/desktop/src/hooks/useKryptonDaemon.ts):
   - Establish persistent WebSocket / IPC connection to `krypton-daemon`.
   - Synchronize task trees, log streams, and HITL prompt requests.
-- [ ] Implement voice transcription hook in [apps/desktop/src/hooks/useVoiceHud.ts](../apps/desktop/src/hooks/useVoiceHud.ts):
+- [x] Implement voice transcription hook in [apps/desktop/src/hooks/useVoiceHud.ts](../apps/desktop/src/hooks/useVoiceHud.ts):
   - Manage push-to-talk audio recording, streaming transcription, and prompt dispatch to target agent.
 
 ### Phase 5 Verification Gate
-- [ ] **Rust Backend Build & Check**: Run `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` verifying zero Rust compilation errors.
-- [ ] **Desktop Frontend Build**: Run `pnpm --filter desktop build` verifying Next.js production compilation.
-- [ ] **Multi-Window & IPC Smoke Test**: Launch app in test mode; verify both `main` and `overlay` windows initialize, global shortcut toggles overlay, and IPC echo command returns successful ping.
+- [x] **Rust Backend Build & Check**: Run `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` verifying zero Rust compilation errors.
+- [x] **Desktop Frontend Build**: Run `pnpm --filter desktop build` verifying Next.js production compilation.
+- [x] **Multi-Window & IPC Smoke Test**: Launch app in test mode; verify both `main` and `overlay` windows initialize, global shortcut toggles overlay, and IPC echo command returns successful ping.
 
 ---
 

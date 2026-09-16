@@ -17,6 +17,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.8.0
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@krypton/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@tauri-apps/api':
         specifier: 3.0.0-alpha.0
         version: 3.0.0-alpha.0
@@ -72,6 +75,9 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+      vitest:
+        specifier: ^3.0.7
+        version: 3.2.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)
 
   packages/agent-runtime:
     dependencies:
