@@ -73,6 +73,10 @@ if (hasBun) {
     })
     // Also copy to generic binary name
     fs.copyFileSync(targetBinaryPath, genericBinaryPath)
+    if (!isWindows) {
+      fs.chmodSync(targetBinaryPath, 0o755)
+      fs.chmodSync(genericBinaryPath, 0o755)
+    }
     console.log(`\x1b[32m✔ Successfully compiled sidecar:\x1b[0m ${targetBinaryPath}`)
     console.log(`\x1b[32m✔ Created generic alias:\x1b[0m ${genericBinaryPath}`)
     process.exit(0)

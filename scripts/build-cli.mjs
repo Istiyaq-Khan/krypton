@@ -2,7 +2,8 @@
 
 /**
  * Krypton Standalone CLI Compiler
- * Compiles packages/cli into a standalone executable (`krypton` / `krypton.exe`).
+ * Compiles packages/cli into a cross-platform standalone executable (`krypton` / `krypton.exe`).
+ * Supports Windows, Linux, and macOS (Intel & Apple Silicon).
  */
 
 import * as fs from "node:fs"
@@ -14,15 +15,30 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, "..")
 
-const isWindows = process.platform === "win32"
+// Resolve CLI arguments
+function getArg(flag) {
+  const idx = process.argv.indexOf(flag)
+  return idx !== -1 && idx + 1 < process.argv.length ? process.argv[idx + 1] : null
+}
+
+const target = getArg("--target")
+const artifactName = getArg("--artifact-name")
+
+// Determine host platform and extension
+const isWindows = target ? target.includes("windows") : process.platform === "win32"
+const isDarwin = target ? target.includes("darwin") || target.includes("apple") : process.platform === "darwin"
 const ext = isWindows ? ".exe" : ""
+
 const cliEntryPoint = path.join(rootDir, "packages", "cli", "src", "index.ts")
 const distDir = path.join(rootDir, "packages", "cli", "dist")
-const distIndex = path.join(distDir, "index.js")
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir, { recursive: true })
+}
+
 const rootBinaryPath = path.join(rootDir, `krypton${ext}`)
 const distBinaryPath = path.join(distDir, `krypton${ext}`)
 
-console.log(`\n⚡ Compiling Krypton Standalone CLI for ${process.platform} (${process.arch})...`)
+console.log(`\n⚡ Compiling Krypton Standalone CLI [platform: ${process.platform}, target: ${target || "host"}, arch: ${process.arch}]...`)
 
 // 1. Build TypeScript dist
 execSync("pnpm --filter @krypton/cli build", { cwd: rootDir, stdio: "inherit" })
@@ -43,19 +59,30 @@ if (hasBun) {
       cwd: rootDir,
       stdio: "inherit",
     })
-    if (!fs.existsSync(distDir)) {
-      fs.mkdirSync(distDir, { recursive: true })
-    }
     fs.copyFileSync(rootBinaryPath, distBinaryPath)
+    if (!isWindows) {
+      fs.chmodSync(rootBinaryPath, 0o755)
+      fs.chmodSync(distBinaryPath, 0o755)
+    }
+
+    // Also produce artifact-named binary if artifactName or target was passed
+    const namedTag = artifactName || (target ? `krypton-${target}` : null)
+    if (namedTag) {
+      const artifactBinary = path.join(distDir, `krypton-${namedTag}${ext}`)
+      fs.copyFileSync(rootBinaryPath, artifactBinary)
+      if (!isWindows) fs.chmodSync(artifactBinary, 0o755)
+      console.log(`\x1b[32m✔ Artifact binary created:\x1b[0m ${artifactBinary}`)
+    }
+
     console.log(`\x1b[32m✔ Successfully compiled standalone CLI:\x1b[0m ${rootBinaryPath}`)
     console.log(`\x1b[32m✔ Dist binary:\x1b[0m ${distBinaryPath}`)
     process.exit(0)
   } catch (err) {
-    console.warn("Bun compilation encountered error, creating wrapper script...")
+    console.warn("Bun compilation encountered error, falling back to portable wrapper script...")
   }
 }
 
-// Fallback wrapper script
+// Fallback: Portable wrapper scripts
 if (isWindows) {
   const rootBatchScript = `@echo off\r\nnode "%~dp0packages\\cli\\dist\\index.js" %*\r\n`
   const distBatchScript = `@echo off\r\nnode "%~dp0index.js" %*\r\n`
@@ -69,4 +96,3 @@ if (isWindows) {
   fs.writeFileSync(distBinaryPath, distShellScript, { mode: 0o755 })
   console.log(`\x1b[32m✔ Created Unix CLI executable.\x1b[0m`)
 }
-

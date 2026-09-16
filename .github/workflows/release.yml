@@ -5,12 +5,18 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release Tag (e.g. v1.0.0)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
   build:
+    name: Release ${{ matrix.artifact_name }} (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -18,15 +24,23 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: windows-x86_64
+            cli_name: krypton-windows-x86_64.exe
+            cli_dist: packages/cli/dist/krypton.exe
           - os: macos-13
             target: x86_64-apple-darwin
             artifact_name: macos-x86_64
+            cli_name: krypton-macos-x86_64
+            cli_dist: packages/cli/dist/krypton
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: macos-aarch64
+            cli_name: krypton-macos-aarch64
+            cli_dist: packages/cli/dist/krypton
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             artifact_name: linux-x86_64
+            cli_name: krypton-linux-x86_64
+            cli_dist: packages/cli/dist/krypton
 
     runs-on: ${{ matrix.os }}
 
@@ -86,7 +100,7 @@ jobs:
         run: node scripts/build-sidecar.mjs --target ${{ matrix.target }}
 
       - name: Compile Standalone CLI Binary
-        run: node scripts/build-cli.mjs
+        run: node scripts/build-cli.mjs --target ${{ matrix.target }} --artifact-name ${{ matrix.artifact_name }}
 
       - name: Build Next.js Desktop Dashboard
         run: pnpm --filter desktop build
@@ -96,9 +110,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: "Krypton v__VERSION__"
-          releaseBody: "Autonomous Desktop AI Agent Runtime — Release v__VERSION__"
+          tagName: ${{ github.ref_name }}
+          releaseName: "Krypton ${{ github.ref_name }}"
+          releaseBody: "Krypton Autonomous Desktop AI Agent Runtime — Release ${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
           args: --target ${{ matrix.target }}
+
+      - name: Prepare Standalone CLI Release Asset
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          if [ -f "${{ matrix.cli_dist }}" ]; then
+            cp "${{ matrix.cli_dist }}" "release-assets/${{ matrix.cli_name }}"
+          elif [ -f "krypton${{ matrix.os == 'windows-latest' && '.exe' || '' }}" ]; then
+            cp "krypton${{ matrix.os == 'windows-latest' && '.exe' || '' }}" "release-assets/${{ matrix.cli_name }}"
+          fi
+
+      - name: Upload Standalone CLI Binary to Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
