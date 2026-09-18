@@ -45,6 +45,7 @@ Every AI agent operating in this repository is bound by these four invariant rul
 - **Atomic Semantic Commits**: Every verified step produces a Conventional Commit (`feat(agent): ...`, `fix(vcs): ...`).
 - **Deterministic Rollback**: If a verification step fails, immediately execute a hard rollback (`git reset --hard`) to the last verified commit hash.
 - **Visual Merge Gateway**: Merging an agent worktree into the user branch requires explicit human approval via the visual diff viewer.
+- **Issue & Pull Request Linking**: All pull requests and contribution work must link to an associated GitHub issue using standard GitHub keyword syntax (`Fixes #X` or `Closes #X`) in the pull request description.
 
 ### C. Sub-Agent Recursion & Concurrency Limits
 - **Recursion Ceiling**: Enforce `max_depth <= 3`. Agents at depth 3 must never invoke `spawnChild()`.

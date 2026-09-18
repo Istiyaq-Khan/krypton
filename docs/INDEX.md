@@ -48,7 +48,7 @@ docs/
 ├── 📦 Build, CI/CD & Distribution
 │   ├── [Single-Artifact Standard](ci-cd/single-artifact-standard.md)   # 1 OS = 1 Package rule, embedded sidecars
 │   ├── [Build Pipelines](ci-cd/build-pipelines.md)                     # Monorepo build commands, binary compilation scripts
-│   └── [GitHub Actions CI/CD](ci-cd/github-actions.md)                 # CI test workflow matrix, release workflow, checksums
+│   └── [GitHub Actions CI/CD](ci-cd/github-actions.md)                 # CI test workflow matrix, release workflow, issue/PR templates
 │
 └── 📜 Historical & Hardening References
     ├── [Agent Storage Architecture](AGENT_STORAGE_ARCHITECTURE.md)     # Architectural specification for agent workspaces

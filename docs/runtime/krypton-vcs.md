@@ -75,3 +75,11 @@ Autonomous code modifications are never merged back into the user's active branc
    Fast-forward merge into      Prune worktree &
    user's active branch        delete task branch
 ```
+
+---
+
+## 5. Pull Request & Issue Association
+
+When autonomous work or contributor modifications are submitted as pull requests:
+- **Mandatory Linking Syntax**: All pull requests must link directly to their corresponding issue using standard GitHub keyword syntax (`Fixes #X` or `Closes #X`).
+- **Standard PR Template**: Submissions must fill out the default template defined in [`.github/pull_request_template.md`](../../.github/pull_request_template.md) to ensure verification and testing steps are fully audited prior to merging.

@@ -49,3 +49,17 @@ The release pipeline executes when a release tag matching `v*` is pushed or when
 3. **Tauri Packaging**: Runs `tauri-apps/tauri-action` with `--target ${{ matrix.target }}` and `includeRelease: false`.
 4. **Single-Package Staging**: Locates the generated bundle, standardizes its filename, and generates a cryptographic SHA-256 checksum file (`<pkg>.sha256`).
 5. **Clean GitHub Release**: Uploads **only** the single platform installer and its checksum to the GitHub Release. Loose daemons, MSI files, and intermediate CLIs are excluded.
+
+---
+
+## 3. GitHub Issue & Pull Request Templates (`.github/`)
+
+To maintain high contribution standards across the project, all issues and pull requests must adhere to the standard templates in `.github/`:
+
+- **Issue Templates (`.github/ISSUE_TEMPLATE/`)**:
+  - `bug_report.md`: Defect reporting with reproduction steps and environment metadata (`fix: ...`, label: `bug`).
+  - `feature_request.md`: Architectural improvements and capability proposals (`feat: ...`, label: `enhancement`).
+  - `task.md`: Internal refactoring, dependency upgrades, or documentation chores (`refactor: ...`, label: `refactor`).
+- **Pull Request Template (`.github/pull_request_template.md`)**:
+  - Standardizes the change summary, classification type, key changes, verification/testing checklist, and documentation compliance.
+  - **Mandatory Issue Linking**: All future work must link pull requests to their corresponding GitHub issues using standard keyword syntax (`Fixes #X` or `Closes #X`).
