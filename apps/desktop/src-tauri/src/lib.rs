@@ -48,6 +48,7 @@ pub fn run() {
             window_toggle_maximize,
             window_close,
             window_is_maximized,
+            open_folder_dialog,
             check_setup_status,
             save_setup_configuration,
             get_cached_models,
