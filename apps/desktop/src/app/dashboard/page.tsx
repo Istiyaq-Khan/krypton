@@ -93,16 +93,23 @@ export default function DashboardPage() {
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100 select-none antialiased">
-      {/* 1. Unified Frameless Window Header with Native IPC Controls */}
+      {/* 1. Unified Frameless Window Header with Native IPC Controls & Interactive Breadcrumbs */}
       <WindowHeader
         projectName={session.activeProject?.name}
         threadTitle={session.activeThread?.title}
+        projects={session.projects}
+        activeProjectId={session.activeProjectId}
+        onSelectProject={session.selectProject}
+        onCreateProject={(name, path) => session.createProject(name || "my-project", path || `projects/${name || "my-project"}`)}
+        onOpenFolder={session.openFolder}
+        threads={session.activeProject?.threads}
+        activeThreadId={session.activeThreadId}
+        onSelectThread={session.selectThread}
         isLeftSidebarOpen={session.isLeftSidebarOpen}
         isRightDrawerOpen={session.isRightDrawerOpen}
         onToggleLeftSidebar={() => session.setIsLeftSidebarOpen(!session.isLeftSidebarOpen)}
         onToggleRightDrawer={() => session.setIsRightDrawerOpen(!session.isRightDrawerOpen)}
         onNewChat={session.createNewChat}
-        onCreateProject={() => session.createProject("my-project", "projects/my-project")}
         onOpenSetupWizard={() => setIsSetupModalOpen(true)}
         canGoBack={session.canGoBack}
         canGoForward={session.canGoForward}
