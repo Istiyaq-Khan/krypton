@@ -6,7 +6,6 @@ import {
   ProjectWorkspace,
   AgentThread,
   StreamMessage,
-  UserProfileInfo,
   loadWorkstationState,
   saveWorkstationState,
   ToolExecutionEvent,
@@ -14,7 +13,7 @@ import {
   ApprovalGate,
 } from "@/lib/persistence"
 
-export { type ProjectWorkspace, type AgentThread, type StreamMessage, type UserProfileInfo, type ToolExecutionEvent, type ThoughtTrace }
+export { type ProjectWorkspace, type AgentThread, type StreamMessage, type ToolExecutionEvent, type ThoughtTrace }
 
 export function useAgentSession() {
   // Load persistent state
@@ -27,15 +26,11 @@ export function useAgentSession() {
   const [rightDrawerTab, setRightDrawerTab] = useState<"dag" | "audit" | "diff" | "fleet">("dag")
   const [askForApproval, setAskForApproval] = useState(true)
   const [selectedModel, setSelectedModel] = useState("5.6 Terra High")
-  const [userProfile, setUserProfile] = useState<UserProfileInfo>({
-    username: "razin-khan",
-    tokenUsagePercent: 14,
-    tokensUsed: 21500,
-    tokensLimit: 150000,
-    planName: "Pro Tier",
-    latencyMs: 32,
-    memoryUsageMb: 146,
-  })
+
+  // Navigation history tracking for titlebar Back/Forward controls
+  const [navHistory, setNavHistory] = useState<Array<{ projectId: string; threadId: string }>>([])
+  const [navHistoryIndex, setNavHistoryIndex] = useState(-1)
+  const isNavigatingHistory = useRef(false)
 
   // Real-time streaming status
   const [isStreaming, setIsStreaming] = useState(false)
@@ -46,17 +41,23 @@ export function useAgentSession() {
   useEffect(() => {
     const saved = loadWorkstationState()
     setProjects(saved.projects)
-    setActiveProjectId(saved.activeProjectId || saved.projects[0]?.id || "proj-krypton")
-    setActiveThreadId(saved.activeThreadId || saved.projects[0]?.activeThreadId || "")
+    const initialProjId = saved.activeProjectId || saved.projects[0]?.id || ""
+    const initialThreadId = saved.activeThreadId || saved.projects[0]?.activeThreadId || ""
+    setActiveProjectId(initialProjId)
+    setActiveThreadId(initialThreadId)
     setSelectedModel(saved.selectedModel || "5.6 Terra High")
     setAskForApproval(saved.askForApproval ?? true)
-    if (saved.userProfile) setUserProfile(saved.userProfile)
     setInitialLoaded(true)
+
+    if (initialProjId) {
+      setNavHistory([{ projectId: initialProjId, threadId: initialThreadId }])
+      setNavHistoryIndex(0)
+    }
   }, [])
 
   // Auto-persist changes whenever projects or active thread changes
   useEffect(() => {
-    if (!initialLoaded || projects.length === 0) return
+    if (!initialLoaded) return
     const currentState = loadWorkstationState()
     saveWorkstationState({
       ...currentState,
@@ -65,9 +66,8 @@ export function useAgentSession() {
       activeThreadId,
       selectedModel,
       askForApproval,
-      userProfile,
     })
-  }, [projects, activeProjectId, activeThreadId, selectedModel, askForApproval, userProfile, initialLoaded])
+  }, [projects, activeProjectId, activeThreadId, selectedModel, askForApproval, initialLoaded])
 
   // Establish WebSocket connection to local daemon runtime on port 19840
   useEffect(() => {
@@ -118,16 +118,9 @@ export function useAgentSession() {
     }
   }, [activeProjectId, activeThreadId])
 
-  // Active project calculation
+  // Active project calculation (clean null when unpopulated)
   const activeProject = useMemo(() => {
-    return projects.find((p) => p.id === activeProjectId) || projects[0] || {
-      id: "proj-krypton",
-      name: "krypton-runtime",
-      path: "E:/all my code/krypton",
-      branch: "main",
-      activeThreadId: "",
-      threads: [],
-    }
+    return projects.find((p) => p.id === activeProjectId) || projects[0] || null
   }, [projects, activeProjectId])
 
   // Active thread calculation
@@ -135,6 +128,43 @@ export function useAgentSession() {
     if (!activeProject) return null
     return activeProject.threads.find((t) => t.id === activeThreadId) || activeProject.threads[0] || null
   }, [activeProject, activeThreadId])
+
+  // Push new state into navigation history stack
+  const pushHistory = useCallback((projId: string, threadId: string) => {
+    if (isNavigatingHistory.current) {
+      isNavigatingHistory.current = false
+      return
+    }
+    setNavHistory((prev) => {
+      const next = prev.slice(0, navHistoryIndex + 1)
+      next.push({ projectId: projId, threadId })
+      return next
+    })
+    setNavHistoryIndex((prev) => prev + 1)
+  }, [navHistoryIndex])
+
+  const canGoBack = navHistoryIndex > 0
+  const canGoForward = navHistoryIndex >= 0 && navHistoryIndex < navHistory.length - 1
+
+  const goBack = useCallback(() => {
+    if (navHistoryIndex > 0) {
+      const target = navHistory[navHistoryIndex - 1]
+      isNavigatingHistory.current = true
+      setNavHistoryIndex(navHistoryIndex - 1)
+      setActiveProjectId(target.projectId)
+      setActiveThreadId(target.threadId)
+    }
+  }, [navHistory, navHistoryIndex])
+
+  const goForward = useCallback(() => {
+    if (navHistoryIndex < navHistory.length - 1) {
+      const target = navHistory[navHistoryIndex + 1]
+      isNavigatingHistory.current = true
+      setNavHistoryIndex(navHistoryIndex + 1)
+      setActiveProjectId(target.projectId)
+      setActiveThreadId(target.threadId)
+    }
+  }, [navHistory, navHistoryIndex])
 
   // Process incoming WebSocket packet from daemon
   const handleDaemonPacket = useCallback((packet: any) => {
@@ -147,17 +177,16 @@ export function useAgentSession() {
   const selectProject = useCallback((projectId: string) => {
     setActiveProjectId(projectId)
     const proj = projects.find((p) => p.id === projectId)
-    if (proj && proj.threads.length > 0) {
-      setActiveThreadId(proj.threads[0].id)
-    } else {
-      setActiveThreadId("")
-    }
-  }, [projects])
+    const nextThreadId = proj && proj.threads.length > 0 ? proj.threads[0].id : ""
+    setActiveThreadId(nextThreadId)
+    pushHistory(projectId, nextThreadId)
+  }, [projects, pushHistory])
 
   // Select a specific thread
   const selectThread = useCallback((threadId: string) => {
     setActiveThreadId(threadId)
-  }, [])
+    pushHistory(activeProjectId, threadId)
+  }, [activeProjectId, pushHistory])
 
   // Create a new blank chat session
   const createNewChat = useCallback(() => {
@@ -185,7 +214,8 @@ export function useAgentSession() {
       })
     )
     setActiveThreadId(newThreadId)
-  }, [activeProjectId])
+    pushHistory(activeProjectId, newThreadId)
+  }, [activeProjectId, pushHistory])
 
   // Create a new project workspace
   const createProject = useCallback((name: string, path: string, branch = "main") => {
@@ -213,7 +243,8 @@ export function useAgentSession() {
     setProjects((prev) => [newProj, ...prev])
     setActiveProjectId(newProjId)
     setActiveThreadId(initialThreadId)
-  }, [])
+    pushHistory(newProjId, initialThreadId)
+  }, [pushHistory])
 
   // Delete a thread
   const deleteThread = useCallback((threadId: string) => {
@@ -455,13 +486,6 @@ export function useAgentSession() {
         })
       )
 
-      // Update token metric in user profile
-      setUserProfile((prev) => ({
-        ...prev,
-        tokensUsed: prev.tokensUsed + 480,
-        tokenUsagePercent: Math.min(100, Math.round(((prev.tokensUsed + 480) / prev.tokensLimit) * 100)),
-      }))
-
       setIsStreaming(false)
     },
     [activeProjectId, activeThreadId, selectedModel, askForApproval]
@@ -522,8 +546,12 @@ export function useAgentSession() {
     setAskForApproval,
     selectedModel,
     setSelectedModel,
-    userProfile,
+    canGoBack,
+    canGoForward,
+    goBack,
+    goForward,
     isStreaming,
     latestAssistantText,
   }
 }
+

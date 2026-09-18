@@ -23,6 +23,7 @@ interface ExecutionStreamProps {
   onSelectPrompt: (prompt: string) => void
   onReviewDiff: () => void
   onResolveApproval?: (messageId: string, approved: boolean) => void
+  onCreateProject?: () => void
   isStreaming?: boolean
 }
 
@@ -32,6 +33,7 @@ export function ExecutionStream({
   onSelectPrompt,
   onReviewDiff,
   onResolveApproval,
+  onCreateProject,
   isStreaming = false,
 }: ExecutionStreamProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -64,7 +66,11 @@ export function ExecutionStream({
     >
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
         {!hasMessages ? (
-          <EmptyHeroState projectName={projectName} onSelectPrompt={onSelectPrompt} />
+          <EmptyHeroState
+            projectName={projectName}
+            onSelectPrompt={onSelectPrompt}
+            onCreateProject={onCreateProject}
+          />
         ) : (
           <div className="flex flex-col gap-4">
             {messages.map((msg, idx) => {

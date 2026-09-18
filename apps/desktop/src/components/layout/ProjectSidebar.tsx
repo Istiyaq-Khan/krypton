@@ -14,7 +14,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react"
-import { ProjectWorkspace, UserProfileInfo } from "@/lib/persistence"
+import { ProjectWorkspace } from "@/lib/persistence"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface ProjectSidebarProps {
@@ -26,7 +26,6 @@ interface ProjectSidebarProps {
   onNewChat: () => void
   onCreateProject?: (name: string, path: string) => void
   onDeleteThread?: (threadId: string) => void
-  userProfile: UserProfileInfo
   isOpen: boolean
 }
 
@@ -39,7 +38,6 @@ export function ProjectSidebar({
   onNewChat,
   onCreateProject,
   onDeleteThread,
-  userProfile,
   isOpen,
 }: ProjectSidebarProps) {
   const [showAllThreads, setShowAllThreads] = useState(false)
@@ -49,7 +47,7 @@ export function ProjectSidebar({
 
   if (!isOpen) return null
 
-  const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0]
+  const activeProject = projects.find((p) => p.id === activeProjectId) || projects[0] || null
   const displayedThreads = activeProject
     ? showAllThreads
       ? activeProject.threads
@@ -60,7 +58,7 @@ export function ProjectSidebar({
     e.preventDefault()
     if (!newProjName.trim()) return
 
-    onCreateProject?.(newProjName.trim(), newProjPath.trim() || `E:/all my code/${newProjName.trim()}`)
+    onCreateProject?.(newProjName.trim(), newProjPath.trim() || `projects/${newProjName.trim()}`)
     setNewProjName("")
     setNewProjPath("")
     setIsNewProjectModalOpen(false)
@@ -152,109 +150,114 @@ export function ProjectSidebar({
           </div>
 
           <div className="flex flex-col gap-0.5 text-xs">
-            {projects.map((proj) => {
-              const isActiveProject = proj.id === activeProjectId
+            {projects.length === 0 ? (
+              <div className="flex flex-col items-center justify-center p-4 text-center border border-dashed border-zinc-800/80 rounded-xl my-2 mx-1">
+                <Folder className="size-5 text-zinc-600 mb-1.5" />
+                <span className="text-zinc-400 text-xs font-medium">No Workspaces</span>
+                <span className="text-[10px] text-zinc-500 mt-0.5 mb-2.5">
+                  Create a workspace to begin.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsNewProjectModalOpen(true)}
+                  className="flex items-center gap-1 rounded-md bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1 text-[11px] text-zinc-300 transition-colors"
+                >
+                  <Plus className="size-3 text-zinc-400" />
+                  <span>Add Project</span>
+                </button>
+              </div>
+            ) : (
+              projects.map((proj) => {
+                const isActiveProject = proj.id === activeProjectId
 
-              return (
-                <div key={proj.id} className="flex flex-col">
-                  {/* Project Folder Row */}
-                  <button
-                    type="button"
-                    onClick={() => onSelectProject(proj.id)}
-                    className={`flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
-                      isActiveProject
-                        ? "bg-zinc-900 font-medium text-zinc-100"
-                        : "hover:bg-zinc-900/60 text-zinc-400 hover:text-zinc-200"
-                    }`}
-                  >
-                    {isActiveProject ? (
-                      <FolderOpen className="size-3.5 text-zinc-300 shrink-0" />
-                    ) : (
-                      <Folder className="size-3.5 text-zinc-500 shrink-0" />
-                    )}
-                    <span className="truncate">{proj.name}</span>
-                  </button>
+                return (
+                  <div key={proj.id} className="flex flex-col">
+                    {/* Project Folder Row */}
+                    <button
+                      type="button"
+                      onClick={() => onSelectProject(proj.id)}
+                      className={`flex items-center gap-2 w-full rounded-lg px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
+                        isActiveProject
+                          ? "bg-zinc-900 font-medium text-zinc-100"
+                          : "hover:bg-zinc-900/60 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {isActiveProject ? (
+                        <FolderOpen className="size-3.5 text-zinc-300 shrink-0" />
+                      ) : (
+                        <Folder className="size-3.5 text-zinc-500 shrink-0" />
+                      )}
+                      <span className="truncate">{proj.name}</span>
+                    </button>
 
-                  {/* Active Project Threads List */}
-                  {isActiveProject && proj.threads.length > 0 && (
-                    <div className="ml-4 pl-2 border-l border-zinc-800/80 flex flex-col gap-0.5 my-1">
-                      {displayedThreads.map((thread) => {
-                        const isActiveThread = thread.id === activeThreadId
+                    {/* Active Project Threads List */}
+                    {isActiveProject && proj.threads.length > 0 && (
+                      <div className="ml-4 pl-2 border-l border-zinc-800/80 flex flex-col gap-0.5 my-1">
+                        {displayedThreads.map((thread) => {
+                          const isActiveThread = thread.id === activeThreadId
 
-                        return (
-                          <div
-                            key={thread.id}
-                            className={`group flex items-center justify-between w-full rounded-md px-2 py-1 text-left text-xs transition-colors cursor-pointer ${
-                              isActiveThread
-                                ? "bg-zinc-800/90 text-zinc-100 font-medium"
-                                : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
-                            }`}
-                          >
-                            <button
-                              type="button"
-                              onClick={() => onSelectThread(thread.id)}
-                              className="truncate pr-1 text-left flex-1"
+                          return (
+                            <div
+                              key={thread.id}
+                              className={`group flex items-center justify-between w-full rounded-md px-2 py-1 text-left text-xs transition-colors cursor-pointer ${
+                                isActiveThread
+                                  ? "bg-zinc-800/90 text-zinc-100 font-medium"
+                                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                              }`}
                             >
-                              {thread.title}
-                            </button>
-
-                            {onDeleteThread && (
                               <button
                                 type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  onDeleteThread(thread.id)
-                                }}
-                                className="opacity-0 group-hover:opacity-100 size-4 flex items-center justify-center rounded hover:text-rose-400 text-zinc-500 transition-opacity"
-                                title="Delete session"
+                                onClick={() => onSelectThread(thread.id)}
+                                className="truncate pr-1 text-left flex-1"
                               >
-                                <Trash2 className="size-3" />
+                                {thread.title}
                               </button>
-                            )}
-                          </div>
-                        )
-                      })}
 
-                      {/* Show More toggle if threads exceed 6 */}
-                      {activeProject.threads.length > 6 && (
-                        <button
-                          type="button"
-                          onClick={() => setShowAllThreads(!showAllThreads)}
-                          className="text-[11px] text-zinc-500 hover:text-zinc-300 py-1 px-2 text-left transition-colors cursor-pointer"
-                        >
-                          {showAllThreads ? "Show less" : `Show ${activeProject.threads.length - 6} more`}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                              {onDeleteThread && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    onDeleteThread(thread.id)
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 size-4 flex items-center justify-center rounded hover:text-rose-400 text-zinc-500 transition-opacity"
+                                  title="Delete session"
+                                >
+                                  <Trash2 className="size-3" />
+                                </button>
+                              )}
+                            </div>
+                          )
+                        })}
+
+                        {/* Show More toggle if threads exceed 6 */}
+                        {activeProject.threads.length > 6 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllThreads(!showAllThreads)}
+                            className="text-[11px] text-zinc-500 hover:text-zinc-300 py-1 px-2 text-left transition-colors cursor-pointer"
+                          >
+                            {showAllThreads ? "Show less" : `Show ${activeProject.threads.length - 6} more`}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
       </div>
 
-      {/* Bottom Section: User Profile & Usage Meter */}
-      <div className="p-2 border-t border-zinc-900 bg-zinc-950/60">
-        <div className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-zinc-900/80 transition-colors">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex size-7 items-center justify-center rounded-full bg-gradient-to-tr from-violet-600 to-indigo-500 text-white font-semibold text-xs shrink-0 shadow-sm">
-              {userProfile.username.slice(0, 1).toUpperCase()}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <span className="text-xs font-medium text-zinc-200 truncate">
-                {userProfile.username}
-              </span>
-              <span className="text-[10px] text-zinc-500 font-mono">
-                {userProfile.latencyMs || 28}ms · {userProfile.planName}
-              </span>
-            </div>
+      {/* Bottom Section: Runtime Daemon Status */}
+      <div className="p-2 border-t border-zinc-900 bg-zinc-950/80">
+        <div className="flex items-center justify-between rounded-lg px-2.5 py-1.5 bg-zinc-900/40 border border-zinc-900">
+          <div className="flex items-center gap-2">
+            <span className="flex size-2 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
+            <span className="font-mono text-[11px] text-zinc-300">krypton-daemon</span>
           </div>
-
-          {/* Usage Pill Badge */}
-          <div className="flex items-center gap-1 rounded-full bg-violet-600/90 hover:bg-violet-600 px-2 py-0.5 text-[11px] font-medium text-white shadow-sm transition-colors cursor-pointer">
-            <span>{userProfile.tokenUsagePercent}%</span>
-          </div>
+          <span className="font-mono text-[10px] text-zinc-500">v0.1.0 · local</span>
         </div>
       </div>
 
@@ -269,7 +272,7 @@ export function ProjectSidebar({
               <label className="text-zinc-400 font-medium">Workspace Name</label>
               <input
                 type="text"
-                placeholder="e.g. clash-bot-engine"
+                placeholder="e.g. agent-workspace"
                 value={newProjName}
                 onChange={(e) => setNewProjName(e.target.value)}
                 className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none focus:border-violet-500"
@@ -280,7 +283,7 @@ export function ProjectSidebar({
               <label className="text-zinc-400 font-medium">Filesystem Path</label>
               <input
                 type="text"
-                placeholder="e.g. E:/all my code/clash-bot-engine"
+                placeholder="e.g. C:/Projects/my-app"
                 value={newProjPath}
                 onChange={(e) => setNewProjPath(e.target.value)}
                 className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none focus:border-violet-500"

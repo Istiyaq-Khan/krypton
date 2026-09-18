@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Krypton Desktop Shell (`apps/desktop`)
 
-## Getting Started
+The native desktop workstation shell for **Krypton — Autonomous Desktop AI Agent Runtime**, built using **Tauri v2 (Rust)** and **React 19 / Next.js**.
 
-First, run the development server:
+---
+
+## 🌟 Architectural Features
+
+- **Unified Frameless Window**: Native OS chrome is suppressed across Windows, macOS, and Linux with full window drag support (`data-tauri-drag-region`) and secure Tauri IPC controls.
+- **Native Window IPC**: In-app Minimize, Maximize/Restore, and Close controls wired to Rust Tauri commands (`window_minimize`, `window_toggle_maximize`, `window_close`, `window_is_maximized`).
+- **First-Run Onboarding Engine**: Automatic host state detection on startup; routes unconfigured systems through `FirstRunSetupWizard` to configure custom agent identities, model routes, encrypted API credentials, workspace paths, and security preferences.
+- **Pure Clean State**: Zero mock artifacts. Workspaces boot unpopulated with clean project prompts and functional task templates.
+- **Always-on-top Voice Micro-HUD**: Translucent overlay window accessible via global hotkey (`CommandOrControl+Shift+Space`).
+- **Interactive Navigation & Menus**: Working File, Edit, View, and Help menus with keyboard shortcuts and chronological back/forward session history.
+
+---
+
+## 🚀 Development & Build
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# Start Next.js development server
 pnpm dev
-# or
-bun dev
+
+# Run Vitest test suite
+pnpm test
+
+# Check native Rust backend
+cargo check --manifest-path src-tauri/Cargo.toml
+
+# Build Next.js production bundle
+pnpm build
+
+# Build complete Tauri desktop installer
+pnpm tauri:build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 📂 Architecture References
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Production Hardening Architecture](../../docs/PRODUCTION_HARDENING.md)
+- [Release Architecture & Packaging Guide](../../docs/RELEASE_ARCHITECTURE.md)
+- [Agent Operating System Specifications](../../AGENTS.md)

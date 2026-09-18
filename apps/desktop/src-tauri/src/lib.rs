@@ -44,6 +44,12 @@ pub fn run() {
             set_stt_provider,
             submit_chat_turn,
             install_cli_to_path,
+            window_minimize,
+            window_toggle_maximize,
+            window_close,
+            window_is_maximized,
+            check_setup_status,
+            save_setup_configuration,
         ])
         .run(tauri::generate_context!())
         .expect("error while running krypton desktop application");

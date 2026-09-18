@@ -78,7 +78,7 @@ export function CommandContextBar({
         {/* Project Tag */}
         <div className="flex items-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-zinc-800/80 transition-colors cursor-pointer text-zinc-300">
           <Folder className="size-3.5 text-zinc-400" />
-          <span className="font-medium text-[11px]">{projectName}</span>
+          <span className="font-medium text-[11px]">{projectName || "No Workspace"}</span>
         </div>
 
         {/* Local Machine Tag */}
@@ -88,10 +88,12 @@ export function CommandContextBar({
         </div>
 
         {/* Git Branch Tag */}
-        <div className="flex items-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-zinc-800/80 transition-colors cursor-pointer text-zinc-300">
-          <GitBranch className="size-3.5 text-zinc-400" />
-          <span className="font-mono text-[11px] truncate max-w-[180px]">{branchName}</span>
-        </div>
+        {branchName && (
+          <div className="flex items-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-zinc-800/80 transition-colors cursor-pointer text-zinc-300">
+            <GitBranch className="size-3.5 text-zinc-400" />
+            <span className="font-mono text-[11px] truncate max-w-[180px]">{branchName}</span>
+          </div>
+        )}
       </div>
 
       {/* 2. Main Unified Command Box Container (Matching Target Images) */}

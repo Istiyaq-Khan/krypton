@@ -16,6 +16,10 @@ export type ModelRoute = z.infer<typeof ModelRouteSchema>;
  */
 export const GlobalConfigSchema = z.object({
   version: z.string().default("1.0.0"),
+  isInitialized: z.boolean().default(false),
+  customAgentName: z.string().default("Orchestrator"),
+  defaultWorkspaceDir: z.string().optional(),
+  askForApproval: z.boolean().default(true),
   activeProviders: z.array(z.string()).default(["anthropic", "openai"]),
   defaultRoutes: z
     .object({
@@ -177,3 +181,26 @@ export type VaultCredential = z.infer<typeof VaultCredentialSchema>;
 
 export const VaultStoreSchema = z.record(z.string(), VaultCredentialSchema);
 export type VaultStore = z.infer<typeof VaultStoreSchema>;
+
+/**
+ * First-run onboarding setup payload submitted from the interactive setup wizard.
+ */
+export const SetupConfigPayloadSchema = z.object({
+  agentName: z.string().min(1, "Agent name is required").default("Orchestrator"),
+  agentRole: z.string().default("Autonomous Desktop AI Agent"),
+  primaryModel: z.string().default("5.6 Terra High"),
+  apiKeys: z
+    .object({
+      anthropic: z.string().optional(),
+      openai: z.string().optional(),
+      customEndpoint: z.string().optional(),
+      customModel: z.string().optional(),
+    })
+    .default({}),
+  defaultWorkspaceDir: z.string().default(""),
+  askForApproval: z.boolean().default(true),
+  astSafetyEnforced: z.boolean().default(true),
+  telemetryEnabled: z.boolean().default(false),
+});
+export type SetupConfigPayload = z.infer<typeof SetupConfigPayloadSchema>;
+

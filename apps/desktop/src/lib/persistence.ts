@@ -117,17 +117,6 @@ export interface TrajectoryLogItem {
   metadata?: Record<string, unknown>
 }
 
-export interface UserProfileInfo {
-  username: string
-  avatarUrl?: string
-  tokenUsagePercent: number
-  tokensUsed: number
-  tokensLimit: number
-  planName: string
-  latencyMs?: number
-  memoryUsageMb?: number
-}
-
 export interface WorkstationState {
   version: number
   projects: ProjectWorkspace[]
@@ -141,62 +130,16 @@ export interface WorkstationState {
   pendingApprovals: ApprovalGate[]
   selectedModel: string
   askForApproval: boolean
-  userProfile: UserProfileInfo
 }
 
-const STORAGE_KEY = "krypton_workstation_state_v1"
+const STORAGE_KEY = "krypton_workstation_state_v2"
 
-// Default initial state representing the active local Krypton runtime environment
+// Pure initial state representing a clean Krypton runtime environment without mock artifacts
 export const DEFAULT_INITIAL_STATE: WorkstationState = {
-  version: 1,
-  projects: [
-    {
-      id: "proj-krypton",
-      name: "krypton-runtime",
-      path: "E:/all my code/krypton",
-      branch: "main",
-      activeThreadId: "thread-welcome-01",
-      threads: [
-        {
-          id: "thread-welcome-01",
-          projectId: "proj-krypton",
-          title: "Autonomous Agent Supervision Session",
-          createdAt: Date.now() - 120000,
-          updatedAt: Date.now() - 30000,
-          status: "idle",
-          messages: [
-            {
-              id: "msg-sys-init",
-              sender: "agent",
-              timestamp: Date.now() - 120000,
-              assistantText: "Krypton Autonomous Desktop AI Runtime initialized. System ready for task delegation.",
-              thoughtTrace: {
-                id: "trace-init",
-                durationFormatted: "Initialized in 140ms",
-                durationSeconds: 0.14,
-                steps: [
-                  {
-                    title: "Runtime Environment Check",
-                    detail: "Verified AST safety rules, Git worktree isolation directory, and PTY session pool.",
-                    timestamp: Date.now() - 120000,
-                    status: "done",
-                  },
-                  {
-                    title: "Fleet Supervision Active",
-                    detail: "Orchestrator, CoderBot, and TesterBot actors loaded from ~/.krypton manifests.",
-                    timestamp: Date.now() - 119900,
-                    status: "done",
-                  },
-                ],
-              },
-            },
-          ],
-        },
-      ],
-    },
-  ],
-  activeProjectId: "proj-krypton",
-  activeThreadId: "thread-welcome-01",
+  version: 2,
+  projects: [],
+  activeProjectId: "",
+  activeThreadId: "",
   fleet: [
     {
       id: "agent-root",
@@ -204,7 +147,7 @@ export const DEFAULT_INITIAL_STATE: WorkstationState = {
       role: "System Orchestrator & Task Decomposer",
       state: "idle",
       depth: 0,
-      budgetUsed: 1240,
+      budgetUsed: 0,
       budgetTotal: 100000,
       model: "5.6 Terra High",
       temperature: 0.2,
@@ -222,7 +165,7 @@ export const DEFAULT_INITIAL_STATE: WorkstationState = {
       role: "Full-Stack Actor & Tool Synthesizer",
       state: "idle",
       depth: 1,
-      budgetUsed: 3120,
+      budgetUsed: 0,
       budgetTotal: 50000,
       parentAgentId: "agent-root",
       model: "Claude 3.7 Sonnet",
@@ -241,7 +184,7 @@ export const DEFAULT_INITIAL_STATE: WorkstationState = {
       role: "AST Linter & Verification Harness",
       state: "idle",
       depth: 2,
-      budgetUsed: 890,
+      budgetUsed: 0,
       budgetTotal: 25000,
       parentAgentId: "agent-coder",
       model: "DeepSeek R1",
@@ -256,30 +199,12 @@ export const DEFAULT_INITIAL_STATE: WorkstationState = {
     },
   ],
   tasks: [],
-  logs: [
-    {
-      id: "log-sys-boot",
-      timestamp: Date.now() - 120000,
-      agentId: "agent-root",
-      agentName: "Orchestrator",
-      type: "checkpoint",
-      content: "Krypton daemon supervisor online. PTY pool and AST linter ready.",
-    },
-  ],
+  logs: [],
   activeDiff: null,
   activeClarification: null,
   pendingApprovals: [],
   selectedModel: "5.6 Terra High",
   askForApproval: true,
-  userProfile: {
-    username: "razin-khan",
-    tokenUsagePercent: 12,
-    tokensUsed: 18450,
-    tokensLimit: 150000,
-    planName: "Pro Tier",
-    latencyMs: 38,
-    memoryUsageMb: 142,
-  },
 }
 
 /**
@@ -298,7 +223,7 @@ export function loadWorkstationState(): WorkstationState {
     }
 
     const parsed = JSON.parse(raw) as WorkstationState
-    if (!parsed.version || !parsed.projects || parsed.projects.length === 0) {
+    if (parsed.version !== 2 || !Array.isArray(parsed.projects)) {
       saveWorkstationState(DEFAULT_INITIAL_STATE)
       return DEFAULT_INITIAL_STATE
     }
