@@ -15,7 +15,6 @@ The Rust backend exposes native desktop commands registered in `apps/desktop/src
 | `ping_daemon` / `get_daemon_status` | `sidecar.rs` | Returns daemon running state, uptime, and socket path. |
 | `toggle_overlay` / `show_overlay` | `overlay.rs` | Manipulates floating voice HUD window visibility. |
 | `window_minimize` / `window_toggle_maximize` / `window_close` | `window.rs` | Native window geometry management. |
-| `open_folder_dialog` | `window.rs` | Invokes native OS directory picker dialog and returns path. |
 | `start_audio_capture` / `stop_audio_capture` | `audio.rs` | Captures microphone input for local speech-to-text. |
 | `check_setup_status` / `save_setup_configuration` | `setup.rs` | Inspects and writes initial onboarding configuration. |
 | `install_cli_to_path` | `installer.rs` | Registers `krypton` CLI executable to the host system PATH. |
@@ -35,11 +34,9 @@ Manages the real-time WebSocket connection to `ws://127.0.0.1:18789`:
   - `clarification_requested`: Triggers the HITL QuestionModal dialog.
 
 ### B. `useAgentSession.ts`
-Coordinates active agent conversation state and workspaces:
+Coordinates active agent conversation state:
 - Tracks active task ID, messages array, and thought traces.
 - Handles user message submission, prompt decomposition, and mid-flight cancellation.
-- Manages workspace list, active project selection, and conversation threads.
-- Exposes `openFolder(path?)` to trigger native folder picker (`open_folder_dialog`), auto-register projects, and switch workspaces seamlessly.
 - Synchronizes with localStorage via `lib/persistence.ts`.
 
 ### C. `useVoiceHud.ts`

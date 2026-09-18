@@ -325,64 +325,6 @@ export function useAgentSession() {
     pushHistory(newProjId, initialThreadId)
   }, [pushHistory])
 
-  // Open native OS directory picker or accept folder path, register workspace and switch cleanly
-  const openFolder = useCallback(
-    async (customPath?: string) => {
-      let selectedPath: string | null = customPath || null
-
-      if (!selectedPath && typeof window !== "undefined" && isTauri()) {
-        try {
-          selectedPath = await invoke<string | null>("open_folder_dialog")
-        } catch (err) {
-          console.warn("Tauri open_folder_dialog error:", err)
-        }
-      }
-
-      if (!selectedPath && typeof window !== "undefined" && "showDirectoryPicker" in window) {
-        try {
-          const pickerWin = window as unknown as { showDirectoryPicker?: () => Promise<{ name?: string }> }
-          const handle = await pickerWin.showDirectoryPicker?.()
-          if (handle && handle.name) {
-            selectedPath = handle.name
-          }
-        } catch (err: unknown) {
-          const isAbort = err instanceof Error && err.name === "AbortError"
-          if (!isAbort) {
-            console.warn("showDirectoryPicker error:", err)
-          }
-          return
-        }
-      }
-
-      if (!selectedPath && typeof window !== "undefined" && !isTauri()) {
-        const manual = window.prompt?.("Enter workspace folder path:")
-        if (manual && manual.trim()) {
-          selectedPath = manual.trim()
-        }
-      }
-
-      if (selectedPath) {
-        const normalized = selectedPath.replace(/\\/g, "/")
-        const folderName = normalized.split("/").filter(Boolean).pop() || "workspace"
-
-        // Check if project already registered
-        const existing = projects.find(
-          (p) =>
-            p.path.toLowerCase() === selectedPath!.toLowerCase() ||
-            p.path.toLowerCase() === normalized.toLowerCase() ||
-            p.name.toLowerCase() === folderName.toLowerCase()
-        )
-
-        if (existing) {
-          selectProject(existing.id)
-        } else {
-          createProject(folderName, selectedPath)
-        }
-      }
-    },
-    [projects, selectProject, createProject]
-  )
-
   // Delete a thread
   const deleteThread = useCallback((threadId: string) => {
     setProjects((prev) =>
@@ -670,7 +612,6 @@ export function useAgentSession() {
     selectThread,
     createNewChat,
     createProject,
-    openFolder,
     deleteThread,
     submitPrompt,
     resolveMessageApproval,

@@ -9,39 +9,31 @@ import {
   PanelLeft,
   PanelRight,
   Folder,
-  FolderOpen,
-  Plus,
   Minus,
   Square,
   Copy,
   X,
   Keyboard,
   Info,
+  Sliders,
   Sparkles,
+  FileCode,
+  Mic,
+  Maximize2,
   Search,
   Bell,
-  MessageSquare,
-  Check,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ProjectWorkspace, AgentThread } from "@/lib/persistence"
 
-export interface WindowHeaderProps {
+interface WindowHeaderProps {
   projectName?: string
   threadTitle?: string
-  projects?: ProjectWorkspace[]
-  activeProjectId?: string
-  onSelectProject?: (projectId: string) => void
-  onCreateProject?: (name?: string, path?: string) => void
-  onOpenFolder?: () => void
-  threads?: AgentThread[]
-  activeThreadId?: string
-  onSelectThread?: (threadId: string) => void
   isLeftSidebarOpen: boolean
   isRightDrawerOpen: boolean
   onToggleLeftSidebar: () => void
   onToggleRightDrawer: () => void
   onNewChat: () => void
+  onCreateProject?: () => void
   onOpenSetupWizard?: () => void
   canGoBack?: boolean
   canGoForward?: boolean
@@ -54,20 +46,12 @@ export interface WindowHeaderProps {
 export function WindowHeader({
   projectName,
   threadTitle,
-  projects,
-  activeProjectId,
-  onSelectProject,
-  onCreateProject,
-  onOpenFolder,
-  threads,
-  activeThreadId,
-  onSelectThread,
   isLeftSidebarOpen,
   isRightDrawerOpen,
   onToggleLeftSidebar,
   onToggleRightDrawer,
   onNewChat,
-  onCreateProject: onCreateProjectProp,
+  onCreateProject,
   onOpenSetupWizard,
   canGoBack = false,
   canGoForward = false,
@@ -81,20 +65,8 @@ export function WindowHeader({
   const [activeMenu, setActiveMenu] = useState<"file" | "edit" | "view" | "help" | null>(null)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
-
-  // Interactive Breadcrumbs Popover State
-  const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false)
-  const [isSessionMenuOpen, setIsSessionMenuOpen] = useState(false)
-  const [sessionSearchQuery, setSessionSearchQuery] = useState("")
-  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false)
-  const [newProjectName, setNewProjectName] = useState("")
-  const [newProjectPath, setNewProjectPath] = useState("")
-
   const menuContainerRef = useRef<HTMLDivElement>(null)
   const logoMenuRef = useRef<HTMLDivElement>(null)
-  const workspaceMenuRef = useRef<HTMLDivElement>(null)
-  const sessionMenuRef = useRef<HTMLDivElement>(null)
-  const sessionSearchInputRef = useRef<HTMLInputElement>(null)
 
   // Query window maximization state on mount and listen to changes
   useEffect(() => {
@@ -143,7 +115,7 @@ export function WindowHeader({
     }
   }, [])
 
-  // Close open dropdowns when clicking outside or pressing Escape
+  // Close open dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node
@@ -153,84 +125,14 @@ export function WindowHeader({
       if (logoMenuRef.current && !logoMenuRef.current.contains(target)) {
         setIsLogoMenuOpen(false)
       }
-      if (workspaceMenuRef.current && !workspaceMenuRef.current.contains(target)) {
-        setIsWorkspaceMenuOpen(false)
-      }
-      if (sessionMenuRef.current && !sessionMenuRef.current.contains(target)) {
-        setIsSessionMenuOpen(false)
-      }
     }
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setActiveMenu(null)
-        setIsLogoMenuOpen(false)
-        setIsWorkspaceMenuOpen(false)
-        setIsSessionMenuOpen(false)
-        setSessionSearchQuery("")
-      }
+    if (activeMenu || isLogoMenuOpen) {
+      window.addEventListener("mousedown", handleClickOutside)
     }
-
-    window.addEventListener("mousedown", handleClickOutside)
-    window.addEventListener("keydown", handleKeyDown)
     return () => {
       window.removeEventListener("mousedown", handleClickOutside)
-      window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [])
-
-  // Auto-focus search input when session popover opens
-  useEffect(() => {
-    if (isSessionMenuOpen) {
-      const timer = setTimeout(() => {
-        sessionSearchInputRef.current?.focus()
-      }, 50)
-      return () => clearTimeout(timer)
-    }
-  }, [isSessionMenuOpen])
-
-  // Derive active workspace/project and session/thread details
-  const currentProject = projects?.find((p) => p.id === activeProjectId) || projects?.[0]
-  const currentWorkspaceName = projectName || currentProject?.name || ""
-
-  const currentSessions = threads || currentProject?.threads || []
-  const currentSession = currentSessions.find((t) => t.id === activeThreadId) || currentSessions[0]
-  const currentSessionTitle = threadTitle || currentSession?.title || ""
-
-  const filteredSessions = currentSessions.filter((t) =>
-    t.title.toLowerCase().includes(sessionSearchQuery.toLowerCase().trim())
-  )
-
-  const handleOpenFolder = async () => {
-    setIsWorkspaceMenuOpen(false)
-    if (onOpenFolder) {
-      onOpenFolder()
-      return
-    }
-    if (typeof window !== "undefined" && isTauri()) {
-      try {
-        const selected = await invoke<string | null>("open_folder_dialog")
-        if (selected) {
-          const clean = selected.replace(/\\/g, "/")
-          const folderName = clean.split("/").filter(Boolean).pop() || "workspace"
-          const createFn = onCreateProject || onCreateProjectProp
-          createFn?.(folderName, selected)
-        }
-      } catch (err) {
-        console.warn("open_folder_dialog error:", err)
-      }
-    }
-  }
-
-  const handleCreateProjectSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newProjectName.trim()) return
-    const createFn = onCreateProject || onCreateProjectProp
-    createFn?.(newProjectName.trim(), newProjectPath.trim() || `projects/${newProjectName.trim()}`)
-    setNewProjectName("")
-    setNewProjectPath("")
-    setIsNewProjectModalOpen(false)
-  }
+  }, [activeMenu, isLogoMenuOpen])
 
   // Window management handlers
   const handleMinimize = async (e: React.MouseEvent) => {
@@ -717,296 +619,25 @@ export function WindowHeader({
         <div
           data-tauri-drag-region="false"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          className="flex items-center justify-center shrink-0 min-w-0 max-w-xl pointer-events-auto app-region-no-drag z-10"
+          className="flex items-center justify-center shrink-0 min-w-0 max-w-md pointer-events-auto app-region-no-drag z-10"
         >
           <div
             data-tauri-drag-region="false"
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            className="flex items-center gap-0.5 rounded-lg border border-zinc-800/80 bg-zinc-900/60 p-0.5 text-xs text-zinc-300 pointer-events-auto shadow-xs backdrop-blur-sm"
+            onClick={() => onCreateProject?.()}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-zinc-900/90 text-zinc-300 transition-colors cursor-pointer border border-transparent hover:border-zinc-800/80 truncate text-xs pointer-events-auto"
+            title={`Workspace: ${projectName || "No Workspace Open"}${threadTitle ? ` / ${threadTitle}` : ""}`}
           >
-            {/* 1. Left Segment: Workspace Switcher Popover */}
-            <div
-              ref={workspaceMenuRef}
-              className="relative"
-              data-tauri-drag-region="false"
-              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            >
-              <button
-                type="button"
-                data-tauri-drag-region="false"
-                style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                onClick={() => {
-                  setIsWorkspaceMenuOpen(!isWorkspaceMenuOpen)
-                  setIsSessionMenuOpen(false)
-                  setActiveMenu(null)
-                  setIsLogoMenuOpen(false)
-                }}
-                className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all border border-transparent pointer-events-auto cursor-pointer ${
-                  isWorkspaceMenuOpen
-                    ? "bg-zinc-800 text-white border-zinc-700/80 shadow-xs"
-                    : "hover:bg-zinc-800/70 hover:text-zinc-100 text-zinc-300"
-                }`}
-                title={`Workspace: ${currentWorkspaceName || "No Workspace Open"}`}
-              >
-                <Folder className="size-3.5 text-violet-400 group-hover:text-violet-300 transition-colors shrink-0" />
-                <span className="truncate max-w-[130px]">{currentWorkspaceName || "No Workspace"}</span>
-                <ChevronDown
-                  className={`size-3 text-zinc-400 group-hover:text-zinc-200 transition-transform duration-200 shrink-0 ${
-                    isWorkspaceMenuOpen ? "rotate-180 text-violet-300" : ""
-                  }`}
-                />
-              </button>
-
-              {/* Workspace Popover Dropdown */}
-              {isWorkspaceMenuOpen && (
-                <div
-                  data-tauri-drag-region="false"
-                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                  className="absolute left-0 top-full mt-1.5 w-72 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-2xl backdrop-blur-2xl z-50 text-xs flex flex-col pointer-events-auto animate-in fade-in-0 zoom-in-95 duration-150"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    <span>Workspaces</span>
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.2 font-mono text-[10px] text-zinc-400">
-                      {projects?.length || 0}
-                    </span>
-                  </div>
-
-                  {/* Workspaces List */}
-                  <div className="flex flex-col gap-0.5 max-h-56 overflow-y-auto no-scrollbar py-0.5">
-                    {projects && projects.length > 0 ? (
-                      projects.map((proj) => {
-                        const isActive = proj.id === activeProjectId || proj.name === currentWorkspaceName
-                        return (
-                          <button
-                            key={proj.id}
-                            type="button"
-                            data-tauri-drag-region="false"
-                            style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                            onClick={() => {
-                              onSelectProject?.(proj.id)
-                              setIsWorkspaceMenuOpen(false)
-                            }}
-                            className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors cursor-pointer pointer-events-auto group ${
-                              isActive
-                                ? "bg-violet-950/40 text-violet-200 font-medium border border-violet-800/40"
-                                : "hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Folder className={`size-3.5 shrink-0 ${isActive ? "text-violet-400" : "text-zinc-500 group-hover:text-zinc-300"}`} />
-                              <div className="flex flex-col min-w-0">
-                                <span className="truncate text-xs">{proj.name}</span>
-                                {proj.path && (
-                                  <span className="truncate text-[10px] text-zinc-500 font-mono max-w-[190px]">
-                                    {proj.path}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            {isActive && <Check className="size-3.5 text-violet-400 shrink-0" />}
-                          </button>
-                        )
-                      })
-                    ) : (
-                      /* Elegant Zero State */
-                      <div className="flex flex-col items-center justify-center p-4 text-center border border-dashed border-zinc-800/80 rounded-lg my-1 bg-zinc-950/40">
-                        <Folder className="size-5 text-zinc-600 mb-1.5" />
-                        <span className="text-zinc-300 text-xs font-medium">No Workspaces Found</span>
-                        <span className="text-[10px] text-zinc-500 mt-0.5 mb-2">
-                          Create or open a folder to get started.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="h-px bg-zinc-800/80 my-1" />
-
-                  {/* Actions */}
-                  <button
-                    type="button"
-                    data-tauri-drag-region="false"
-                    style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                    onClick={handleOpenFolder}
-                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer pointer-events-auto w-full text-left"
-                  >
-                    <FolderOpen className="size-3.5 text-indigo-400 shrink-0" />
-                    <span>Open Folder...</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    data-tauri-drag-region="false"
-                    style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                    onClick={() => {
-                      setIsWorkspaceMenuOpen(false)
-                      setIsNewProjectModalOpen(true)
-                    }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer pointer-events-auto w-full text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Plus className="size-3.5 text-violet-400 shrink-0" />
-                      <span>New Project...</span>
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+N</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Breadcrumb Separator */}
-            <span className="text-zinc-600 select-none text-xs px-0.5">/</span>
-
-            {/* 2. Right Segment: Session Switcher Popover */}
-            <div
-              ref={sessionMenuRef}
-              className="relative"
-              data-tauri-drag-region="false"
-              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            >
-              <button
-                type="button"
-                data-tauri-drag-region="false"
-                style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                onClick={() => {
-                  setIsSessionMenuOpen(!isSessionMenuOpen)
-                  setIsWorkspaceMenuOpen(false)
-                  setActiveMenu(null)
-                  setIsLogoMenuOpen(false)
-                }}
-                className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-normal transition-all border border-transparent pointer-events-auto cursor-pointer ${
-                  isSessionMenuOpen
-                    ? "bg-zinc-800 text-white border-zinc-700/80 shadow-xs"
-                    : "hover:bg-zinc-800/70 hover:text-zinc-100 text-zinc-300"
-                }`}
-                title={`Session: ${currentSessionTitle || "No Active Session"}`}
-              >
-                <MessageSquare className="size-3.5 text-cyan-400 group-hover:text-cyan-300 transition-colors shrink-0" />
-                <span className="truncate max-w-[140px]">{currentSessionTitle || "No Session"}</span>
-                <ChevronDown
-                  className={`size-3 text-zinc-400 group-hover:text-zinc-200 transition-transform duration-200 shrink-0 ${
-                    isSessionMenuOpen ? "rotate-180 text-cyan-300" : ""
-                  }`}
-                />
-              </button>
-
-              {/* Session Popover Dropdown */}
-              {isSessionMenuOpen && (
-                <div
-                  data-tauri-drag-region="false"
-                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                  className="absolute left-0 top-full mt-1.5 w-80 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-2xl backdrop-blur-2xl z-50 text-xs flex flex-col pointer-events-auto animate-in fade-in-0 zoom-in-95 duration-150"
-                >
-                  {/* Search Input Filter */}
-                  <div className="relative mb-1 px-1 pt-0.5">
-                    <Search className="size-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      ref={sessionSearchInputRef}
-                      type="text"
-                      placeholder="Search sessions..."
-                      value={sessionSearchQuery}
-                      onChange={(e) => setSessionSearchQuery(e.target.value)}
-                      data-tauri-drag-region="false"
-                      style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-                      className="w-full rounded-lg border border-zinc-800 bg-zinc-950/80 pl-8 pr-7 py-1.5 text-xs text-zinc-100 placeholder:text-zinc-500 outline-none focus:border-cyan-500/80 focus:ring-1 focus:ring-cyan-500/50 transition-all pointer-events-auto"
-                    />
-                    {sessionSearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSessionSearchQuery("")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 cursor-pointer"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    <span>Recent Sessions</span>
-                    <span className="rounded bg-zinc-800 px-1.5 py-0.2 font-mono text-[10px] text-zinc-400">
-                      {filteredSessions.length}
-                    </span>
-                  </div>
-
-                  {/* Sessions List */}
-                  <div className="flex flex-col gap-0.5 max-h-56 overflow-y-auto no-scrollbar py-0.5">
-                    {currentSessions.length === 0 ? (
-                      /* Elegant Zero State */
-                      <div className="flex flex-col items-center justify-center p-4 text-center border border-dashed border-zinc-800/80 rounded-lg my-1 bg-zinc-950/40">
-                        <MessageSquare className="size-5 text-zinc-600 mb-1.5" />
-                        <span className="text-zinc-300 text-xs font-medium">No Sessions Found</span>
-                        <span className="text-[10px] text-zinc-500 mt-0.5 mb-2">
-                          Start a new autonomous session.
-                        </span>
-                      </div>
-                    ) : filteredSessions.length === 0 ? (
-                      /* Zero search matches */
-                      <div className="flex flex-col items-center justify-center py-6 text-center text-zinc-500 text-xs">
-                        <span>No sessions matching &quot;{sessionSearchQuery}&quot;</span>
-                      </div>
-                    ) : (
-                      filteredSessions.map((thread) => {
-                        const isActive = thread.id === activeThreadId || thread.title === currentSessionTitle
-                        return (
-                          <button
-                            key={thread.id}
-                            type="button"
-                            data-tauri-drag-region="false"
-                            style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                            onClick={() => {
-                              onSelectThread?.(thread.id)
-                              setIsSessionMenuOpen(false)
-                              setSessionSearchQuery("")
-                            }}
-                            className={`flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left transition-colors cursor-pointer pointer-events-auto group ${
-                              isActive
-                                ? "bg-cyan-950/40 text-cyan-200 font-medium border border-cyan-800/40"
-                                : "hover:bg-zinc-800/80 text-zinc-300 hover:text-zinc-100"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <MessageSquare className={`size-3.5 shrink-0 ${isActive ? "text-cyan-400" : "text-zinc-500 group-hover:text-zinc-300"}`} />
-                              <div className="flex flex-col min-w-0">
-                                <span className="truncate text-xs">{thread.title}</span>
-                                <span className="text-[10px] text-zinc-500">
-                                  {thread.messages?.length || 0} messages
-                                </span>
-                              </div>
-                            </div>
-                            {isActive && <Check className="size-3.5 text-cyan-400 shrink-0" />}
-                          </button>
-                        )
-                      })
-                    )}
-                  </div>
-
-                  <div className="h-px bg-zinc-800/80 my-1" />
-
-                  {/* + New Session Action */}
-                  <button
-                    type="button"
-                    data-tauri-drag-region="false"
-                    style={{ WebkitAppRegion: "no-drag", cursor: "pointer" } as React.CSSProperties}
-                    onClick={() => {
-                      onNewChat()
-                      setIsSessionMenuOpen(false)
-                      setSessionSearchQuery("")
-                    }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer pointer-events-auto w-full text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Plus className="size-3.5 text-cyan-400 shrink-0" />
-                      <span>New Session</span>
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">Ctrl+N</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            <Folder className="size-3.5 text-zinc-500 shrink-0" />
+            <span className="truncate font-medium">{projectName || "No Workspace Open"}</span>
+            {threadTitle && (
+              <>
+                <span className="text-zinc-600">/</span>
+                <span className="text-zinc-200 truncate font-normal">{threadTitle}</span>
+              </>
+            )}
           </div>
         </div>
-
 
         {/* Empty Draggable Region between Breadcrumbs and Controls */}
         <div
@@ -1117,57 +748,6 @@ export function WindowHeader({
           </div>
         </div>
       </header>
-
-      {/* CREATE WORKSPACE PROJECT MODAL */}
-      <Dialog open={isNewProjectModalOpen} onOpenChange={setIsNewProjectModalOpen}>
-        <DialogContent className="max-w-sm bg-zinc-950 border border-zinc-800 text-zinc-100">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-semibold flex items-center gap-2">
-              <Folder className="size-4 text-violet-400" />
-              <span>New Workspace Project</span>
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateProjectSubmit} className="flex flex-col gap-3 pt-2 text-xs">
-            <div className="flex flex-col gap-1">
-              <label className="text-zinc-400 font-medium">Workspace Name</label>
-              <input
-                type="text"
-                placeholder="e.g. agent-workspace"
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none focus:border-violet-500"
-                required
-                autoFocus
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-zinc-400 font-medium">Filesystem Path (Optional)</label>
-              <input
-                type="text"
-                placeholder="e.g. projects/agent-workspace"
-                value={newProjectPath}
-                onChange={(e) => setNewProjectPath(e.target.value)}
-                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none focus:border-violet-500"
-              />
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setIsNewProjectModalOpen(false)}
-                className="rounded-lg px-3 py-1.5 text-zinc-400 hover:text-zinc-200 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="rounded-lg bg-violet-600 hover:bg-violet-500 px-3 py-1.5 text-white font-medium cursor-pointer"
-              >
-                Create Workspace
-              </button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* ABOUT KRYPTON MODAL */}
       <Dialog open={isAboutOpen} onOpenChange={setIsAboutOpen}>

@@ -31,16 +31,7 @@ apps/desktop/src/components/
 
 ## 2. Key Interactive Components
 
-### A. WindowHeader (`WindowHeader.tsx`)
-Frameless window titlebar, menus, and navigation hub:
-- **Interactive Codex Breadcrumbs**: Click-isolated dual-segment breadcrumb pill (`-webkit-app-region: no-drag; cursor: pointer;`).
-  - **Workspace Switcher Popover**: Lists recent workspaces, active workspace indicator, native "Open Folder..." action (`open_folder_dialog`), and "+ New Project" modal.
-  - **Session Switcher Popover**: Auto-focus search input for real-time title filtering, recent session list with active indicators, and "+ New Session" button (`Ctrl+N`).
-  - **Zero States & Dismissal**: Dedicated empty states and smooth click-outside / `Escape` dismissal.
-- **Titlebar Menus & History**: `File`, `Edit`, `View`, and `Help` dropdown menus with `Back` and `Forward` history traversal.
-- **Native Window IPC Controls**: Minimize, maximize/restore, and close buttons synchronized with host OS geometry.
-
-### B. ExecutionStream (`ExecutionStream.tsx`)
+### A. ExecutionStream (`ExecutionStream.tsx`)
 The centerpiece of the workstation interface:
 - Displays user prompts alongside streaming assistant responses.
 - Renders **AgentThoughtTrace** collapsible accordions showing the model's intermediate reflection before taking action.

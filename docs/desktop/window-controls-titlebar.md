@@ -65,7 +65,6 @@ Window lifecycle operations are handled by Rust Tauri commands defined in `apps/
 | **Toggle Maximize** | `window_toggle_maximize` | Toggles between maximized screen and restored geometry, returning next state. |
 | **Close** | `window_close` | Initiates graceful application teardown. |
 | **Query State** | `window_is_maximized` | Queries whether the window is currently maximized to swap icons (`Square` vs `Copy`). |
-| **Open Folder Dialog** | `open_folder_dialog` | Invokes native OS directory selection picker and returns canonical path. |
 
 ### Client-Side State Synchronization Pattern
 To guarantee that the maximize/restore icon stays synchronized even when windows are snapped, un-snapped, or resized via native OS gestures or double-clicks:
@@ -108,41 +107,3 @@ The header integrates classic application menu bars and browser-style navigation
 - **Application Menus**: `File`, `Edit`, `View`, and `Help` dropdown menus with native-style keyboard shortcuts (`Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+B`, `Ctrl+J`, `Ctrl+,`).
 - **Preferences Access**: Direct menu shortcuts to reopen the First-Run Setup Wizard or settings modal.
 - **Chronological History**: `Back` and `Forward` buttons allowing users to navigate between visited project workspaces and chat threads.
-
----
-
-## 5. Interactive Codex-Style Breadcrumb Popovers
-
-The middle header section hosts a dual-segment interactive breadcrumb bar providing instant workspace and conversation context switching without full application reload:
-
-```
-[ 📁 my-first-workspace ▾ ] / [ 💬 Initial Session ▾ ]
-         │                               │
-         ▼                               ▼
-  Workspace Switcher              Session Switcher
-  - Recent workspaces list        - Real-time search filter input
-  - Active check indicator        - Recent conversation threads
-  - "Open Folder..." action       - Active check indicator
-  - "+ New Project..." modal      - "+ New Session" (Ctrl+N)
-```
-
-### A. Click Isolation & Drag Region Rules
-- Both segments and their popovers are explicitly wrapped in `data-tauri-drag-region="false"` and `style={{ WebkitAppRegion: "no-drag", cursor: "pointer" }}`.
-- Clicking any segment does not trigger window dragging.
-
-### B. Workspace Switcher Popover (Left Segment)
-- **Recent Workspaces**: Displays all registered projects with name, filesystem path, and an active indicator (`Check` icon and violet badge).
-- **Clean Switching**: Selecting a workspace activates it immediately without reloading the application shell.
-- **Open Folder Dialog**: Triggers `open_folder_dialog` (PowerShell on Windows, osascript on macOS, zenity on Linux) with web File System Access API fallbacks. Newly chosen directories are auto-registered and switched to.
-- **New Workspace Modal**: Built-in modal dialog allowing the user to create a project by name and path directly from the header.
-- **Zero State**: Displays a clean empty state with "+ Add Project" and "Open Folder" actions when no workspaces are loaded.
-
-### C. Session Switcher Popover (Right Segment)
-- **Live Search Filter**: Top auto-focused input (`Search sessions...`) filtering conversations in real time with quick-clear button (`X`).
-- **Recent Sessions**: Lists conversation threads for the active workspace, complete with message counts and active thread indicators (`Check` icon and cyan badge).
-- **New Session**: "+ New Session" action (`Ctrl+N`) immediately creates a clean autonomous thread.
-- **Zero States**: Renders dedicated empty states for workspaces with no threads and queries yielding zero search matches.
-
-### D. Dismissal & Outside-Click Handling
-- Click events outside open popovers (`mousedown`) dismiss open menus smoothly.
-- The `Escape` key closes all active popovers and resets active search filter queries.
