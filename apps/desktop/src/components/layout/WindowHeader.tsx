@@ -5,6 +5,7 @@ import { isTauri, invoke } from "@tauri-apps/api/core"
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   PanelLeft,
   PanelRight,
   Folder,
@@ -19,6 +20,8 @@ import {
   FileCode,
   Mic,
   Maximize2,
+  Search,
+  Bell,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
@@ -36,6 +39,8 @@ interface WindowHeaderProps {
   canGoForward?: boolean
   onGoBack?: () => void
   onGoForward?: () => void
+  onOpenSearch?: () => void
+  onOpenNotifications?: () => void
 }
 
 export function WindowHeader({
@@ -52,36 +57,82 @@ export function WindowHeader({
   canGoForward = false,
   onGoBack,
   onGoForward,
+  onOpenSearch,
+  onOpenNotifications,
 }: WindowHeaderProps) {
   const [isMaximized, setIsMaximized] = useState(false)
+  const [isLogoMenuOpen, setIsLogoMenuOpen] = useState(false)
   const [activeMenu, setActiveMenu] = useState<"file" | "edit" | "view" | "help" | null>(null)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
   const menuContainerRef = useRef<HTMLDivElement>(null)
+  const logoMenuRef = useRef<HTMLDivElement>(null)
 
-  // Query window maximization state on mount
+  // Query window maximization state on mount and listen to changes
   useEffect(() => {
+    let unlisten: (() => void) | undefined
+
+    const updateMaximized = async () => {
+      if (typeof window !== "undefined" && isTauri()) {
+        try {
+          const max = await invoke<boolean>("window_is_maximized")
+          setIsMaximized(max)
+        } catch {
+          // Fallback if invoke fails
+        }
+      }
+    }
+
+    // Initial query on mount
+    updateMaximized()
+
+    // Browser window resize listener (fires when OS snaps/restores/maximizes)
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", updateMaximized)
+    }
+
+    // Native Tauri window resize listener
     if (typeof window !== "undefined" && isTauri()) {
-      invoke<boolean>("window_is_maximized")
-        .then(setIsMaximized)
+      import("@tauri-apps/api/window")
+        .then(({ getCurrentWindow }) => {
+          getCurrentWindow()
+            .onResized(() => {
+              updateMaximized()
+            })
+            .then((fn) => {
+              unlisten = fn
+            })
+            .catch(() => {})
+        })
         .catch(() => {})
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("resize", updateMaximized)
+      }
+      unlisten?.()
     }
   }, [])
 
   // Close open dropdowns when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (menuContainerRef.current && !menuContainerRef.current.contains(target)) {
         setActiveMenu(null)
       }
+      if (logoMenuRef.current && !logoMenuRef.current.contains(target)) {
+        setIsLogoMenuOpen(false)
+      }
     }
-    if (activeMenu) {
+    if (activeMenu || isLogoMenuOpen) {
       window.addEventListener("mousedown", handleClickOutside)
     }
     return () => {
       window.removeEventListener("mousedown", handleClickOutside)
     }
-  }, [activeMenu])
+  }, [activeMenu, isLogoMenuOpen])
 
   // Window management handlers
   const handleMinimize = async (e: React.MouseEvent) => {
@@ -91,8 +142,8 @@ export function WindowHeader({
     }
   }
 
-  const handleToggleMaximize = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleToggleMaximize = async (e?: React.MouseEvent) => {
+    e?.stopPropagation()
     if (isTauri()) {
       try {
         const next = await invoke<boolean>("window_toggle_maximize")
@@ -117,26 +168,166 @@ export function WindowHeader({
       await invoke("toggle_overlay").catch(console.error)
     }
     setActiveMenu(null)
+    setIsLogoMenuOpen(false)
+  }
+
+  const handleHeaderDoubleClick = async (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement
+    // Only toggle maximize if double clicking draggable area, not interactive controls
+    const isDragRegion =
+      target.getAttribute("data-tauri-drag-region") !== null &&
+      target.getAttribute("data-tauri-drag-region") !== "false"
+    if (isDragRegion) {
+      await handleToggleMaximize(e)
+    }
   }
 
   return (
     <>
       <header
         data-tauri-drag-region
-        className="flex h-10 w-full shrink-0 items-center justify-between border-b border-zinc-800/80 bg-zinc-950 px-3 text-xs text-zinc-400 select-none z-30 relative"
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        onDoubleClick={handleHeaderDoubleClick}
+        className="flex h-10 w-full shrink-0 items-center justify-between border-b border-zinc-800/80 bg-zinc-950 px-3 text-xs text-zinc-400 select-none z-30 relative app-region-drag"
       >
-        {/* Left Segment: Window Controls / History Arrows & App Menus */}
+        {/* Left Segment: App Logo/Dropdown, History Arrows & App Menus */}
         <div
           data-tauri-drag-region="false"
-          className="flex items-center gap-2 pointer-events-auto"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className="flex items-center gap-2 pointer-events-auto shrink-0 app-region-no-drag z-10"
         >
+          {/* App Logo & Quick Actions Dropdown */}
+          <div ref={logoMenuRef} className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+            <button
+              type="button"
+              onClick={() => {
+                setIsLogoMenuOpen(!isLogoMenuOpen)
+                setActiveMenu(null)
+              }}
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors pointer-events-auto cursor-pointer group"
+              title="Krypton Menu"
+            >
+              <div className="size-4.5 rounded bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-xs">
+                <Sparkles className="size-2.5 text-white" />
+              </div>
+              <span className="font-semibold text-xs tracking-tight text-zinc-200 group-hover:text-white">Krypton</span>
+              <ChevronDown className="size-3 text-zinc-400 group-hover:text-zinc-200" />
+            </button>
+
+            {isLogoMenuOpen && (
+              <div
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                className="absolute left-0 top-full mt-1.5 w-56 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto"
+              >
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    onNewChat()
+                    setIsLogoMenuOpen(false)
+                  }}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>New Session</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Ctrl+N</span>
+                </button>
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    onCreateProject?.()
+                    setIsLogoMenuOpen(false)
+                  }}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>New Workspace...</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+N</span>
+                </button>
+                <div className="h-px bg-zinc-800 my-1" />
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    onOpenSetupWizard?.()
+                    setIsLogoMenuOpen(false)
+                  }}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>Setup Wizard...</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Ctrl+,</span>
+                </button>
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    handleToggleVoiceHud()
+                    setIsLogoMenuOpen(false)
+                  }}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>Toggle Voice Micro-HUD</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+Space</span>
+                </button>
+                <div className="h-px bg-zinc-800 my-1" />
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    setIsShortcutsOpen(true)
+                    setIsLogoMenuOpen(false)
+                  }}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>Keyboard Shortcuts</span>
+                </button>
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    setIsAboutOpen(true)
+                    setIsLogoMenuOpen(false)
+                  }}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>About Krypton</span>
+                </button>
+                <div className="h-px bg-zinc-800 my-1" />
+                <button
+                  type="button"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={handleClose}
+                  className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-rose-950/80 hover:text-rose-300 text-zinc-400 text-left transition-colors pointer-events-auto cursor-pointer"
+                >
+                  <span>Exit Krypton</span>
+                  <span className="text-[10px] text-zinc-500 font-mono">Alt+F4</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Navigation History Arrows */}
-          <div className="flex items-center gap-0.5">
+          <div
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="flex items-center gap-0.5 pointer-events-auto"
+          >
             <button
               type="button"
               onClick={onGoBack}
               disabled={!canGoBack}
-              className={`flex size-6 items-center justify-center rounded transition-colors ${
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className={`flex size-6 items-center justify-center rounded transition-colors pointer-events-auto ${
                 canGoBack
                   ? "hover:bg-zinc-800/80 text-zinc-300 cursor-pointer"
                   : "text-zinc-600 cursor-not-allowed opacity-50"
@@ -149,7 +340,9 @@ export function WindowHeader({
               type="button"
               onClick={onGoForward}
               disabled={!canGoForward}
-              className={`flex size-6 items-center justify-center rounded transition-colors ${
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className={`flex size-6 items-center justify-center rounded transition-colors pointer-events-auto ${
                 canGoForward
                   ? "hover:bg-zinc-800/80 text-zinc-300 cursor-pointer"
                   : "text-zinc-600 cursor-not-allowed opacity-50"
@@ -161,13 +354,23 @@ export function WindowHeader({
           </div>
 
           {/* Standard App Menus with Interactive Dropdowns */}
-          <div ref={menuContainerRef} className="hidden sm:flex items-center gap-1 ml-1 text-[11px] text-zinc-400 relative">
+          <div
+            ref={menuContainerRef}
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="hidden sm:flex items-center gap-1 ml-0.5 text-[11px] text-zinc-400 relative pointer-events-auto"
+          >
             {/* File Menu */}
-            <div className="relative">
+            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
               <button
                 type="button"
-                onClick={() => setActiveMenu(activeMenu === "file" ? null : "file")}
-                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer ${
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => {
+                  setActiveMenu(activeMenu === "file" ? null : "file")
+                  setIsLogoMenuOpen(false)
+                }}
+                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer pointer-events-auto ${
                   activeMenu === "file" ? "bg-zinc-800 text-zinc-100 font-medium" : "hover:text-zinc-200"
                 }`}
               >
@@ -175,25 +378,33 @@ export function WindowHeader({
               </button>
 
               {activeMenu === "file" && (
-                <div className="absolute left-0 top-full mt-1.5 w-52 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col">
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="absolute left-0 top-full mt-1.5 w-52 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto"
+                >
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       onNewChat()
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>New Session</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+N</span>
                   </button>
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       onCreateProject?.()
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>New Workspace...</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+N</span>
@@ -201,11 +412,13 @@ export function WindowHeader({
                   <div className="h-px bg-zinc-800 my-1" />
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       onOpenSetupWizard?.()
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Setup Wizard...</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+,</span>
@@ -213,8 +426,10 @@ export function WindowHeader({
                   <div className="h-px bg-zinc-800 my-1" />
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={handleClose}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-rose-950/80 hover:text-rose-300 text-zinc-400 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-rose-950/80 hover:text-rose-300 text-zinc-400 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Exit Krypton</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Alt+F4</span>
@@ -224,11 +439,16 @@ export function WindowHeader({
             </div>
 
             {/* Edit Menu */}
-            <div className="relative">
+            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
               <button
                 type="button"
-                onClick={() => setActiveMenu(activeMenu === "edit" ? null : "edit")}
-                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer ${
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => {
+                  setActiveMenu(activeMenu === "edit" ? null : "edit")
+                  setIsLogoMenuOpen(false)
+                }}
+                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer pointer-events-auto ${
                   activeMenu === "edit" ? "bg-zinc-800 text-zinc-100 font-medium" : "hover:text-zinc-200"
                 }`}
               >
@@ -236,24 +456,32 @@ export function WindowHeader({
               </button>
 
               {activeMenu === "edit" && (
-                <div className="absolute left-0 top-full mt-1.5 w-48 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col">
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="absolute left-0 top-full mt-1.5 w-48 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto"
+                >
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       navigator.clipboard?.writeText(window.location.href)
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Copy Window URL</span>
                   </button>
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       onOpenSetupWizard?.()
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Preferences...</span>
                   </button>
@@ -262,11 +490,16 @@ export function WindowHeader({
             </div>
 
             {/* View Menu */}
-            <div className="relative">
+            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
               <button
                 type="button"
-                onClick={() => setActiveMenu(activeMenu === "view" ? null : "view")}
-                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer ${
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => {
+                  setActiveMenu(activeMenu === "view" ? null : "view")
+                  setIsLogoMenuOpen(false)
+                }}
+                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer pointer-events-auto ${
                   activeMenu === "view" ? "bg-zinc-800 text-zinc-100 font-medium" : "hover:text-zinc-200"
                 }`}
               >
@@ -274,25 +507,33 @@ export function WindowHeader({
               </button>
 
               {activeMenu === "view" && (
-                <div className="absolute left-0 top-full mt-1.5 w-56 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col">
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="absolute left-0 top-full mt-1.5 w-56 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto"
+                >
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       onToggleLeftSidebar()
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Toggle Workspaces Sidebar</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+B</span>
                   </button>
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       onToggleRightDrawer()
                       setActiveMenu(null)
                     }}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Toggle Outputs Drawer</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+J</span>
@@ -300,8 +541,10 @@ export function WindowHeader({
                   <div className="h-px bg-zinc-800 my-1" />
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={handleToggleVoiceHud}
-                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Toggle Voice Micro-HUD</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+Space</span>
@@ -311,11 +554,16 @@ export function WindowHeader({
             </div>
 
             {/* Help Menu */}
-            <div className="relative">
+            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
               <button
                 type="button"
-                onClick={() => setActiveMenu(activeMenu === "help" ? null : "help")}
-                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer ${
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => {
+                  setActiveMenu(activeMenu === "help" ? null : "help")
+                  setIsLogoMenuOpen(false)
+                }}
+                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer pointer-events-auto ${
                   activeMenu === "help" ? "bg-zinc-800 text-zinc-100 font-medium" : "hover:text-zinc-200"
                 }`}
               >
@@ -323,25 +571,33 @@ export function WindowHeader({
               </button>
 
               {activeMenu === "help" && (
-                <div className="absolute left-0 top-full mt-1.5 w-52 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col">
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="absolute left-0 top-full mt-1.5 w-52 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto"
+                >
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       setIsShortcutsOpen(true)
                       setActiveMenu(null)
                     }}
-                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <Keyboard className="size-3.5 text-zinc-400" />
                     <span>Keyboard Shortcuts</span>
                   </button>
                   <button
                     type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
                       setIsAboutOpen(true)
                       setActiveMenu(null)
                     }}
-                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors"
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <Info className="size-3.5 text-zinc-400" />
                     <span>About Krypton</span>
@@ -352,14 +608,28 @@ export function WindowHeader({
           </div>
         </div>
 
-        {/* Middle Segment: Active Project / Thread Breadcrumb (Draggable) */}
+        {/* Empty Draggable Region between Menus and Breadcrumbs */}
         <div
           data-tauri-drag-region
-          className="flex-1 flex items-center justify-center min-w-0 max-w-md truncate text-zinc-300 font-medium px-4 cursor-default"
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+          className="flex-1 h-full min-w-4 cursor-default app-region-drag"
+        />
+
+        {/* Middle Segment: Breadcrumbs (Click-Isolated) */}
+        <div
+          data-tauri-drag-region="false"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className="flex items-center justify-center shrink-0 min-w-0 max-w-md pointer-events-auto app-region-no-drag z-10"
         >
-          <div className="flex items-center gap-1.5 truncate">
+          <div
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            onClick={() => onCreateProject?.()}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-zinc-900/90 text-zinc-300 transition-colors cursor-pointer border border-transparent hover:border-zinc-800/80 truncate text-xs pointer-events-auto"
+            title={`Workspace: ${projectName || "No Workspace Open"}${threadTitle ? ` / ${threadTitle}` : ""}`}
+          >
             <Folder className="size-3.5 text-zinc-500 shrink-0" />
-            <span className="truncate">{projectName || "No Workspace Open"}</span>
+            <span className="truncate font-medium">{projectName || "No Workspace Open"}</span>
             {threadTitle && (
               <>
                 <span className="text-zinc-600">/</span>
@@ -369,16 +639,53 @@ export function WindowHeader({
           </div>
         </div>
 
-        {/* Right Segment: Layout Toggles & Unified Window Control Buttons */}
+        {/* Empty Draggable Region between Breadcrumbs and Controls */}
+        <div
+          data-tauri-drag-region
+          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+          className="flex-1 h-full min-w-4 cursor-default app-region-drag"
+        />
+
+        {/* Right Segment: Search, Notifications, Layout Toggles & Window Controls */}
         <div
           data-tauri-drag-region="false"
-          className="flex items-center gap-1.5 pointer-events-auto"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className="flex items-center gap-1 shrink-0 pointer-events-auto app-region-no-drag z-10"
         >
+          {/* Search Icon Button */}
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="flex size-7 items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer pointer-events-auto"
+            title="Search (Ctrl+K)"
+          >
+            <Search className="size-3.5" />
+          </button>
+
+          {/* Notifications Icon Button */}
+          <button
+            type="button"
+            onClick={onOpenNotifications || onToggleRightDrawer}
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="flex size-7 items-center justify-center rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer pointer-events-auto relative"
+            title="Notifications"
+          >
+            <Bell className="size-3.5" />
+            <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-violet-500" />
+          </button>
+
+          <div className="h-4 w-px bg-zinc-800 mx-0.5" />
+
           {/* Toggle Left Sidebar */}
           <button
             type="button"
             onClick={onToggleLeftSidebar}
-            className={`flex size-7 items-center justify-center rounded hover:bg-zinc-800 transition-colors cursor-pointer ${
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className={`flex size-7 items-center justify-center rounded hover:bg-zinc-800 transition-colors cursor-pointer pointer-events-auto ${
               isLeftSidebarOpen ? "text-zinc-300" : "text-zinc-500"
             }`}
             title="Toggle Left Sidebar (Ctrl+B)"
@@ -390,7 +697,9 @@ export function WindowHeader({
           <button
             type="button"
             onClick={onToggleRightDrawer}
-            className={`flex size-7 items-center justify-center rounded hover:bg-zinc-800 transition-colors cursor-pointer ${
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className={`flex size-7 items-center justify-center rounded hover:bg-zinc-800 transition-colors cursor-pointer pointer-events-auto ${
               isRightDrawerOpen ? "text-zinc-300 bg-zinc-800/50" : "text-zinc-500"
             }`}
             title="Toggle Outputs & Trajectory Drawer (Ctrl+J)"
@@ -398,14 +707,20 @@ export function WindowHeader({
             <PanelRight className="size-3.5" />
           </button>
 
-          <div className="h-4 w-px bg-zinc-800 mx-1" />
+          <div className="h-4 w-px bg-zinc-800 mx-0.5" />
 
-          {/* Desktop Window Controls Decoration (Wired via Native Tauri IPC) */}
-          <div className="flex items-center ml-1">
+          {/* Native Window Controls (Wired via Tauri Desktop IPC) */}
+          <div
+            data-tauri-drag-region="false"
+            style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+            className="flex items-center ml-0.5 pointer-events-auto"
+          >
             <button
               type="button"
               onClick={handleMinimize}
-              className="flex size-7 items-center justify-center hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="flex size-7 items-center justify-center hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer pointer-events-auto"
               title="Minimize"
             >
               <Minus className="size-3" />
@@ -413,7 +728,9 @@ export function WindowHeader({
             <button
               type="button"
               onClick={handleToggleMaximize}
-              className="flex size-7 items-center justify-center hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="flex size-7 items-center justify-center hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer pointer-events-auto"
               title={isMaximized ? "Restore" : "Maximize"}
             >
               {isMaximized ? <Copy className="size-2.5" /> : <Square className="size-2.5" />}
@@ -421,7 +738,9 @@ export function WindowHeader({
             <button
               type="button"
               onClick={handleClose}
-              className="flex size-7 items-center justify-center hover:bg-rose-600 hover:text-white text-zinc-400 transition-colors cursor-pointer"
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="flex size-7 items-center justify-center hover:bg-rose-600 hover:text-white text-zinc-400 transition-colors cursor-pointer pointer-events-auto"
               title="Close"
             >
               <X className="size-3.5" />

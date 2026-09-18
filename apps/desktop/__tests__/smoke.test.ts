@@ -19,6 +19,7 @@ describe("Phase 5: Desktop App Shell & Micro-HUD Smoke Tests", () => {
     expect(mainWindow).toBeDefined()
     expect(mainWindow.title).toBe("Krypton")
     expect(mainWindow.resizable).toBe(true)
+    expect(mainWindow.decorations).toBe(false)
 
     const overlayWindow = windows.find((w: any) => w.label === "overlay")
     expect(overlayWindow).toBeDefined()
