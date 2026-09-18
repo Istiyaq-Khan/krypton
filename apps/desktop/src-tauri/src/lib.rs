@@ -50,6 +50,9 @@ pub fn run() {
             window_is_maximized,
             check_setup_status,
             save_setup_configuration,
+            get_cached_models,
+            save_cached_models,
+            get_provider_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running krypton desktop application");

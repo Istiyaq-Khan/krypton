@@ -68,8 +68,11 @@ export class SecretVault {
 ```
 
 ### Standard Secret Keys:
-- `anthropic:api_key`
-- `openai:api_key`
+- `anthropic:api_key` / `anthropic_api_key`
+- `openai:api_key` / `openai_api_key`
+- `openrouter:api_key` / `openrouter_api_key`
+- `ollama:base_url` / `ollama_base_url`
+- `custom:endpoint` / `custom_endpoint`
 - `groq:api_key`
 - `telegram:bot_token`
 - `discord:bot_token`

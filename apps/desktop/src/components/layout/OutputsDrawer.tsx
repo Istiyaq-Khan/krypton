@@ -25,6 +25,7 @@ import { TodoTree, TodoTask } from "@/components/TodoTree"
 import { VcsDiffViewer, VcsDiffData } from "@/components/VcsDiffViewer"
 import { AgentFleetItem, TrajectoryLogItem } from "@/hooks/useKryptonDaemon"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DiscoveredModel } from "@/lib/modelDiscovery"
 
 interface OutputsDrawerProps {
   isOpen: boolean
@@ -35,6 +36,7 @@ interface OutputsDrawerProps {
   logs: TrajectoryLogItem[]
   fleet: AgentFleetItem[]
   diffData: VcsDiffData | null
+  availableModels?: DiscoveredModel[]
   onApproveMerge: () => void
   onRollbackStep: () => void
   onRejectAbort: () => void
@@ -44,7 +46,12 @@ interface OutputsDrawerProps {
     model: string
     temperature: number
     systemPrompt: string
-    permissions: AgentFleetItem["permissions"]
+    permissions: {
+      terminal: boolean
+      filesystem: boolean
+      web: boolean
+      astLinter: boolean
+    }
   }) => void
   onControlProcess?: (agentId: string, action: "spawn" | "pause" | "resume" | "abort" | "restart") => void
   telemetry?: {
@@ -64,6 +71,7 @@ export function OutputsDrawer({
   logs,
   fleet,
   diffData,
+  availableModels = [],
   onApproveMerge,
   onRollbackStep,
   onRejectAbort,
@@ -416,10 +424,20 @@ export function OutputsDrawer({
                 onChange={(e) => setNewAgentModel(e.target.value)}
                 className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none cursor-pointer"
               >
-                <option value="5.6 Terra High">5.6 Terra High (Recommended)</option>
-                <option value="Claude 3.7 Sonnet">Claude 3.7 Sonnet</option>
-                <option value="DeepSeek R1">DeepSeek R1</option>
-                <option value="Ollama Local">Ollama Local (Offline)</option>
+                {availableModels && availableModels.length > 0 ? (
+                  availableModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name && m.name !== m.id ? `${m.name} (${m.id})` : m.id}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="5.6 Terra High">5.6 Terra High (Recommended)</option>
+                    <option value="Claude 3.7 Sonnet">Claude 3.7 Sonnet</option>
+                    <option value="DeepSeek R1">DeepSeek R1</option>
+                    <option value="Ollama Local">Ollama Local (Offline)</option>
+                  </>
+                )}
               </select>
             </div>
 

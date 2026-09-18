@@ -23,7 +23,8 @@ Path resolution is centralized in `packages/agent-runtime/src/filesystem/bootstr
 ```
 ~/.krypton/
 ├── config.json                     # Global runtime configuration & model routing
-├── credentials.enc                 # AES-256-GCM encrypted provider credentials
+├── credentials.json / .enc         # Local/encrypted provider API keys & endpoints
+├── models_cache.json               # Dynamically discovered provider models cache
 ├── bin/                            # Embedded standalone CLI executables
 │   └── krypton.exe / krypton
 ├── agents/                         # Agent workspace directories
@@ -55,21 +56,51 @@ Path resolution is centralized in `packages/agent-runtime/src/filesystem/bootstr
 
 ## 3. Global Configuration Schema (`~/.krypton/config.json`)
 
-The global configuration conforms to `SystemConfigSchema` (`packages/shared-types/src/config.ts`):
+The global configuration conforms to `GlobalConfigSchema` (`packages/shared-types/src/config.ts`):
 
 ```json
 {
   "version": "1.0.0",
   "isInitialized": true,
-  "defaultModel": "5.6 Terra High",
-  "activeProvider": "anthropic",
-  "defaultWorkspace": "C:\\Users\\user\\Projects",
-  "hotkey": "CommandOrControl+Shift+Space",
-  "port": 18789,
-  "telemetry": false,
-  "security": {
-    "astLinter": true,
-    "requireApproval": true
+  "customAgentName": "Orchestrator",
+  "defaultWorkspaceDir": "C:\\Users\\user\\Projects",
+  "askForApproval": true,
+  "defaultRoutes": {
+    "orchestrator": {
+      "provider": "openai",
+      "model": "gpt-4o"
+    }
+  },
+  "telemetry": {
+    "enabled": false,
+    "logLevel": "info"
   }
 }
 ```
+
+---
+
+## 4. Discovered Models Cache Schema (`~/.krypton/models_cache.json`)
+
+Stores the latest model discovery roster fetched dynamically from the configured provider:
+
+```json
+{
+  "provider": "openai",
+  "baseUrl": "https://api.openai.com/v1",
+  "models": [
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o",
+      "created": 1715368132
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o Mini",
+      "created": 1721262000
+    }
+  ],
+  "updatedAt": 1726704000000
+}
+```
+

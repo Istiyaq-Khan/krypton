@@ -12,8 +12,16 @@ import {
   ThoughtTrace,
   ApprovalGate,
 } from "@/lib/persistence"
+import {
+  DiscoveredModel,
+  loadCachedModels,
+  persistCachedModels,
+  getActiveProviderConfig,
+  testAndFetchModels,
+  ModelProviderId,
+} from "@/lib/modelDiscovery"
 
-export { type ProjectWorkspace, type AgentThread, type StreamMessage, type ToolExecutionEvent, type ThoughtTrace }
+export { type ProjectWorkspace, type AgentThread, type StreamMessage, type ToolExecutionEvent, type ThoughtTrace, type DiscoveredModel }
 
 export function useAgentSession() {
   // Load persistent state
@@ -26,6 +34,12 @@ export function useAgentSession() {
   const [rightDrawerTab, setRightDrawerTab] = useState<"dag" | "audit" | "diff" | "fleet">("dag")
   const [askForApproval, setAskForApproval] = useState(true)
   const [selectedModel, setSelectedModel] = useState("5.6 Terra High")
+
+  // Discovered / Cached models state
+  const [availableModels, setAvailableModels] = useState<DiscoveredModel[]>([])
+  const [activeProvider, setActiveProvider] = useState<string>("openai")
+  const [isRefreshingModels, setIsRefreshingModels] = useState(false)
+  const [refreshModelsError, setRefreshModelsError] = useState<string | null>(null)
 
   // Navigation history tracking for titlebar Back/Forward controls
   const [navHistory, setNavHistory] = useState<Array<{ projectId: string; threadId: string }>>([])
@@ -53,7 +67,72 @@ export function useAgentSession() {
       setNavHistory([{ projectId: initialProjId, threadId: initialThreadId }])
       setNavHistoryIndex(0)
     }
+
+    // Load cached models and provider settings from local store
+    async function loadModelsAndProvider() {
+      const cached = await loadCachedModels()
+      if (cached && cached.models && cached.models.length > 0) {
+        setAvailableModels(cached.models)
+        if (cached.provider) {
+          setActiveProvider(cached.provider)
+        }
+      }
+
+      const provCfg = await getActiveProviderConfig()
+      if (provCfg && provCfg.provider) {
+        setActiveProvider(provCfg.provider)
+        if (provCfg.model && (!cached || cached.models.length === 0)) {
+          setSelectedModel(provCfg.model)
+        }
+      }
+    }
+
+    loadModelsAndProvider()
   }, [])
+
+  // In-app refresh models routine querying provider endpoint
+  const refreshModels = useCallback(async (): Promise<{
+    success: boolean
+    models?: DiscoveredModel[]
+    error?: string
+  }> => {
+    setIsRefreshingModels(true)
+    setRefreshModelsError(null)
+
+    try {
+      const provCfg = await getActiveProviderConfig()
+      const provider = (provCfg?.provider || activeProvider || "openai") as ModelProviderId
+      const apiKey = provCfg?.apiKey
+      const baseUrl = provCfg?.baseUrl
+
+      const res = await testAndFetchModels({
+        provider,
+        apiKey,
+        baseUrl,
+      })
+
+      setIsRefreshingModels(false)
+      if (res.success && res.models.length > 0) {
+        setAvailableModels(res.models)
+        await persistCachedModels({
+          provider,
+          baseUrl,
+          models: res.models,
+          updatedAt: Date.now(),
+        })
+        return { success: true, models: res.models }
+      } else {
+        const err = res.error || "Failed to refresh models."
+        setRefreshModelsError(err)
+        return { success: false, error: err }
+      }
+    } catch (err: any) {
+      setIsRefreshingModels(false)
+      const errStr = String(err?.message || err)
+      setRefreshModelsError(errStr)
+      return { success: false, error: errStr }
+    }
+  }, [activeProvider])
 
   // Auto-persist changes whenever projects or active thread changes
   useEffect(() => {
@@ -546,6 +625,12 @@ export function useAgentSession() {
     setAskForApproval,
     selectedModel,
     setSelectedModel,
+    availableModels,
+    setAvailableModels,
+    activeProvider,
+    isRefreshingModels,
+    refreshModelsError,
+    refreshModels,
     canGoBack,
     canGoForward,
     goBack,
