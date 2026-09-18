@@ -91,14 +91,15 @@ krypton/
 
 ## 4. Per-Agent Workspace Conventions (`~/.krypton/agents/<name>/`)
 
-Every agent instance manages its local identity and state across discrete markdown files:
-- **`AGENTS.md`**: Permission manifest declaring which sub-agents this agent can spawn, allowed tools, and recursion limits.
-- **`SOUL.md`**: Immutable reasoning style, personality, tone, safety boundaries, and operating directives.
-- **`IDENTITY.md`**: Active model provider (e.g. Claude, DeepSeek, Ollama), model name, temperature, and assigned tool list.
-- **`USER.md`**: User preferences, domain knowledge, and project-specific guidelines relevant to this agent.
-- **`MEMORY.md`**: Distilled long-term knowledge autonomously updated across sessions.
-- **`TODO.md`**: Live, human-readable state of the agent's active task DAG.
-- **`BOOTSTRAP.md`**: First-run onboarding questionnaire (auto-cleared after setup).
+Every agent instance strictly decouples machine-readable configuration from human/LLM context:
+- **`config.json`**: Dedicated exclusively to machine-readable configuration, agent settings, model parameters, API provider references, tool declarations, permissions, recursion limits, token budget, and runtime metadata. Markdown files MUST NOT contain configuration keys or application settings.
+- **`IDENTITY.md`**: Pure agent persona and system prompt instructions (who the agent is, creature, vibe, avatar, instructions). Contains zero configuration keys.
+- **`SOUL.md`**: Immutable character and reasoning directives, core truths, and behavioral guardrails.
+- **`AGENTS.md`**: Operational workspace conventions, memory guidelines, group chat rules, and environment notes.
+- **`USER.md`**: Durable user preferences, communication style, and profile directives.
+- **`MEMORY.md`**: Distilled long-term knowledge, verified facts, architectural decisions, and curated lessons learned.
+- **`TODO.md`**: Live, human-readable state of the agent's active task DAG and permanent historical task log.
+- **`BOOTSTRAP.md`**: First-run onboarding ritual (auto-cleared after setup).
 - **`short_term/`**: Append-only storage for transcripts, `events.jsonl` (event store), and verified trajectories (`trajectories/`).
 
 ---

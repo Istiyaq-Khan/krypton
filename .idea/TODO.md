@@ -97,7 +97,8 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 ### 9. Filesystem & Configuration Schemas
 - [x] Define system directory and configuration schemas in [packages/shared-types/src/config.ts](../packages/shared-types/src/config.ts):
   - Global configuration schema for `~/.krypton/config.json` (active providers, default model routes, hotkeys, port allocations).
-  - Agent workspace specification models for `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`, `MEMORY.md`, and `BOOTSTRAP.md`.
+  - Dedicated machine-readable `config.json` schema (`AgentConfigFileSchema`, permissions, token budget, model routing, tool declarations) decoupled from markdown context files.
+  - Agent workspace pure markdown context models for `IDENTITY.md`, `SOUL.md`, `AGENTS.md`, `USER.md`, `MEMORY.md`, and `BOOTSTRAP.md` with zero embedded settings.
   - Provider credentials schema for native vault storage.
 
 ### 10. Centralized Type Exporter
@@ -119,7 +120,10 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 - [x] Implement system folder provisioner in [packages/agent-runtime/src/filesystem/bootstrap.ts](../packages/agent-runtime/src/filesystem/bootstrap.ts):
   - Resolve cross-platform home directory (`%USERPROFILE%\.krypton` on Windows, `$HOME/.krypton` on POSIX).
   - Provision required directory tree on first launch: `config.json`, `credentials.enc`, `cache/outputs/`, `pty_sessions/`, `telemetry/`, `agents/`, `worktrees/`, `tools/python/`, `tools/typescript/`, `browser_profiles/default/`, `logs/`.
-  - Seed default orchestrator agent templates (`AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`).
+  - Seed default orchestrator agent templates (`config.json`, `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`).
+- [x] Implement decoupled agent storage engine in [packages/agent-runtime/src/filesystem/agent-storage.ts](../packages/agent-runtime/src/filesystem/agent-storage.ts):
+  - Strict separation: read/write/update machine-readable `config.json` and pure context `*.md` files with zero cross-file mutation side effects.
+  - Backward compatibility: self-healing migration parsing legacy YAML frontmatter into structured `config.json` without runtime crashes.
 - [x] Implement Markdown metadata parser and serializer in [packages/agent-runtime/src/filesystem/parser.ts](../packages/agent-runtime/src/filesystem/parser.ts) to parse YAML frontmatter and markdown sections.
 - [x] Implement high-efficiency file watcher in [packages/agent-runtime/src/filesystem/watcher.ts](../packages/agent-runtime/src/filesystem/watcher.ts) with debounced reload hooks when agent configs are edited.
 
@@ -181,6 +185,7 @@ This document defines the exhaustive, dependency-ordered technical roadmap for *
 
 ### Phase 2 Verification Gate
 - [x] **Filesystem Bootstrap Test**: Run integration test verifying `~/.krypton` directory provisioning and default file scaffolding.
+- [x] **Agent Storage Decoupling & Migration Test Suite**: Execute comprehensive test suite in `packages/agent-runtime/__tests__/agent_storage.test.ts` verifying `config.json` mutation isolation, pure markdown context preservation, legacy YAML frontmatter migration, and daemon RPC synchronization.
 - [x] **AST Safety Linter Test Suite**: Execute test suite in `packages/agent-runtime/__tests__/linter.test.ts` verifying that malicious scripts (`rm -rf`, `os.system`, `child_process.exec`) are 100% blocked with specific AST rejection errors.
 - [x] **Sandbox Isolation Test**: Execute a script exceeding memory and timeout bounds in `packages/agent-runtime/__tests__/sandbox.test.ts` to verify process tree termination.
 - [x] **Context Offload & Compaction Test**: Verify large stdout payload is offloaded to disk and context is compacted when exceeding 90% mock threshold.

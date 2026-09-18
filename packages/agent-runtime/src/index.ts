@@ -4,6 +4,7 @@
 
 // Filesystem bootstrap, archetype loader & configurations
 export * from "./filesystem/bootstrap.js";
+export * from "./filesystem/agent-storage.js";
 export * from "./filesystem/template-loader.js";
 export * from "./filesystem/parser.js";
 export * from "./filesystem/watcher.js";
@@ -73,3 +74,6 @@ export * from "./desktop-os/window-manager.js";
 
 // Phase 6: Omni-Channel Gateway
 export * from "./channels/index.js";
+
+// Background Daemon Engine
+export * from "./daemon.js";

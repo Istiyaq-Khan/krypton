@@ -182,19 +182,60 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
     let role_desc = payload.agent_role
         .unwrap_or_else(|| "System Orchestrator & Autonomous Desktop Agent".to_string());
 
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let agent_id = format!("agent-{}", agent_name.to_lowercase().replace(' ', "_"));
+    let agent_config = serde_json::json!({
+        "id": agent_id,
+        "name": agent_name,
+        "role": role_desc,
+        "model": primary_model,
+        "provider": "anthropic",
+        "temperature": 0.2,
+        "contextWindowLimit": 128_000,
+        "tools": ["terminal", "filesystem", "astLinter", "web"],
+        "permissions": {
+            "allowedSubAgents": ["CoderBot", "TesterBot"],
+            "allowedTools": ["terminal", "filesystem", "astLinter", "web"],
+            "maxDepth": 3,
+            "maxConcurrentChildren": 5,
+            "budgetShare": 0.5,
+            "canSynthesizeTools": true,
+            "canAccessNetwork": true,
+            "canModifyWorkspace": true,
+            "terminal": true,
+            "filesystem": true,
+            "web": true,
+            "astLinter": true
+        },
+        "budget": {
+            "total": 100_000,
+            "used": 0
+        },
+        "createdAt": now,
+        "updatedAt": now,
+        "metadata": {}
+    });
+
+    let serialized_agent_cfg = serde_json::to_string_pretty(&agent_config).unwrap_or_default();
+    let _ = fs::write(agent_dir.join("config.json"), serialized_agent_cfg);
+
     let id_content = format!(
-        "---\nname: \"{}\"\nrole: \"{}\"\nmodel: \"{}\"\ntemperature: 0.2\ntools: [\"terminal\", \"filesystem\", \"astLinter\", \"web\"]\n---\n\nAutonomous agent initialized via First-Run Setup Engine.\n",
-        agent_name, role_desc, primary_model
+        "# Agent Identity: {}\n\nAutonomous agent initialized via First-Run Setup Engine.\nDirects tasks, coordinates sub-agents, and maintains project coherence.\n",
+        agent_name
     );
     let _ = fs::write(agent_dir.join("IDENTITY.md"), id_content);
 
-    let soul_content = "---\npersonality: \"Objective, precise, analytical autonomous desktop agent\"\nreasoningStyle: \"strict\"\ntone: \"concise\"\nverificationPriority: \"high\"\n---\n\nOperate with zero server lock-in and verify all AST boundaries before execution.\n";
+    let soul_content = "# Core Directives & Behavioral Guardrails\n\nOperate with zero server lock-in and verify all AST boundaries before execution.\nMaintain an objective, analytical, and concise demeanor.\nPrioritize verification and correctness over speculative changes.\n";
     let _ = fs::write(agent_dir.join("SOUL.md"), soul_content);
 
-    let agents_manifest = "---\nallowedSubAgents: [\"CoderBot\", \"TesterBot\"]\nallowedTools: [\"terminal\", \"filesystem\", \"astLinter\", \"web\"]\nmaxDepth: 3\nmaxConcurrentChildren: 5\nbudgetShare: 0.5\n---\n\nSub-agent recursion and permission boundary manifest.\n";
+    let agents_manifest = "# Sub-Agent Delegation & Workspace Conventions\n\nHierarchical delegation boundaries apply to all sub-agent dispatches.\nEnsure all spawned children are bounded by execution timeouts and token limits.\n";
     let _ = fs::write(agent_dir.join("AGENTS.md"), agents_manifest);
 
-    let user_prefs = "---\nuserName: \"User\"\n---\n\nLocal user preferences.\n";
+    let user_prefs = "# User Preferences & Directives\n\nLocal user preferences and domain guidelines.\n- Prefer concise progress updates during autonomous execution.\n";
     let _ = fs::write(agent_dir.join("USER.md"), user_prefs);
 
     // If API keys provided, store in ~/.krypton/credentials.json as clean local store

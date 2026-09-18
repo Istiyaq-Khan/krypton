@@ -439,21 +439,23 @@ When the user launches the app on any operating system, the application checks f
 ├── telemetry/                         # OpenTelemetry traces, token costs, and latency metrics
 ├── agents/                            # Dedicated workspace per agent [Folder Name = Agent Name]
 │   ├── orchestrator/                  # Established Agent (Bootstrap completed)
-│   │   ├── AGENTS.md                  # Sub-agent permissions & recursion caps
-│   │   ├── SOUL.md                    # Immutable behavioral guidelines
-│   │   ├── IDENTITY.md                # System prompt & assigned tool manifest
-│   │   ├── USER.md                    # Agent-specific user preferences
-│   │   ├── MEMORY.md                  # Long-term distilled memory
+│   │   ├── config.json                # Dedicated machine settings, model parameters & permissions
+│   │   ├── IDENTITY.md                # System prompt, persona & identity instructions (pure markdown)
+│   │   ├── SOUL.md                    # Immutable behavioral guidelines & safety guardrails
+│   │   ├── AGENTS.md                  # Workspace conventions & delegation notes
+│   │   ├── USER.md                    # Agent-specific user preferences & profile directives
+│   │   ├── MEMORY.md                  # Long-term distilled memory & verified facts
 │   │   ├── TODO.md                    # Live state of active task tree (human-readable)
 │   │   └── short_term/                # Raw conversation, event store & trajectory records
 │   │       ├── session_2026-09-15.json
 │   │       ├── events.jsonl           # Append-only event store for crash recovery
 │   │       └── trajectories/          # Step-by-step verified action traces
 │   └── web_scraper/                   # Newly Created Agent (Uninitialized)
+│       ├── config.json                # Machine configuration & tool declarations
 │       ├── BOOTSTRAP.md               # First-run onboarding file (auto-cleared after setup)
-│       ├── AGENTS.md                  # Permissions to spawn parser/scraper sub-agents
+│       ├── IDENTITY.md                # Scraper persona & instructions (pure markdown)
 │       ├── SOUL.md                    # Stealth and rate-limit guardrails
-│       ├── IDENTITY.md                # Scraper system prompt and tool mappings
+│       ├── AGENTS.md                  # Conventions for scraper/parser tasks
 │       ├── USER.md                    # Domain targets and scraping rules
 │       └── short_term/                # Session logs directory
 ├── worktrees/                         # Isolated Git working trees for coding tasks
@@ -473,13 +475,14 @@ When the user launches the app on any operating system, the application checks f
     └── sandbox_errors.log             # Sandboxed script failures
 ```
 
-### Per-Agent File Roles
+### Per-Agent File Roles (Separation of Concerns)
 
-- **`AGENTS.md`**: Defines recursion boundaries for this agent. Lists which sub-agents it can spawn, the maximum allowed depth (`max_depth`), tool access rules, and budget delegation caps.
-- **`SOUL.md`**: Immutable character and reasoning directives. Sets how the agent thinks, its tone, handling of failures, safety boundaries, and whether it prioritizes speed, precision, or strict verification.
-- **`IDENTITY.md`**: Operational configuration. Contains the active model provider, specific model name (e.g., Claude, DeepSeek, local GGUF), system prompt prefix, and designated MCP/local tool list.
-- **`USER.md`**: The agent’s local view of the user. Captures preferences, recurring commands, domain requirements, and specific instructions relevant only to this agent's task scope.
-- **`BOOTSTRAP.md`**: Present **only** on newly created agents. Contains initial setup questions or priming tasks (e.g., "Analyze the user's codebase", "Authenticate headless browser"). The runtime executes this file on the first run and deletes or archives it once initialization finishes.
+- **`config.json`**: Dedicated exclusively to machine-readable configuration, agent settings, model parameters, API provider references, tool declarations, permissions, recursion caps (`maxDepth`), token budget, and runtime timestamps. Markdown files **MUST NOT** contain configuration keys.
+- **`IDENTITY.md`**: Pure agent persona and system prompt instructions. Defines who the agent is, its role, creature, vibe, and avatar instructions. Contains zero machine configuration keys.
+- **`SOUL.md`**: Immutable character and reasoning directives. Sets how the agent thinks, its core truths, handling of failures, safety boundaries, and whether it prioritizes speed, precision, or strict verification.
+- **`AGENTS.md`**: Operational workspace conventions, memory guidelines, group chat rules, and local tool procedures.
+- **`USER.md`**: The agent’s local view of the user. Captures durable preferences, communication style, recurring commands, and domain requirements.
+- **`BOOTSTRAP.md`**: Present **only** on newly created agents. Contains initial setup ritual and onboarding guidance. The runtime executes or guides through this file on the first run and deletes or archives it once initialization finishes.
 - **`MEMORY.md`**: Distilled long-term context. The agent updates this file autonomously with extracted user facts, recurring patterns, and successful strategies. Only loaded when present; uninitialized agents skip this file.
 - **`short_term/`**: Append-only storage for session transcripts. Each chat or external channel trigger (Telegram, Discord, Voice HUD) outputs a timestamped JSON or Markdown file to maintain context across restarts without bloating the main model context window.
 

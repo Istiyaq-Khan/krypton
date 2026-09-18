@@ -1,13 +1,14 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
-import { GlobalConfigSchema } from "@krypton/shared-types";
+import { GlobalConfigSchema, AgentConfigFile, createDefaultAgentConfig } from "@krypton/shared-types";
 import { loadAgentArchetype } from "./template-loader.js";
 
 export interface BootstrapOptions {
   customRoot?: string;
   forceReset?: boolean;
   defaultAgentName?: string;
+  initialConfig?: Partial<AgentConfigFile>;
 }
 
 export interface AgentWorkspaceResult {
@@ -47,6 +48,9 @@ export function resolveKryptonHome(customRoot?: string): string {
 /**
  * Dynamically provisions an isolated workspace directory for a named agent
  * using the universal agent archetype templates.
+ * Enforces strict separation of concerns:
+ * - config.json: Dedicated exclusively to machine configuration and settings.
+ * - *.md files: Dedicated strictly to instructions, context, and prompts.
  */
 export async function bootstrapAgentWorkspace(
   agentName: string,
@@ -71,7 +75,15 @@ export async function bootstrapAgentWorkspace(
     }
   }
 
-  // Load archetype files with substituted placeholders
+  // 1. Dedicated machine-readable config.json
+  const configPath = path.join(agentDir, "config.json");
+  if (!fs.existsSync(configPath) || options.forceReset) {
+    const initialConfig = createDefaultAgentConfig(sanitizedName, options.initialConfig);
+    fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), "utf-8");
+    filesCreated.push(configPath);
+  }
+
+  // 2. Pure context and prompt markdown files
   const archetype = await loadAgentArchetype(sanitizedName);
 
   for (const [fileName, content] of Object.entries(archetype)) {

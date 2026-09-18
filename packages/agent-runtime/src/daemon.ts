@@ -16,12 +16,19 @@ import {
   TaskTreeUpdatedEvent,
   ClarificationRequestedEvent,
   TaskNode,
+  AgentConfigFile,
 } from "@krypton/shared-types"
 import {
   bootstrapKryptonHome,
   resolveKryptonHome,
   bootstrapAgentWorkspace,
 } from "./filesystem/bootstrap.js"
+import {
+  readAgentConfig,
+  updateAgentConfig,
+  writeAgentContextMarkdown,
+  loadAgentContext,
+} from "./filesystem/agent-storage.js"
 import { parseMarkdownWithFrontmatter } from "./filesystem/parser.js"
 import { TaskTree } from "./planner/task-tree.js"
 import { VcsDiffAndRollbackEngine } from "./vcs/diff.js"
@@ -346,30 +353,27 @@ export class KryptonDaemonServer {
               if (ent.isDirectory()) {
                 const agentName = ent.name
                 const aDir = path.join(agentsDir, agentName)
-                let model = "5.6 Terra High"
-                let role = "General Assistant"
-                let tools = ["terminal", "filesystem", "astLinter"]
-
-                const idPath = path.join(aDir, "IDENTITY.md")
-                if (fs.existsSync(idPath)) {
-                  const content = fs.readFileSync(idPath, "utf-8")
-                  const parsed = parseMarkdownWithFrontmatter<any>(content)
-                  if (parsed.frontmatter?.model) model = parsed.frontmatter.model
-                  if (parsed.frontmatter?.role) role = parsed.frontmatter.role
-                  if (parsed.frontmatter?.tools) tools = parsed.frontmatter.tools
+                try {
+                  const cfg = await readAgentConfig(aDir)
+                  agentList.push({
+                    id: cfg.id,
+                    name: cfg.name,
+                    role: cfg.role,
+                    model: cfg.model,
+                    provider: cfg.provider,
+                    temperature: cfg.temperature,
+                    tools: cfg.tools,
+                    permissions: cfg.permissions,
+                    state: "idle",
+                    depth: 0,
+                    budgetUsed: cfg.budget?.used ?? 0,
+                    budgetTotal: cfg.budget?.total ?? 100000,
+                    createdAt: cfg.createdAt,
+                    updatedAt: cfg.updatedAt,
+                  })
+                } catch {
+                  // Ignore corrupted directory
                 }
-
-                agentList.push({
-                  id: `agent-${agentName.toLowerCase()}`,
-                  name: agentName,
-                  role,
-                  model,
-                  tools,
-                  state: "idle",
-                  depth: 0,
-                  budgetUsed: 0,
-                  budgetTotal: 100000,
-                })
               }
             }
           }
@@ -389,16 +393,96 @@ export class KryptonDaemonServer {
         case "createAgent": {
           const name = p.name?.trim()
           if (!name) throw new Error("Agent name is required")
-          const ws = await bootstrapAgentWorkspace(name)
 
-          // If custom system prompt or model provided, write to IDENTITY.md
-          if (p.model || p.systemPrompt || p.role) {
-            const idPath = path.join(ws.agentDir, "IDENTITY.md")
-            const content = `---\nrole: "${p.role || "General Assistant"}"\nmodel: "${p.model || "5.6 Terra High"}"\ntemperature: ${p.temperature ?? 0.2}\ntools: ${JSON.stringify(p.tools || ["terminal", "filesystem", "astLinter"])}\n---\n\n${p.systemPrompt || "Autonomous agent assistant."}`
-            fs.writeFileSync(idPath, content, "utf-8")
+          // Build structured tools and permissions for config.json
+          const tools = p.tools || (p.permissions ? [
+            ...(p.permissions.terminal ? ["terminal"] : []),
+            ...(p.permissions.filesystem ? ["filesystem"] : []),
+            ...(p.permissions.astLinter ? ["astLinter"] : []),
+            ...(p.permissions.web ? ["web"] : []),
+          ] : ["terminal", "filesystem", "astLinter"])
+
+          const initialConfig: Partial<AgentConfigFile> = {
+            role: p.role || "General Assistant",
+            model: p.model || "5.6 Terra High",
+            provider: p.provider || "anthropic",
+            temperature: p.temperature ?? 0.2,
+            tools,
+            permissions: {
+              allowedSubAgents: p.permissions?.allowedSubAgents || [],
+              allowedTools: tools,
+              maxDepth: p.permissions?.maxDepth ?? 3,
+              maxConcurrentChildren: p.permissions?.maxConcurrentChildren ?? 5,
+              budgetShare: p.permissions?.budgetShare ?? 0.5,
+              canSynthesizeTools: p.permissions?.canSynthesizeTools ?? true,
+              canAccessNetwork: p.permissions?.canAccessNetwork ?? true,
+              canModifyWorkspace: p.permissions?.canModifyWorkspace ?? true,
+              terminal: p.permissions?.terminal ?? tools.includes("terminal"),
+              filesystem: p.permissions?.filesystem ?? tools.includes("filesystem"),
+              web: p.permissions?.web ?? tools.includes("web"),
+              astLinter: p.permissions?.astLinter ?? tools.includes("astLinter"),
+            },
           }
 
-          result = { agentName: name, agentDir: ws.agentDir, success: true }
+          // Bootstrap workspace with dedicated config.json
+          const ws = await bootstrapAgentWorkspace(name, { initialConfig })
+
+          // If custom system prompt provided, persist strictly as pure markdown without config keys
+          if (p.systemPrompt) {
+            await writeAgentContextMarkdown(ws.agentDir, "IDENTITY.md", p.systemPrompt)
+          }
+
+          const savedConfig = await readAgentConfig(ws.agentDir)
+
+          result = {
+            agentName: name,
+            agentDir: ws.agentDir,
+            config: savedConfig,
+            success: true,
+          }
+          break
+        }
+
+        case "getAgent": {
+          const name = p.name?.trim() || p.agentId?.trim()
+          if (!name) throw new Error("Agent name or ID is required")
+          const context = await loadAgentContext(name)
+          result = {
+            config: context.config,
+            prompts: context.prompts,
+            combinedSystemPrompt: context.combinedSystemPrompt,
+            success: true,
+          }
+          break
+        }
+
+        case "updateAgent": {
+          const name = p.name?.trim() || p.agentId?.trim()
+          if (!name) throw new Error("Agent name or ID is required")
+          const patch = p.patch || p
+          const updated = await updateAgentConfig(name, patch)
+          result = {
+            agentName: updated.name,
+            config: updated,
+            success: true,
+          }
+          break
+        }
+
+        case "updateAgentContext": {
+          const name = p.name?.trim() || p.agentId?.trim()
+          const fileName = p.fileName?.trim()
+          const content = p.content
+          if (!name) throw new Error("Agent name or ID is required")
+          if (!fileName) throw new Error("File name is required")
+          if (typeof content !== "string") throw new Error("Content string is required")
+
+          await writeAgentContextMarkdown(name, fileName, content)
+          result = {
+            agentName: name,
+            fileName,
+            success: true,
+          }
           break
         }
 

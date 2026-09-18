@@ -206,7 +206,15 @@ export class KryptonIpcClient {
       case "listAgents":
         return [{ name: "default", model: "claude-3-7-sonnet", tools: ["fs", "bash", "browser"] }]
       case "createAgent":
-        return { agentDir: `~/.krypton/agents/${params.name}` }
+        return { agentDir: `~/.krypton/agents/${params.name}`, agentName: params.name }
+      case "getAgent":
+        return {
+          config: { name: params.name, model: "claude-3-7-sonnet" },
+          prompts: {},
+          combinedSystemPrompt: "",
+        }
+      case "updateAgent":
+        return { agentName: params.name, config: params.patch || {} }
       case "listTools":
         return [
           { name: "github", description: "GitHub MCP Server", type: "mcp" },
@@ -246,12 +254,31 @@ export class KryptonIpcClient {
     return this.call("mergeVcs", { worktreeId })
   }
 
-  public async listAgents(): Promise<Array<{ name: string; model: string; tools: string[] }>> {
+  public async listAgents(): Promise<Array<{ id?: string; name: string; role?: string; model: string; provider?: string; tools: string[] }>> {
     return this.call("listAgents", {})
   }
 
-  public async createAgent(name: string, model?: string): Promise<{ agentDir: string }> {
-    return this.call("createAgent", { name, model })
+  public async createAgent(
+    name: string,
+    model?: string,
+    options?: { role?: string; systemPrompt?: string; temperature?: number; tools?: string[] }
+  ): Promise<{ agentDir: string; agentName: string; config?: Record<string, unknown> }> {
+    return this.call("createAgent", { name, model, ...options })
+  }
+
+  public async getAgent(name: string): Promise<{
+    config: Record<string, unknown>
+    prompts: Record<string, string>
+    combinedSystemPrompt: string
+  }> {
+    return this.call("getAgent", { name })
+  }
+
+  public async updateAgent(name: string, patch: Record<string, unknown>): Promise<{
+    agentName: string
+    config: Record<string, unknown>
+  }> {
+    return this.call("updateAgent", { name, patch })
   }
 
   public async listTools(): Promise<Array<{ name: string; description: string; type: string }>> {

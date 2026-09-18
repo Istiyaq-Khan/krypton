@@ -24,7 +24,12 @@ import {
 import { DualBufferQueue } from "../steering/dual-buffer-queue.js";
 import { AgentEventStore } from "../event-sourcing/event-store.js";
 import { resolveKryptonHome } from "../filesystem/bootstrap.js";
-import { parseMarkdownWithFrontmatter } from "../filesystem/parser.js";
+import {
+  readAgentConfig,
+  readAgentContextMarkdown,
+  updateAgentConfig,
+} from "../filesystem/agent-storage.js";
+import { AgentConfigFile } from "@krypton/shared-types";
 import { LLMProvider } from "../providers/types.js";
 import { ObservationOffloader } from "../context/offloader.js";
 
@@ -174,7 +179,10 @@ export class Agent extends EventEmitter {
   }
 
   /**
-   * Factory method to load an agent configuration directly from its disk folder (~/.krypton/agents/<name>).
+   * Factory method to load an agent instance directly from its disk folder (~/.krypton/agents/<name>).
+   * Enforces strict separation of concerns:
+   * - Machine configuration loaded exclusively from `config.json` via readAgentConfig().
+   * - Prompts and behavioral directives loaded as pure markdown text via readAgentContextMarkdown().
    */
   public static async fromWorkspace(
     agentName: string,
@@ -185,54 +193,54 @@ export class Agent extends EventEmitter {
       toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
     }
   ): Promise<Agent> {
-    const home = resolveKryptonHome(options?.customRoot);
-    const agentDir = path.join(home, "agents", agentName);
+    const config = await readAgentConfig(agentName, {
+      customRoot: options?.customRoot,
+    });
 
-    let systemPrompt = "";
-    let soulDirectives = "";
-    let maxDepth = 3;
-    let role = "general";
+    // Load pure markdown context without config keys or frontmatter leakage
+    const systemPrompt = await readAgentContextMarkdown(agentName, "IDENTITY.md", {
+      customRoot: options?.customRoot,
+    });
+    const soulDirectives = await readAgentContextMarkdown(agentName, "SOUL.md", {
+      customRoot: options?.customRoot,
+    });
 
-    if (fs.existsSync(agentDir)) {
-      // 1. IDENTITY.md
-      const identityPath = path.join(agentDir, "IDENTITY.md");
-      if (fs.existsSync(identityPath)) {
-        const content = await fs.promises.readFile(identityPath, "utf-8");
-        const parsed = parseMarkdownWithFrontmatter<{ role?: string; model?: string }>(content);
-        systemPrompt = parsed.body;
-        if (parsed.frontmatter?.role) role = String(parsed.frontmatter.role);
-      }
-
-      // 2. SOUL.md
-      const soulPath = path.join(agentDir, "SOUL.md");
-      if (fs.existsSync(soulPath)) {
-        const content = await fs.promises.readFile(soulPath, "utf-8");
-        const parsed = parseMarkdownWithFrontmatter(content);
-        soulDirectives = parsed.body;
-      }
-
-      // 3. AGENTS.md (permissions & recursion limits)
-      const agentsPath = path.join(agentDir, "AGENTS.md");
-      if (fs.existsSync(agentsPath)) {
-        const content = await fs.promises.readFile(agentsPath, "utf-8");
-        const parsed = parseMarkdownWithFrontmatter<{ max_depth?: number }>(content);
-        if (parsed.frontmatter?.max_depth !== undefined) {
-          maxDepth = Number(parsed.frontmatter.max_depth);
-        }
-      }
-    }
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(config.id);
+    const agentId = isUuid ? config.id : crypto.randomUUID();
 
     return new Agent({
-      name: agentName,
-      role,
+      agentId,
+      name: config.name,
+      role: config.role,
       systemPrompt,
       soulDirectives,
-      recursionBoundary: { maxDepth },
+      tokenBudget: {
+        hardLimit: config.budget?.total ?? 100_000,
+        usedTokens: config.budget?.used ?? 0,
+      },
+      recursionBoundary: {
+        maxDepth: config.permissions?.maxDepth ?? 3,
+        maxConcurrentChildren: config.permissions?.maxConcurrentChildren ?? 5,
+      },
       customRoot: options?.customRoot,
       provider: options?.provider,
       scheduler: options?.scheduler,
       toolExecutor: options?.toolExecutor,
     });
+  }
+
+  /**
+   * Reads the active machine configuration from `config.json`.
+   */
+  public async getConfig(): Promise<AgentConfigFile> {
+    return readAgentConfig(this.name, { customRoot: this.customRoot });
+  }
+
+  /**
+   * Updates settings strictly within `config.json` without modifying markdown files.
+   */
+  public async updateConfig(patch: Partial<AgentConfigFile>): Promise<AgentConfigFile> {
+    return updateAgentConfig(this.name, patch, { customRoot: this.customRoot });
   }
 
   public getMessages(): Message[] {

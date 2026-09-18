@@ -76,7 +76,76 @@ export const GlobalConfigSchema = z.object({
 export type GlobalConfig = z.infer<typeof GlobalConfigSchema>;
 
 /**
+ * Structured permissions assigned to an agent instance, stored in its `config.json`.
+ */
+export const AgentPermissionsConfigSchema = z.object({
+  allowedSubAgents: z.array(z.string()).default([]),
+  allowedTools: z.array(z.string()).default(["terminal", "filesystem", "astLinter"]),
+  maxDepth: z.number().int().min(0).max(3).default(3),
+  maxConcurrentChildren: z.number().int().min(1).max(5).default(5),
+  budgetShare: z.number().min(0).max(1).default(0.5),
+  canSynthesizeTools: z.boolean().default(true),
+  canAccessNetwork: z.boolean().default(true),
+  canModifyWorkspace: z.boolean().default(true),
+  terminal: z.boolean().default(true),
+  filesystem: z.boolean().default(true),
+  web: z.boolean().default(false),
+  astLinter: z.boolean().default(true),
+});
+export type AgentPermissionsConfig = z.infer<typeof AgentPermissionsConfigSchema>;
+
+/**
+ * Token budget configuration stored in `config.json`.
+ */
+export const AgentBudgetConfigSchema = z.object({
+  total: z.number().int().positive().default(100_000),
+  used: z.number().int().nonnegative().default(0),
+});
+export type AgentBudgetConfig = z.infer<typeof AgentBudgetConfigSchema>;
+
+/**
+ * Machine-readable configuration schema stored strictly at `~/.krypton/agents/<name>/config.json`.
+ * Dedicated exclusively to machine configuration, model parameters, API provider references,
+ * tool declarations, permissions, and runtime metadata.
+ * Context and prompts live in pure Markdown files (*.md).
+ */
+export const AgentConfigFileSchema = z.object({
+  id: z.string().min(1, "Agent ID is required"),
+  name: z.string().min(1, "Agent name is required"),
+  role: z.string().default("Autonomous Desktop AI Agent"),
+  model: z.string().default("claude-3-7-sonnet-20250219"),
+  provider: z.string().default("anthropic"),
+  temperature: z.number().min(0).max(2).default(0.2),
+  maxTokens: z.number().int().positive().optional(),
+  contextWindowLimit: z.number().int().positive().default(128_000),
+  tools: z.array(z.string()).default(["terminal", "filesystem", "astLinter"]),
+  permissions: AgentPermissionsConfigSchema.default({}),
+  budget: AgentBudgetConfigSchema.default({}),
+  createdAt: z.number().int().nonnegative().default(() => Date.now()),
+  updatedAt: z.number().int().nonnegative().default(() => Date.now()),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+});
+export type AgentConfigFile = z.infer<typeof AgentConfigFileSchema>;
+
+/**
+ * Factory to create a fully initialized default AgentConfigFile with safe fallbacks.
+ */
+export function createDefaultAgentConfig(
+  name: string,
+  overrides?: Partial<AgentConfigFile>
+): AgentConfigFile {
+  const sanitizedName = name.trim();
+  const id = overrides?.id || `agent-${sanitizedName.toLowerCase().replace(/[^a-z0-9_-]/g, "_")}`;
+  return AgentConfigFileSchema.parse({
+    id,
+    name: sanitizedName,
+    ...overrides,
+  });
+}
+
+/**
  * Specification for AGENTS.md declaring sub-agent permissions and recursion bounds.
+ * (Preserved for backwards compatibility with legacy manifest parsers).
  */
 export const AgentPermissionsManifestSchema = z.object({
   allowedSubAgents: z.array(z.string()).default([]),

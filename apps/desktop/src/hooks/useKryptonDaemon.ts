@@ -249,6 +249,7 @@ export function useKryptonDaemon() {
               name: agentItem.name,
               role: agentItem.role,
               model: agentItem.model,
+              temperature: agentItem.temperature,
               systemPrompt: agentItem.systemPrompt,
               permissions: agentItem.permissions,
             },
@@ -261,6 +262,26 @@ export function useKryptonDaemon() {
 
   const updateAgent = useCallback((id: string, patch: Partial<AgentFleetItem>) => {
     setFleet((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)))
+
+    // Synchronize settings directly to daemon config.json
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: Date.now(),
+          method: "updateAgent",
+          params: {
+            agentId: id,
+            patch: {
+              ...(patch.role ? { role: patch.role } : {}),
+              ...(patch.model ? { model: patch.model } : {}),
+              ...(typeof patch.temperature === "number" ? { temperature: patch.temperature } : {}),
+              ...(patch.permissions ? { permissions: patch.permissions } : {}),
+            },
+          },
+        })
+      )
+    }
   }, [])
 
   const deleteAgent = useCallback((id: string) => {

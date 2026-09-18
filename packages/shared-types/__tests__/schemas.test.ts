@@ -50,6 +50,9 @@ import {
   TrajectorySessionSchema,
   // Config
   GlobalConfigSchema,
+  AgentConfigFileSchema,
+  AgentPermissionsConfigSchema,
+  createDefaultAgentConfig,
   AgentPermissionsManifestSchema,
   AgentSoulSpecSchema,
   AgentIdentitySpecSchema,
@@ -541,6 +544,49 @@ describe("Phase 1: Shared Core & Type Contracts Verification Suite", () => {
       });
       expect(cred.providerId).toBe("anthropic");
       expect(cred.apiKey).toBe("sk-ant-api03-sample");
+    });
+
+    it("validates machine-readable AgentConfigFile schema and defaults", () => {
+      const defaultCfg = createDefaultAgentConfig("Orchestrator");
+      expect(defaultCfg.id).toBe("agent-orchestrator");
+      expect(defaultCfg.name).toBe("Orchestrator");
+      expect(defaultCfg.model).toBe("claude-3-7-sonnet-20250219");
+      expect(defaultCfg.provider).toBe("anthropic");
+      expect(defaultCfg.temperature).toBe(0.2);
+      expect(defaultCfg.tools).toEqual(["terminal", "filesystem", "astLinter"]);
+      expect(defaultCfg.permissions.maxDepth).toBe(3);
+      expect(defaultCfg.permissions.terminal).toBe(true);
+      expect(defaultCfg.budget.total).toBe(100_000);
+      expect(defaultCfg.budget.used).toBe(0);
+
+      // Custom configuration
+      const custom = AgentConfigFileSchema.parse({
+        id: "agent-coder",
+        name: "CoderBot",
+        role: "Full-Stack Actor",
+        model: "deepseek-r1",
+        provider: "deepseek",
+        temperature: 0.1,
+        tools: ["terminal", "filesystem"],
+        permissions: {
+          allowedTools: ["terminal", "filesystem"],
+          maxDepth: 2,
+          terminal: true,
+          filesystem: true,
+          web: false,
+          astLinter: false,
+        },
+        budget: {
+          total: 50_000,
+          used: 1_200,
+        },
+      });
+
+      expect(custom.id).toBe("agent-coder");
+      expect(custom.role).toBe("Full-Stack Actor");
+      expect(custom.temperature).toBe(0.1);
+      expect(custom.permissions.maxDepth).toBe(2);
+      expect(custom.budget.used).toBe(1_200);
     });
   });
 

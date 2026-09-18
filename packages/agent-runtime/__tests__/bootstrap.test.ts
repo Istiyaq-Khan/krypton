@@ -57,6 +57,7 @@ describe("Dynamic Agent Templating & Bootstrap System", () => {
     expect(result.agentName).toBe(agentName);
     const agentDir = path.join(tempRoot, "agents", agentName);
     expect(fs.existsSync(agentDir)).toBe(true);
+    expect(fs.existsSync(path.join(agentDir, "config.json"))).toBe(true);
     expect(fs.existsSync(path.join(agentDir, "short_term", "trajectories"))).toBe(true);
 
     // Assert all 7 archetype files are created
