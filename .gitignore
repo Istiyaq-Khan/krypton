@@ -29,6 +29,7 @@ scratch/
 # Next.js & Frontend Build Artifacts
 .next/
 out/
+output/
 build/
 dist/
 *.tsbuildinfo
