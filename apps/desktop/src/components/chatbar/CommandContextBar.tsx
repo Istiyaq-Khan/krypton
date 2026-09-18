@@ -12,7 +12,10 @@ import {
   ChevronDown,
   Paperclip,
   Check,
+  RotateCw,
+  AlertCircle,
 } from "lucide-react"
+import { DiscoveredModel } from "@/lib/modelDiscovery"
 
 interface CommandContextBarProps {
   projectName: string
@@ -20,6 +23,10 @@ interface CommandContextBarProps {
   isLocal: boolean
   model: string
   onModelChange: (model: string) => void
+  availableModels?: DiscoveredModel[]
+  onRefreshModels?: () => Promise<{ success: boolean; models?: DiscoveredModel[]; error?: string }>
+  isRefreshingModels?: boolean
+  activeProvider?: string
   askForApproval: boolean
   onToggleApproval: () => void
   onSubmitPrompt: (prompt: string) => void
@@ -32,13 +39,38 @@ export function CommandContextBar({
   isLocal = true,
   model,
   onModelChange,
+  availableModels = [],
+  onRefreshModels,
+  isRefreshingModels = false,
+  activeProvider,
   askForApproval,
   onToggleApproval,
   onSubmitPrompt,
   onVoiceTrigger,
 }: CommandContextBarProps) {
   const [prompt, setPrompt] = useState("")
+  const [showRefreshConfirm, setShowRefreshConfirm] = useState(false)
+  const [feedbackBanner, setFeedbackBanner] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const handleConfirmRefresh = async () => {
+    setShowRefreshConfirm(false)
+    if (onRefreshModels) {
+      const res = await onRefreshModels()
+      if (res.success && res.models) {
+        setFeedbackBanner({
+          type: "success",
+          text: `Refreshed ${res.models.length} models from ${activeProvider || "provider"}.`,
+        })
+      } else {
+        setFeedbackBanner({
+          type: "error",
+          text: res.error || "Failed to refresh models from endpoint.",
+        })
+      }
+      setTimeout(() => setFeedbackBanner(null), 4000)
+    }
+  }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -140,32 +172,62 @@ export function CommandContextBar({
             </button>
           </div>
 
-          {/* Right Controls: Model Selector, Mic, Send */}
-          <div className="flex items-center gap-2">
-            {/* Model Selector Dropdown */}
-            <div className="relative">
-              <select
-                value={model}
-                onChange={(e) => onModelChange(e.target.value)}
-                className="appearance-none rounded-lg border border-transparent bg-transparent hover:bg-zinc-800 px-2.5 py-1 pr-6 text-[11px] font-medium text-zinc-300 outline-none cursor-pointer transition-colors"
+          {/* Right Controls: Model Selector with In-App Refresh, Mic, Send */}
+          <div className="flex items-center gap-1.5">
+            {/* Model Selector Container */}
+            <div className="flex items-center rounded-lg border border-zinc-800/80 bg-zinc-950/60 hover:border-zinc-700/80 transition-all p-0.5">
+              <div className="relative">
+                <select
+                  value={model}
+                  onChange={(e) => onModelChange(e.target.value)}
+                  className="appearance-none bg-transparent hover:bg-zinc-800/60 rounded-md px-2 py-1 pr-5 text-[11px] font-medium text-zinc-300 outline-none cursor-pointer transition-colors max-w-[170px] truncate"
+                  title="Switch Primary Reasoning Model"
+                >
+                  {/* If availableModels populated from cache */}
+                  {availableModels && availableModels.length > 0 ? (
+                    <>
+                      {/* Ensure current selected model is present if not in list */}
+                      {!availableModels.some((m) => m.id === model) && (
+                        <option value={model} className="bg-zinc-900 text-zinc-200">
+                          {model}
+                        </option>
+                      )}
+                      {availableModels.map((m) => (
+                        <option key={m.id} value={m.id} className="bg-zinc-900 text-zinc-200">
+                          {m.name && m.name !== m.id ? m.name : m.id}
+                        </option>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <option value={model || "5.6 Terra High"} className="bg-zinc-900 text-zinc-200">
+                        {model || "5.6 Terra High"}
+                      </option>
+                      <option value="Claude 3.7 Sonnet" className="bg-zinc-900 text-zinc-200">
+                        Claude 3.7 Sonnet
+                      </option>
+                      <option value="GPT-4o" className="bg-zinc-900 text-zinc-200">
+                        GPT-4o
+                      </option>
+                      <option value="DeepSeek R1" className="bg-zinc-900 text-zinc-200">
+                        DeepSeek R1
+                      </option>
+                    </>
+                  )}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 size-2.5 text-zinc-500" />
+              </div>
+
+              {/* Refresh Models Button */}
+              <button
+                type="button"
+                onClick={() => setShowRefreshConfirm(true)}
+                disabled={isRefreshingModels}
+                className="flex size-6 items-center justify-center rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-violet-300 disabled:opacity-50 transition-colors cursor-pointer"
+                title="Refresh models list from provider"
               >
-                <option value="5.6 Terra High" className="bg-zinc-900 text-zinc-200">
-                  5.6 Terra High
-                </option>
-                <option value="Claude 3.7 Sonnet" className="bg-zinc-900 text-zinc-200">
-                  Claude 3.7 Sonnet
-                </option>
-                <option value="GPT-4o" className="bg-zinc-900 text-zinc-200">
-                  GPT-4o
-                </option>
-                <option value="DeepSeek R1" className="bg-zinc-900 text-zinc-200">
-                  DeepSeek R1
-                </option>
-                <option value="Local Llama 3.3" className="bg-zinc-900 text-zinc-200">
-                  Local Llama 3.3
-                </option>
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-3 text-zinc-500" />
+                <RotateCw className={`size-3 ${isRefreshingModels ? "animate-spin text-violet-400" : ""}`} />
+              </button>
             </div>
 
             {/* Microphone Button */}
@@ -195,6 +257,63 @@ export function CommandContextBar({
           </div>
         </div>
       </div>
+
+      {/* Feedback Banner */}
+      {feedbackBanner && (
+        <div
+          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs animate-in fade-in-50 ${
+            feedbackBanner.type === "success"
+              ? "border-emerald-500/40 bg-emerald-950/30 text-emerald-300"
+              : "border-rose-800/80 bg-rose-950/40 text-rose-300"
+          }`}
+        >
+          {feedbackBanner.type === "success" ? (
+            <Check className="size-3.5 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="size-3.5 text-rose-400 shrink-0" />
+          )}
+          <span>{feedbackBanner.text}</span>
+        </div>
+      )}
+
+      {/* Confirmation Modal for Refresh Models */}
+      {showRefreshConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in-0 duration-150">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-900/95 p-5 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center gap-2.5 text-zinc-100 mb-2">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-violet-600/20 text-violet-400 border border-violet-500/30">
+                <RotateCw className="size-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-zinc-100">Refresh Available Models?</h3>
+                <p className="text-[11px] text-zinc-400">Query active provider endpoint</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed my-3">
+              This will connect to your configured <span className="font-semibold text-zinc-200 capitalize">{activeProvider || "AI"}</span> endpoint to discover the latest model list and update your local cache.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800/80">
+              <button
+                type="button"
+                onClick={() => setShowRefreshConfirm(false)}
+                className="rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRefresh}
+                className="rounded-xl bg-violet-600 hover:bg-violet-500 px-4 py-1.5 text-xs font-semibold text-white shadow-lg shadow-violet-900/40 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <RotateCw className="size-3" />
+                <span>Confirm & Refresh</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

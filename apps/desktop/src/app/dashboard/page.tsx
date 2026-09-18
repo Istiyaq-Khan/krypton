@@ -148,6 +148,10 @@ export default function DashboardPage() {
             isLocal={true}
             model={session.selectedModel}
             onModelChange={session.setSelectedModel}
+            availableModels={session.availableModels}
+            onRefreshModels={session.refreshModels}
+            isRefreshingModels={session.isRefreshingModels}
+            activeProvider={session.activeProvider}
             askForApproval={session.askForApproval}
             onToggleApproval={() => session.setAskForApproval(!session.askForApproval)}
             onSubmitPrompt={(p) => session.submitPrompt(p)}
@@ -165,6 +169,7 @@ export default function DashboardPage() {
           logs={daemon.logs}
           fleet={daemon.fleet}
           diffData={daemon.activeDiff}
+          availableModels={session.availableModels}
           onApproveMerge={daemon.approveMerge}
           onRollbackStep={daemon.rollbackStep}
           onRejectAbort={daemon.rejectAbort}

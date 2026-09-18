@@ -5,11 +5,42 @@ use crate::paths::{ensure_krypton_directories, get_krypton_home};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct DiscoveredModelItem {
+    pub id: String,
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub context_length: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CachedModelsData {
+    pub provider: String,
+    pub base_url: Option<String>,
+    pub models: Vec<DiscoveredModelItem>,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderConfigData {
+    pub provider: String,
+    pub model: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct SetupApiKeys {
+    pub provider: Option<String>,
     pub anthropic: Option<String>,
     pub openai: Option<String>,
+    pub openrouter: Option<String>,
     pub custom_endpoint: Option<String>,
     pub custom_model: Option<String>,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -17,8 +48,10 @@ pub struct SetupApiKeys {
 pub struct SetupConfigPayload {
     pub agent_name: String,
     pub agent_role: Option<String>,
+    pub provider: Option<String>,
     pub primary_model: Option<String>,
     pub api_keys: Option<SetupApiKeys>,
+    pub cached_models: Option<Vec<DiscoveredModelItem>>,
     pub default_workspace_dir: Option<String>,
     pub ask_for_approval: Option<bool>,
     pub ast_safety_enforced: Option<bool>,
@@ -134,6 +167,15 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
         payload.agent_name.trim().to_string()
     };
 
+    let chosen_provider = payload.provider
+        .as_deref()
+        .filter(|p| !p.trim().is_empty())
+        .or_else(|| {
+            payload.api_keys.as_ref().and_then(|k| k.provider.as_deref())
+        })
+        .unwrap_or("openai")
+        .to_lowercase();
+
     let primary_model = payload.primary_model
         .clone()
         .unwrap_or_else(|| "5.6 Terra High".to_string());
@@ -155,15 +197,16 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
         });
     }
 
-    // Update default route model
+    // Update default route provider & model dynamically without hardcoding
     if let Some(routes) = config.get_mut("defaultRoutes") {
         if let Some(orch) = routes.get_mut("orchestrator") {
+            orch["provider"] = serde_json::json!(&chosen_provider);
             orch["model"] = serde_json::json!(&primary_model);
         }
     } else {
         config["defaultRoutes"] = serde_json::json!({
             "orchestrator": {
-                "provider": "anthropic",
+                "provider": &chosen_provider,
                 "model": &primary_model
             }
         });
@@ -193,7 +236,7 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
         "name": agent_name,
         "role": role_desc,
         "model": primary_model,
-        "provider": "anthropic",
+        "provider": &chosen_provider,
         "temperature": 0.2,
         "contextWindowLimit": 128_000,
         "tools": ["terminal", "filesystem", "astLinter", "web"],
@@ -238,10 +281,20 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
     let user_prefs = "# User Preferences & Directives\n\nLocal user preferences and domain guidelines.\n- Prefer concise progress updates during autonomous execution.\n";
     let _ = fs::write(agent_dir.join("USER.md"), user_prefs);
 
-    // If API keys provided, store in ~/.krypton/credentials.json as clean local store
-    if let Some(keys) = payload.api_keys {
+    // If API keys / endpoints provided, store in ~/.krypton/credentials.json without hardcoding
+    if let Some(ref keys) = payload.api_keys {
         let creds_path = home.join("credentials.json");
-        let mut creds_map = serde_json::Map::new();
+        let mut creds_map: serde_json::Map<String, serde_json::Value> = if creds_path.exists() {
+            fs::read_to_string(&creds_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default()
+        } else {
+            serde_json::Map::new()
+        };
+
+        creds_map.insert("active_provider".to_string(), serde_json::json!(&chosen_provider));
+
         if let Some(ref k) = keys.anthropic {
             if !k.trim().is_empty() {
                 creds_map.insert("anthropic_api_key".to_string(), serde_json::json!(k.trim()));
@@ -252,14 +305,30 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
                 creds_map.insert("openai_api_key".to_string(), serde_json::json!(k.trim()));
             }
         }
+        if let Some(ref k) = keys.openrouter {
+            if !k.trim().is_empty() {
+                creds_map.insert("openrouter_api_key".to_string(), serde_json::json!(k.trim()));
+            }
+        }
         if let Some(ref ep) = keys.custom_endpoint {
             if !ep.trim().is_empty() {
                 creds_map.insert("custom_endpoint".to_string(), serde_json::json!(ep.trim()));
+                creds_map.insert(format!("{}_base_url", chosen_provider), serde_json::json!(ep.trim()));
             }
         }
         if let Some(ref m) = keys.custom_model {
             if !m.trim().is_empty() {
                 creds_map.insert("custom_model".to_string(), serde_json::json!(m.trim()));
+            }
+        }
+        if let Some(ref bu) = keys.base_url {
+            if !bu.trim().is_empty() {
+                creds_map.insert(format!("{}_base_url", chosen_provider), serde_json::json!(bu.trim()));
+            }
+        }
+        if let Some(ref ak) = keys.api_key {
+            if !ak.trim().is_empty() {
+                creds_map.insert(format!("{}_api_key", chosen_provider), serde_json::json!(ak.trim()));
             }
         }
 
@@ -268,5 +337,99 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
         }
     }
 
+    // If cached models provided, write to ~/.krypton/models_cache.json
+    if let Some(models) = payload.cached_models {
+        let cache_path = home.join("models_cache.json");
+        let base_url = payload.api_keys.as_ref().and_then(|k| k.base_url.clone().or_else(|| k.custom_endpoint.clone()));
+        let cache_data = CachedModelsData {
+            provider: chosen_provider.clone(),
+            base_url,
+            models,
+            updated_at: now,
+        };
+        let _ = fs::write(&cache_path, serde_json::to_string_pretty(&cache_data).unwrap_or_default());
+    }
+
     Ok(true)
 }
+
+/// Reads cached models from ~/.krypton/models_cache.json
+#[tauri::command]
+pub fn get_cached_models() -> Result<CachedModelsData, String> {
+    let home = get_krypton_home();
+    let cache_path = home.join("models_cache.json");
+    if !cache_path.exists() {
+        return Ok(CachedModelsData::default());
+    }
+    let raw = fs::read_to_string(&cache_path)
+        .map_err(|e| format!("Failed to read models cache: {}", e))?;
+    let parsed: CachedModelsData = serde_json::from_str(&raw)
+        .unwrap_or_default();
+    Ok(parsed)
+}
+
+/// Saves cached models to ~/.krypton/models_cache.json
+#[tauri::command]
+pub fn save_cached_models(payload: CachedModelsData) -> Result<bool, String> {
+    ensure_krypton_directories()?;
+    let home = get_krypton_home();
+    let cache_path = home.join("models_cache.json");
+    let serialized = serde_json::to_string_pretty(&payload)
+        .map_err(|e| format!("Failed to serialize model cache: {}", e))?;
+    fs::write(&cache_path, serialized)
+        .map_err(|e| format!("Failed to write model cache: {}", e))?;
+    Ok(true)
+}
+
+/// Retrieves active provider and endpoint metadata for in-app model refresh
+#[tauri::command]
+pub fn get_provider_config() -> Result<ProviderConfigData, String> {
+    let home = get_krypton_home();
+    let config_path = home.join("config.json");
+    let creds_path = home.join("credentials.json");
+
+    let mut provider = "openai".to_string();
+    let mut model = "5.6 Terra High".to_string();
+    let mut base_url = None;
+    let mut api_key = None;
+
+    if config_path.exists() {
+        if let Ok(raw) = fs::read_to_string(&config_path) {
+            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(orch) = cfg.get("defaultRoutes").and_then(|r| r.get("orchestrator")) {
+                    if let Some(p) = orch.get("provider").and_then(|v| v.as_str()) {
+                        provider = p.to_string();
+                    }
+                    if let Some(m) = orch.get("model").and_then(|v| v.as_str()) {
+                        model = m.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    if creds_path.exists() {
+        if let Ok(raw) = fs::read_to_string(&creds_path) {
+            if let Ok(creds) = serde_json::from_str::<serde_json::Value>(&raw) {
+                let prov_lower = provider.to_lowercase();
+                let key_name = format!("{}_api_key", prov_lower);
+                let url_name = format!("{}_base_url", prov_lower);
+
+                if let Some(k) = creds.get(&key_name).or_else(|| creds.get("api_key")).and_then(|v| v.as_str()) {
+                    api_key = Some(k.to_string());
+                }
+                if let Some(u) = creds.get(&url_name).or_else(|| creds.get("custom_endpoint")).and_then(|v| v.as_str()) {
+                    base_url = Some(u.to_string());
+                }
+            }
+        }
+    }
+
+    Ok(ProviderConfigData {
+        provider,
+        model,
+        base_url,
+        api_key,
+    })
+}
+

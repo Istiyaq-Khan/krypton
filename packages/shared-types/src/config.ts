@@ -252,20 +252,82 @@ export const VaultStoreSchema = z.record(z.string(), VaultCredentialSchema);
 export type VaultStore = z.infer<typeof VaultStoreSchema>;
 
 /**
+ * Supported model provider identifiers for first-run setup and dynamic discovery.
+ */
+export const ModelProviderIdSchema = z.enum([
+  "openai",
+  "anthropic",
+  "ollama",
+  "openrouter",
+  "custom",
+]);
+export type ModelProviderId = z.infer<typeof ModelProviderIdSchema>;
+
+/**
+ * Discovered model metadata discovered via dynamic provider endpoints.
+ */
+export const DiscoveredModelSchema = z.object({
+  id: z.string().min(1, "Model ID is required"),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  contextLength: z.number().int().positive().optional(),
+  created: z.number().int().nonnegative().optional(),
+  ownedBy: z.string().optional(),
+});
+export type DiscoveredModel = z.infer<typeof DiscoveredModelSchema>;
+
+/**
+ * Cached models stored locally at `~/.krypton/models_cache.json`.
+ */
+export const CachedModelsDataSchema = z.object({
+  provider: z.string().min(1),
+  baseUrl: z.string().optional(),
+  models: z.array(DiscoveredModelSchema).default([]),
+  updatedAt: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type CachedModelsData = z.infer<typeof CachedModelsDataSchema>;
+
+/**
+ * Model discovery request parameters.
+ */
+export const ModelDiscoveryRequestSchema = z.object({
+  provider: ModelProviderIdSchema,
+  apiKey: z.string().optional(),
+  baseUrl: z.string().optional(),
+});
+export type ModelDiscoveryRequest = z.infer<typeof ModelDiscoveryRequestSchema>;
+
+/**
+ * Model discovery response payload.
+ */
+export const ModelDiscoveryResponseSchema = z.object({
+  success: z.boolean(),
+  provider: ModelProviderIdSchema,
+  models: z.array(DiscoveredModelSchema).default([]),
+  error: z.string().optional(),
+});
+export type ModelDiscoveryResponse = z.infer<typeof ModelDiscoveryResponseSchema>;
+
+/**
  * First-run onboarding setup payload submitted from the interactive setup wizard.
  */
 export const SetupConfigPayloadSchema = z.object({
   agentName: z.string().min(1, "Agent name is required").default("Orchestrator"),
   agentRole: z.string().default("Autonomous Desktop AI Agent"),
+  provider: z.string().default("openai"),
   primaryModel: z.string().default("5.6 Terra High"),
   apiKeys: z
     .object({
       anthropic: z.string().optional(),
       openai: z.string().optional(),
+      openrouter: z.string().optional(),
       customEndpoint: z.string().optional(),
       customModel: z.string().optional(),
+      baseUrl: z.string().optional(),
+      apiKey: z.string().optional(),
     })
     .default({}),
+  cachedModels: z.array(DiscoveredModelSchema).optional(),
   defaultWorkspaceDir: z.string().default(""),
   askForApproval: z.boolean().default(true),
   astSafetyEnforced: z.boolean().default(true),
