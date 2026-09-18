@@ -34,10 +34,32 @@ function getHostTargetTriple() {
   return "x86_64-unknown-linux-gnu"
 }
 
-const target = process.argv.includes("--target")
-  ? process.argv[process.argv.indexOf("--target") + 1]
-  : getHostTargetTriple()
+function normalizeTarget(rawTarget) {
+  if (!rawTarget) return getHostTargetTriple()
+  if (rawTarget === "win" || rawTarget === "windows" || rawTarget.includes("windows")) return "x86_64-pc-windows-msvc"
+  if (rawTarget === "mac" || rawTarget === "mac-arm" || rawTarget === "darwin-arm64" || rawTarget.includes("aarch64-apple-darwin")) return "aarch64-apple-darwin"
+  if (rawTarget === "mac-intel" || rawTarget === "mac-x64" || rawTarget === "darwin-x64" || rawTarget.includes("x86_64-apple-darwin")) return "x86_64-apple-darwin"
+  if (rawTarget === "linux-arm64" || rawTarget.includes("aarch64-unknown-linux-gnu")) return "aarch64-unknown-linux-gnu"
+  if (rawTarget === "linux" || rawTarget === "linux-x64" || rawTarget.includes("x86_64-unknown-linux-gnu")) return "x86_64-unknown-linux-gnu"
+  return rawTarget
+}
 
+function toBunTarget(targetTriple) {
+  if (targetTriple.includes("windows")) return "bun-windows-x64"
+  if (targetTriple.includes("darwin") || targetTriple.includes("apple")) {
+    return targetTriple.includes("arm64") || targetTriple.includes("aarch64") ? "bun-darwin-arm64" : "bun-darwin-x64"
+  }
+  if (targetTriple.includes("linux")) {
+    return targetTriple.includes("arm64") || targetTriple.includes("aarch64") ? "bun-linux-arm64" : "bun-linux-x64"
+  }
+  return null
+}
+
+const rawTarget = process.argv.includes("--target")
+  ? process.argv[process.argv.indexOf("--target") + 1]
+  : null
+
+const target = normalizeTarget(rawTarget)
 const isWindows = target.includes("windows")
 const ext = isWindows ? ".exe" : ""
 
@@ -67,7 +89,9 @@ try {
 if (hasBun) {
   console.log("Found Bun compiler. Building native single-binary sidecar...")
   try {
-    execSync(`bun build --compile "${entryPoint}" --outfile "${targetBinaryPath}"`, {
+    const bunTarget = toBunTarget(target)
+    const targetFlag = bunTarget ? ` --target="${bunTarget}"` : ""
+    execSync(`bun build --compile${targetFlag} "${entryPoint}" --outfile "${targetBinaryPath}"`, {
       cwd: rootDir,
       stdio: "inherit",
     })

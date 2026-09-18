@@ -5,6 +5,7 @@
 # Dependencies & Package Managers
 node_modules/
 .pnpm-store/
+.bun-cache/
 .pnp/
 .pnp.*
 .yarn/
