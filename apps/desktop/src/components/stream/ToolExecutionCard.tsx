@@ -12,8 +12,12 @@ import {
   ThumbsDown,
   Share2,
   Check,
+  Terminal,
+  ShieldCheck,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react"
-import { ToolExecutionEvent } from "@/hooks/useAgentSession"
+import { ToolExecutionEvent } from "@/lib/persistence"
 
 interface ToolExecutionCardProps {
   tool: ToolExecutionEvent
@@ -32,23 +36,40 @@ export function ToolExecutionCard({ tool, onReview, onUndo }: ToolExecutionCardP
   const hasExtra = extraFiles.length > 0
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(JSON.stringify(files, null, 2))
+    const textToCopy = tool.stdout || (tool.files ? JSON.stringify(tool.files, null, 2) : tool.title)
+    navigator.clipboard.writeText(textToCopy)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const isAstLinter = tool.type === "ast_linter"
+  const isTerminal = tool.type === "terminal_command"
+
   return (
-    <div className="my-4 flex w-full max-w-2xl flex-col rounded-xl border border-zinc-800/90 bg-zinc-900/50 p-4 text-xs text-zinc-300 shadow-lg shadow-black/20 select-none">
-      {/* Top Header Row (Matching Image 3) */}
-      <div className="flex items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
-        {/* Left: Icon, Title & Diff Counter */}
-        <div className="flex items-center gap-3">
-          <div className="flex size-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/80 text-zinc-300">
-            <FileCode2 className="size-4" />
+    <div className="my-3 flex w-full max-w-2xl flex-col rounded-xl border border-zinc-800/90 bg-zinc-900/50 p-3.5 text-xs text-zinc-300 shadow-lg shadow-black/20 select-none transition-all hover:border-zinc-700">
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-800/80 pb-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex size-7 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/80 text-zinc-300">
+            {isAstLinter ? (
+              <ShieldCheck className="size-3.5 text-emerald-400" />
+            ) : isTerminal ? (
+              <Terminal className="size-3.5 text-sky-400" />
+            ) : (
+              <FileCode2 className="size-3.5 text-violet-400" />
+            )}
           </div>
 
           <div className="flex flex-col">
-            <span className="font-semibold text-sm text-zinc-100">{tool.title}</span>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-xs text-zinc-100">{tool.title}</span>
+              {tool.durationMs !== undefined && (
+                <span className="text-[10px] text-zinc-500 font-mono">{tool.durationMs}ms</span>
+              )}
+            </div>
+            {tool.subtitle && (
+              <span className="text-[11px] text-zinc-400">{tool.subtitle}</span>
+            )}
             {tool.additions !== undefined && tool.deletions !== undefined && (
               <div className="flex items-center gap-1.5 font-mono text-[11px]">
                 <span className="text-emerald-400 font-medium">+{tool.additions}</span>
@@ -58,33 +79,41 @@ export function ToolExecutionCard({ tool, onReview, onUndo }: ToolExecutionCardP
           </div>
         </div>
 
-        {/* Right: Undo & Review Action Buttons */}
+        {/* Right Action Buttons */}
         <div className="flex items-center gap-2">
           {onUndo && (
             <button
               type="button"
               onClick={onUndo}
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors cursor-pointer"
             >
-              <RotateCcw className="size-3.5" />
+              <RotateCcw className="size-3" />
               <span>Undo</span>
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={onReview}
-            className="flex items-center gap-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-100 shadow-sm transition-colors cursor-pointer"
-          >
-            <span>Review</span>
-          </button>
+          {onReview && (
+            <button
+              type="button"
+              onClick={onReview}
+              className="flex items-center gap-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1 text-xs font-medium text-zinc-100 shadow-sm transition-colors cursor-pointer"
+            >
+              <span>Review</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* File Diff List (Matching Image 3) */}
+      {/* Stdout / Terminal Output View */}
+      {tool.stdout && (
+        <div className="mt-2.5 rounded-lg bg-zinc-950/80 border border-zinc-900 p-2.5 font-mono text-[11px] text-zinc-300 overflow-x-auto whitespace-pre leading-relaxed">
+          {tool.stdout}
+        </div>
+      )}
+
+      {/* File Diff List */}
       {files.length > 0 && (
-        <div className="flex flex-col gap-1.5 pt-3 font-mono text-xs">
-          {/* First 3 files */}
+        <div className="flex flex-col gap-1.5 pt-2.5 font-mono text-xs">
           {initialFiles.map((file, idx) => (
             <div
               key={idx}
@@ -98,7 +127,6 @@ export function ToolExecutionCard({ tool, onReview, onUndo }: ToolExecutionCardP
             </div>
           ))}
 
-          {/* Expanded extra files */}
           {isExpanded &&
             extraFiles.map((file, idx) => (
               <div
@@ -113,7 +141,6 @@ export function ToolExecutionCard({ tool, onReview, onUndo }: ToolExecutionCardP
               </div>
             ))}
 
-          {/* Show More Files Toggle */}
           {hasExtra && (
             <button
               type="button"
@@ -127,41 +154,41 @@ export function ToolExecutionCard({ tool, onReview, onUndo }: ToolExecutionCardP
         </div>
       )}
 
-      {/* Bottom Micro Toolbar (Matching Image 3: copy, thumbs, share) */}
-      <div className="flex items-center gap-3 pt-3 mt-2 border-t border-zinc-800/60 text-zinc-500">
+      {/* Bottom Micro Toolbar */}
+      <div className="flex items-center gap-3 pt-2.5 mt-2 border-t border-zinc-800/60 text-zinc-500">
         <button
           type="button"
           onClick={handleCopy}
-          className="hover:text-zinc-300 transition-colors"
-          title="Copy file list"
+          className="hover:text-zinc-300 transition-colors cursor-pointer"
+          title="Copy output"
         >
-          {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+          {copied ? <Check className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
         </button>
 
         <button
           type="button"
           onClick={() => setFeedback(feedback === "up" ? null : "up")}
-          className={`hover:text-zinc-300 transition-colors ${feedback === "up" ? "text-emerald-400" : ""}`}
+          className={`hover:text-zinc-300 transition-colors cursor-pointer ${feedback === "up" ? "text-emerald-400" : ""}`}
           title="Helpful"
         >
-          <ThumbsUp className="size-3.5" />
+          <ThumbsUp className="size-3" />
         </button>
 
         <button
           type="button"
           onClick={() => setFeedback(feedback === "down" ? null : "down")}
-          className={`hover:text-zinc-300 transition-colors ${feedback === "down" ? "text-rose-400" : ""}`}
+          className={`hover:text-zinc-300 transition-colors cursor-pointer ${feedback === "down" ? "text-rose-400" : ""}`}
           title="Not helpful"
         >
-          <ThumbsDown className="size-3.5" />
+          <ThumbsDown className="size-3" />
         </button>
 
         <button
           type="button"
-          className="hover:text-zinc-300 transition-colors ml-auto"
-          title="Share action"
+          className="hover:text-zinc-300 transition-colors ml-auto cursor-pointer"
+          title="Share"
         >
-          <Share2 className="size-3.5" />
+          <Share2 className="size-3" />
         </button>
       </div>
     </div>

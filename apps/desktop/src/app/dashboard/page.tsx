@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 import { useAgentSession } from "@/hooks/useAgentSession"
 import { useKryptonDaemon } from "@/hooks/useKryptonDaemon"
 import { WindowHeader } from "@/components/layout/WindowHeader"
@@ -11,14 +11,16 @@ import { QuotaBanner } from "@/components/stream/QuotaBanner"
 import { CommandContextBar } from "@/components/chatbar/CommandContextBar"
 import { QuestionModal } from "@/components/QuestionModal"
 import { VcsDiffViewer } from "@/components/VcsDiffViewer"
+import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 
 export default function DashboardPage() {
   const session = useAgentSession()
   const daemon = useKryptonDaemon()
+  const [isVoiceAgentVisible, setIsVoiceAgentVisible] = useState(true)
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-zinc-950 font-sans text-zinc-100 select-none antialiased">
-      {/* 1. Window Chrome / Title Header (Matching Images 2, 3, 4) */}
+      {/* 1. Window Chrome / Title Header */}
       <WindowHeader
         projectName={session.activeProject.name}
         threadTitle={session.activeThread?.title}
@@ -29,9 +31,9 @@ export default function DashboardPage() {
         onNewChat={session.createNewChat}
       />
 
-      {/* 2. Main Workstation Shell (Flex Layout with Sidebar, Stream, and Outputs Drawer) */}
+      {/* 2. Main Workstation Shell */}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-        {/* Left Collapsible Projects & Threads Sidebar (Image 2/3/4) */}
+        {/* Left Collapsible Projects & Threads Sidebar */}
         <ProjectSidebar
           projects={session.projects}
           activeProjectId={session.activeProjectId}
@@ -39,6 +41,8 @@ export default function DashboardPage() {
           onSelectProject={session.selectProject}
           onSelectThread={session.selectThread}
           onNewChat={session.createNewChat}
+          onCreateProject={session.createProject}
+          onDeleteThread={session.deleteThread}
           userProfile={session.userProfile}
           isOpen={session.isLeftSidebarOpen}
         />
@@ -54,9 +58,11 @@ export default function DashboardPage() {
               session.setRightDrawerTab("diff")
               session.setIsRightDrawerOpen(true)
             }}
+            onResolveApproval={session.resolveMessageApproval}
+            isStreaming={session.isStreaming}
           />
 
-          {/* Rate Limit / Context Usage Banner (Matching Images 2 & 3) */}
+          {/* Rate Limit / Context Usage Banner */}
           <QuotaBanner
             usagePercent={session.userProfile.tokenUsagePercent}
             tokensUsed={session.userProfile.tokensUsed}
@@ -64,7 +70,7 @@ export default function DashboardPage() {
             planName={session.userProfile.planName}
           />
 
-          {/* Sticky Bottom Unified Command Bar (Images 2, 3, 4) */}
+          {/* Sticky Bottom Unified Command Bar */}
           <CommandContextBar
             projectName={session.activeProject.name}
             branchName={session.activeProject.branch}
@@ -74,15 +80,11 @@ export default function DashboardPage() {
             askForApproval={session.askForApproval}
             onToggleApproval={() => session.setAskForApproval(!session.askForApproval)}
             onSubmitPrompt={(p) => session.submitPrompt(p)}
-            onVoiceTrigger={() => {
-              if (typeof window !== "undefined") {
-                window.open("/overlay", "_blank", "width=640,height=130")
-              }
-            }}
+            onVoiceTrigger={() => setIsVoiceAgentVisible(true)}
           />
         </main>
 
-        {/* Right Collapsible Outputs Drawer (Image 4 right pane) */}
+        {/* Right Collapsible Outputs Drawer */}
         <OutputsDrawer
           isOpen={session.isRightDrawerOpen}
           onClose={() => session.setIsRightDrawerOpen(false)}
@@ -95,8 +97,22 @@ export default function DashboardPage() {
           onApproveMerge={daemon.approveMerge}
           onRollbackStep={daemon.rollbackStep}
           onRejectAbort={daemon.rejectAbort}
+          onCreateAgent={daemon.createAgent}
+          onControlProcess={daemon.controlProcess}
+          telemetry={daemon.telemetry}
         />
       </div>
+
+      {/* Ultra-Premium Floating Voice Presence */}
+      {isVoiceAgentVisible && (
+        <FloatingVoiceAgent
+          activeAgentName={session.activeProject.name}
+          onSubmitPrompt={(prompt) => session.submitPrompt(prompt)}
+          isAssistantThinking={session.isStreaming}
+          latestAssistantText={session.latestAssistantText}
+          onClose={() => setIsVoiceAgentVisible(false)}
+        />
+      )}
 
       {/* Human-in-the-Loop Clarification Dialog */}
       <QuestionModal
@@ -106,7 +122,7 @@ export default function DashboardPage() {
         onDismiss={() => daemon.setIsQuestionModalOpen(false)}
       />
 
-      {/* Fullscreen Git Worktree Diff Viewer Modal (if opened separately) */}
+      {/* Fullscreen Git Worktree Diff Viewer Modal */}
       {daemon.isDiffModalOpen && daemon.activeDiff && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-6 animate-in fade-in-0 duration-200">
           <div className="flex h-full max-h-[90vh] w-full max-w-6xl flex-col rounded-2xl overflow-hidden shadow-2xl border border-zinc-800">

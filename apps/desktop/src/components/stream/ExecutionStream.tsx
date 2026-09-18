@@ -1,18 +1,29 @@
 "use client"
 
-import React, { useRef, useEffect } from "react"
+import React, { useRef, useEffect, useState } from "react"
+import {
+  ShieldAlert,
+  CheckCircle2,
+  XCircle,
+  Terminal,
+  Check,
+  X,
+  Play,
+  FileCode,
+} from "lucide-react"
 import { EmptyHeroState } from "./EmptyHeroState"
 import { UserMessageBubble } from "./UserMessageBubble"
 import { AgentThoughtTrace } from "./AgentThoughtTrace"
 import { ToolExecutionCard } from "./ToolExecutionCard"
-import { QuotaBanner } from "./QuotaBanner"
-import { AgentThread } from "@/hooks/useAgentSession"
+import { AgentThread, StreamMessage } from "@/lib/persistence"
 
 interface ExecutionStreamProps {
   thread: AgentThread | null
   projectName: string
   onSelectPrompt: (prompt: string) => void
   onReviewDiff: () => void
+  onResolveApproval?: (messageId: string, approved: boolean) => void
+  isStreaming?: boolean
 }
 
 export function ExecutionStream({
@@ -20,26 +31,43 @@ export function ExecutionStream({
   projectName,
   onSelectPrompt,
   onReviewDiff,
+  onResolveApproval,
+  isStreaming = false,
 }: ExecutionStreamProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+  const [isUserScrolledUp, setIsUserScrolledUp] = useState(false)
 
   const messages = thread?.messages || []
   const hasMessages = messages.length > 0
 
+  // Scroll handler to detect manual user scroll-up override
+  const handleScroll = () => {
+    if (!containerRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = containerRef.current
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight
+    setIsUserScrolledUp(distanceFromBottom > 120)
+  }
+
+  // Auto-scroll lock unless user explicitly scrolled up
   useEffect(() => {
-    if (hasMessages) {
+    if (hasMessages && !isUserScrolledUp) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }
-  }, [messages.length, hasMessages])
+  }, [messages, hasMessages, isUserScrolledUp, isStreaming])
 
   return (
-    <div className="flex flex-1 flex-col overflow-y-auto px-4 py-6 scroll-smooth">
+    <div
+      ref={containerRef}
+      onScroll={handleScroll}
+      className="flex flex-1 flex-col overflow-y-auto px-4 py-6 scroll-smooth"
+    >
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
         {!hasMessages ? (
           <EmptyHeroState projectName={projectName} onSelectPrompt={onSelectPrompt} />
         ) : (
           <div className="flex flex-col gap-4">
-            {messages.map((msg) => {
+            {messages.map((msg, idx) => {
               if (msg.sender === "user") {
                 return (
                   <UserMessageBubble
@@ -49,6 +77,8 @@ export function ExecutionStream({
                   />
                 )
               }
+
+              const isLatestMessage = idx === messages.length - 1
 
               return (
                 <div key={msg.id} className="flex flex-col w-full my-2 animate-in fade-in-50 duration-200">
@@ -154,10 +184,15 @@ export function ExecutionStream({
                           />
                         )
                       })}
+
+                      {/* Smooth typing cursor when streaming */}
+                      {isStreaming && isLatestMessage && (
+                        <span className="inline-block w-1.5 h-3.5 ml-1 bg-violet-400 rounded-sm animate-pulse align-middle" />
+                      )}
                     </div>
                   )}
 
-                  {/* Tool Execution Cards (e.g. Edited 12 files) */}
+                  {/* Tool Execution Cards */}
                   {msg.toolExecutions &&
                     msg.toolExecutions.map((tool) => (
                       <ToolExecutionCard
@@ -167,6 +202,80 @@ export function ExecutionStream({
                         onUndo={() => {}}
                       />
                     ))}
+
+                  {/* LIVE INTERACTIVE APPROVAL GATE */}
+                  {msg.approvalGate && (
+                    <div className="my-3 flex w-full max-w-2xl flex-col rounded-xl border border-amber-500/40 bg-amber-950/20 p-4 text-xs shadow-xl backdrop-blur-md animate-in fade-in-0 slide-in-from-bottom-2 duration-200">
+                      <div className="flex items-center justify-between pb-2 border-b border-amber-500/20">
+                        <div className="flex items-center gap-2">
+                          <ShieldAlert className="size-4 text-amber-400" />
+                          <span className="font-semibold text-amber-200">{msg.approvalGate.title}</span>
+                          <span className="rounded bg-amber-950/80 border border-amber-600/40 px-1.5 py-0.5 text-[10px] text-amber-300 font-mono">
+                            [{msg.approvalGate.agentName}]
+                          </span>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-mono capitalize ${
+                            msg.approvalGate.status === "pending"
+                              ? "bg-amber-900/60 text-amber-300 animate-pulse"
+                              : msg.approvalGate.status === "approved"
+                              ? "bg-emerald-950 text-emerald-300 border border-emerald-600/40"
+                              : "bg-rose-950 text-rose-300 border border-rose-600/40"
+                          }`}
+                        >
+                          {msg.approvalGate.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-zinc-300 leading-relaxed font-sans">
+                        {msg.approvalGate.description}
+                      </p>
+
+                      {msg.approvalGate.command && (
+                        <div className="mt-2.5 flex items-center gap-2 rounded-lg bg-black/60 border border-zinc-800 p-2 font-mono text-[11px] text-zinc-200">
+                          <Terminal className="size-3 text-sky-400 shrink-0" />
+                          <code className="truncate">{msg.approvalGate.command}</code>
+                        </div>
+                      )}
+
+                      {msg.approvalGate.status === "pending" ? (
+                        <div className="flex items-center justify-end gap-2.5 pt-3 mt-3 border-t border-amber-500/20">
+                          <button
+                            type="button"
+                            onClick={() => onResolveApproval?.(msg.id, false)}
+                            className="flex items-center gap-1.5 rounded-lg border border-rose-800/60 bg-rose-950/40 hover:bg-rose-900/60 px-3 py-1.5 text-xs text-rose-300 font-medium transition-colors cursor-pointer"
+                          >
+                            <X className="size-3.5" />
+                            <span>Reject & Abort</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => onResolveApproval?.(msg.id, true)}
+                            className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs text-white font-medium shadow-md shadow-emerald-900/30 transition-colors cursor-pointer"
+                          >
+                            <Check className="size-3.5" />
+                            <span>Approve & Execute</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 pt-2 mt-2 border-t border-amber-500/10 text-[11px] text-zinc-400">
+                          {msg.approvalGate.status === "approved" ? (
+                            <>
+                              <CheckCircle2 className="size-3.5 text-emerald-400" />
+                              <span>Permitted by human operator at {new Date(msg.approvalGate.timestamp).toLocaleTimeString()}</span>
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="size-3.5 text-rose-400" />
+                              <span>Action denied and aborted by human operator</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}

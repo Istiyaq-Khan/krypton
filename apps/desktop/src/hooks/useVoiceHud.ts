@@ -21,6 +21,7 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
   const audioContextRef = useRef<AudioContext | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const animFrameRef = useRef<number | null>(null)
+  const recognitionRef = useRef<any>(null)
 
   const startRecording = useCallback(async () => {
     setIsRecording(true)
@@ -33,7 +34,7 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
       try {
         await invoke("start_audio_capture", { provider: "parakeet_v3" })
       } catch (err) {
-        console.warn("Tauri audio capture start failed:", err)
+        console.warn("Tauri audio capture start:", err)
       }
     }
 
@@ -49,21 +50,11 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
         audioContextRef.current = ctx
 
         const analyser = ctx.createAnalyser()
-        analyser.fftSize = 32
+        analyser.fftSize = 64
         const source = ctx.createMediaStreamSource(stream)
         source.connect(analyser)
 
         const dataArray = new Uint8Array(analyser.frequencyBinCount)
-
-        // Mock transcription typewriter simulation while user speaks
-        let mockWords = ["Create", "an", "isolated", "worktree", "and", "verify", "security", "linter"]
-        let wordIdx = 0
-        const interval = setInterval(() => {
-          if (wordIdx < mockWords.length) {
-            setTranscription((prev) => (prev ? `${prev} ${mockWords[wordIdx]}` : mockWords[wordIdx]))
-            wordIdx++
-          }
-        }, 400)
 
         const updateVolume = () => {
           analyser.getByteFrequencyData(dataArray)
@@ -77,10 +68,37 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
         }
 
         updateVolume()
-        return () => clearInterval(interval)
+      }
+
+      // Real speech recognition
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition()
+        recognition.continuous = true
+        recognition.interimResults = true
+        recognition.lang = "en-US"
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = ""
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript
+          }
+          if (currentTranscript.trim()) {
+            setTranscription(currentTranscript.trim())
+          }
+        }
+
+        recognition.onerror = () => {
+          // ignore or fallback
+        }
+
+        recognition.start()
+        recognitionRef.current = recognition
       }
     } catch (err) {
-      console.warn("Microphone access failed:", err)
+      console.warn("Microphone access notice:", err)
       setTranscription("Microphone hardware unavailable")
     }
   }, [])
@@ -88,6 +106,15 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
   const stopRecording = useCallback(async () => {
     setIsRecording(false)
     setStatusPill("Transcribing...")
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch {
+        // ignore
+      }
+      recognitionRef.current = null
+    }
 
     if (animFrameRef.current) {
       cancelAnimationFrame(animFrameRef.current)
@@ -97,7 +124,7 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
       mediaStreamRef.current = null
     }
     if (audioContextRef.current) {
-      await audioContextRef.current.close()
+      await audioContextRef.current.close().catch(() => {})
       audioContextRef.current = null
     }
 
@@ -107,19 +134,19 @@ export function useVoiceHud(onDispatchPrompt?: (text: string, targetAgent: strin
     if (typeof window !== "undefined" && isTauri()) {
       try {
         const result = await invoke<{ transcript: string; is_final: boolean }>("stop_audio_capture")
-        if (result.transcript) {
+        if (result.transcript && !transcription) {
           setTranscription(result.transcript)
         }
       } catch (err) {
-        console.warn("Tauri audio capture stop failed:", err)
+        console.warn("Tauri audio capture stop:", err)
       }
     }
 
     setIsFinal(true)
     setStatusPill("Dispatched")
 
-    if (onDispatchPrompt && transcription) {
-      onDispatchPrompt(transcription, targetAgent)
+    if (onDispatchPrompt && transcription.trim()) {
+      onDispatchPrompt(transcription.trim(), targetAgent)
     }
   }, [onDispatchPrompt, transcription, targetAgent])
 
