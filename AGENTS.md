@@ -1,140 +1,111 @@
-# Krypton — Autonomous Desktop AI Agent Runtime
-## Repository Guidelines & Agent Operating System (AGENTS.md)
+# Krypton — Autonomous Agent Operating System Protocol (AGENTS.md)
 
-This file defines the mandatory operational principles, architectural standards, safety boundaries, and engineering conventions for all AI agents and contributors working inside the **Krypton** codebase.
-
----
-
-## 1. Project Overview & System Architecture
-
-Krypton is a local-first, cross-platform autonomous desktop AI runtime designed to operate with zero server lock-in. It combines a native desktop shell with a recursive background daemon and dynamic tool synthesis.
-
-### High-Level Topology
-- **Desktop Shell (`apps/desktop`)**: Hybrid **Tauri v2 (Rust)** core with a **React 19 / Next.js** dashboard and an always-on-top, frameless, translucent floating **Voice Micro-HUD**.
-- **Daemon Runtime (`packages/agent-runtime`)**: High-performance **TypeScript (Node.js/Bun)** background engine compiled into a single-binary Tauri sidecar (`krypton-daemon`).
-- **Shared Contracts (`packages/shared-types`)**: Single source of truth for interfaces, Zod validation schemas, IPC protocols, and event-sourcing types.
-- **Terminal Companion (`packages/cli`)**: Standalone terminal client built with **React + Ink**, providing an interactive TUI for task DAGs and HITL inputs.
-- **Runtime Environment (`~/.krypton`)**: OS-native folder (`%USERPROFILE%\.krypton` on Windows, `$HOME/.krypton` on macOS/Linux) storing configs, credentials, logs, agent memory, and Git worktrees.
+This document establishes the **mandatory operational standard** that every AI agent and human contributor must follow when building, refactoring, testing, and documenting changes in the **Krypton** repository.
 
 ---
 
-## 2. Monorepo Structure & Package Map
+## 1. The Four Golden Operational Rules
 
-```
-krypton/
-├── apps/
-│   └── desktop/                  # Tauri v2 (Rust) + React/Next.js frontend
-│       ├── src-tauri/            # Rust native backend, sidecar supervisor, audio & hotkeys
-│       └── src/                  # Next.js workspace dashboard & Voice Micro-HUD
-├── packages/
-│   ├── shared-types/             # Universal TypeScript types, Zod schemas, IPC definitions
-│   ├── agent-runtime/            # Core agent actor engine, MCP host, sandbox, browser, VCS
-│   └── cli/                      # Standalone Ink/React terminal CLI
-├── scripts/                      # Standalone binary compiler and packaging scripts
-├── .idea/                        # System specifications (idea.md) and master roadmap (TODO.md)
-├── pnpm-workspace.yaml           # Monorepo workspace configuration
-├── package.json                  # Root monorepo manifest
-└── tsconfig.base.json            # Base TypeScript configuration
-```
+Every AI agent operating in this repository is bound by these four invariant rules:
+
+### 🔴 Rule 1: Pre-Flight Audit & Planning
+1. **Never Guess Architecture or Paths**: Before writing or modifying any code, the agent **MUST** inspect the relevant codebase sections and read the matching modular files in `docs/` (consult [`docs/INDEX.md`](docs/INDEX.md) for routing).
+2. **Explicit Implementation Plan**: Before executing edits, the agent **MUST** formulate and state a concise, explicit Implementation Plan outlining proposed file modifications, dependency impacts, and verification methods.
+
+### 🔴 Rule 2: Execution, Verification & Zero-Error Testing
+1. **Multi-Tier Verification**: After writing or modifying code, the agent **MUST** execute all relevant verification steps:
+   - Type-checking across all monorepo packages: `pnpm run typecheck`
+   - Automated unit & integration tests: `pnpm run test:all`
+   - Rust native core validation: `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`
+   - Direct CLI / daemon execution commands when touching runtime components.
+2. **Immediate Error Rectification**: If any compilation error, linter violation, or test failure occurs, the agent **MUST** diagnose the root cause and fix it immediately. Repeat until zero errors and zero diagnostics remain.
+
+### 🔴 Rule 3: CI/CD & GitHub Actions Synchronization
+1. **Pipeline Integrity**: Whenever build commands, toolchains, dependencies, CLI binaries, or packaging configurations are changed, the agent **MUST** inspect and update all related workflows in [`.github/workflows/`](.github/workflows/) (`ci.yml`, `release.yml`).
+2. **Remote Parity**: Ensure that remote GitHub Actions matrices mirror local build steps and the single-artifact packaging standard.
+
+### 🔴 Rule 4: Mandatory Documentation Maintenance (Zero-Drift Policy)
+1. **Real-Time Documentation Updates**: Whenever an agent adds a feature, refactors code, modifies an IPC method, changes a schema, or removes functionality, it **MUST** immediately update the matching modular document in `docs/`.
+2. **New Domain Registration**: If a new technical domain or subsystem is introduced, create a new modular markdown file (~100–250 lines) in the appropriate `docs/` subdirectory and immediately register it with a relative link in [`docs/INDEX.md`](docs/INDEX.md).
+3. **No Stale Context**: Documentation must reflect the exact reality of the codebase at all times so subsequent AI agents never operate on outdated context.
 
 ---
 
-## 3. Strict Engineering Directives for Agents
+## 2. Core Architectural Guardrails
 
-### A. Package Management & Tooling
+### A. Monorepo & Package Management
 - **Package Manager**: Use `pnpm` exclusively. Never run `npm` or `yarn`.
-- **Workspace Filtering**: Target specific packages using `pnpm --filter <pkg-name> <command>` (e.g., `pnpm --filter @krypton/shared-types build`).
-- **Dependencies**: Never install duplicate dependencies in sub-packages if they belong in workspace root. Shared types must always be imported from `@krypton/shared-types`.
-
-### B. Type Safety & Contracts
-- **Zero Drift**: Any change to data structures, task models, or IPC payloads **must** be implemented in `packages/shared-types` first.
-- **Runtime Validation**: Accompany TypeScript interfaces with corresponding `zod` schemas for all boundary crossings (IPC, WebSocket, CLI pipes, LLM tool inputs).
+- **Workspace Filtering**: Target sub-packages with `pnpm --filter <pkg-name> <command>`.
+- **Type Source of Truth**: All shared interfaces, Zod schemas, and IPC contracts live in `packages/shared-types`. Any contract modification must happen in `shared-types` first.
 - **Strict TypeScript**: Never use `any` without an explicit, documented architectural justification. Use `unknown` with type guards or Zod validation.
 
-### C. Version Control & Git Worktrees (Krypton-VCS)
+### B. Version Control & Worktree Isolation (Krypton-VCS)
 - **Worktree Isolation**: Automated agent coding tasks must execute inside an isolated Git worktree under `~/.krypton/worktrees/<task-id>`.
-- **No Direct Branch Pollution**: Never modify or commit directly to the active working branch during autonomous tasks.
-- **Atomic Semantic Commits**: Every completed sub-task step must produce an atomic Conventional Commit (`feat(agent): ...`, `fix(vcs): ...`).
-- **Deterministic Rollback**: If a verification step (linter, compiler, test suite) fails, immediately execute a hard rollback (`git reset --hard`) to the last verified commit hash.
-- **Merge Gateway**: Merging an agent worktree back into the main branch requires explicit human approval via the visual diff viewer.
+- **No Direct Branch Pollution**: Never modify or commit directly to the user's active branch during autonomous agent operations.
+- **Atomic Semantic Commits**: Every verified step produces a Conventional Commit (`feat(agent): ...`, `fix(vcs): ...`).
+- **Deterministic Rollback**: If a verification step fails, immediately execute a hard rollback (`git reset --hard`) to the last verified commit hash.
+- **Visual Merge Gateway**: Merging an agent worktree into the user branch requires explicit human approval via the visual diff viewer.
 
-### D. Sub-Agent Recursion & Concurrency Limits (Failure Mode Defense)
-- **Recursion Ceiling**: Enforce a strict maximum recursion depth: `max_depth <= 3`. Agents at depth 3 must never invoke `spawnChild()`.
-- **Global Concurrency Cap**: Allow a maximum of 5 concurrently executing sub-agents across the entire runtime. Queue subsequent tasks.
-- **Token Budgeting**: Every sub-agent must receive a finite, explicit token budget from its parent. If the budget is exhausted, terminate cleanly.
-- **Execution Timeouts**: Bind every sub-agent process to a parent `AbortController` (default 60s per child task).
+### C. Sub-Agent Recursion & Concurrency Limits
+- **Recursion Ceiling**: Enforce `max_depth <= 3`. Agents at depth 3 must never invoke `spawnChild()`.
+- **Global Concurrency Cap**: Maximum of 5 concurrently executing sub-agents across the runtime; surplus tasks are queued.
+- **Token Budgeting**: Every sub-agent receives a finite token budget from its parent. If exhausted, terminate cleanly.
+- **Execution Timeouts**: Bind child processes to an `AbortController` (default 60s per child task).
 
-### E. Dynamic Code Sandboxing & AST Safety (Failure Mode Defense)
-- **Static AST Linter**: Before running any synthesized Python or TypeScript code, pass it through the static AST linter (`packages/agent-runtime/src/sandbox/linter.ts`).
-- **Banned Operations**: Block hazardous system commands: `rm -rf /`, `del /s /q`, `child_process.exec`, `child_process.spawn`, `os.system`, `subprocess.Popen`, dynamic `eval()`, and raw root disk writes.
-- **Subprocess Jail**: Run scripts inside OS-constrained subprocesses:
-  - Windows: Constrained within Windows Job Objects (CPU and 512MB RAM caps).
-  - macOS/Linux: Constrained via `posix_spawn` / `rlimit` (RLIMIT_AS, RLIMIT_CPU).
+### D. Dynamic Code Sandboxing & AST Safety
+- **Static AST Linter**: Pass all synthesized TypeScript/JavaScript and Python code through the AST linter (`packages/agent-runtime/src/sandbox/linter.ts`) before execution.
+- **Banned Operations**: Block hazardous operations: `rm -rf /`, `del /s /q`, `child_process.exec`, `child_process.spawn`, `os.system`, `subprocess.Popen`, dynamic `eval()`, and raw root disk writes.
+- **Subprocess Jail**: Run scripts inside OS-constrained subprocesses (Windows Job Objects / POSIX rlimit).
 - **Ephemeral Workspaces**: Execute scripts strictly within `~/.krypton/sandbox_workspace/<exec-id>`.
 
-### F. Context Optimization & Output Offloading (Failure Mode Defense)
-- **Observation Masking**: If a tool output or execution stdout exceeds 1,500 tokens (~6KB), offload the raw content to `~/.krypton/cache/outputs/run_step_<id>.log`. Inject only a 50-line head/tail summary with line count and file path into the model context.
-- **Context Compaction**: Monitor token consumption. When prompt utilization exceeds 90%, condense conversation history into a distilled state checkpoint, retaining only the objective, task DAG, and active diff references.
+### E. Context Optimization & Output Masking
+- **Observation Masking**: If tool stdout exceeds 1,500 tokens (~6KB), offload raw content to `~/.krypton/cache/outputs/run_step_<id>.log`. Inject only a 50-line head/tail summary with total lines and file path into prompt context.
+- **Context Compaction**: When prompt token utilization exceeds 90%, condense conversation history into a distilled state checkpoint retaining objective, task DAG, and active diff references.
 
-### G. Stealth Browser Automation (Failure Mode Defense)
-- **Browser Context Pooling**: Enforce a hard maximum of 2 active browser contexts at any time in `BrowserContextPool`.
+### F. Stealth Browser Automation
+- **Context Pooling**: Enforce a hard maximum of 2 active browser contexts in `BrowserContextPool`.
 - **Idle Recycling**: Automatically close and clean up browser contexts idle for >15 minutes.
-- **Accessibility-First Navigation**: Prioritize Chrome DevTools Protocol Accessibility Tree (AXTree) blind navigation over vision models. Use transient numeric IDs (`[id=1]`, `[id=2]`). Vision is only a fallback.
-- **Humanized Interaction**: Generate cubic Bézier mouse movement curves with micro-jitter and Gaussian keypress delays (60–140ms). Injected cursor must display the active agent name.
+- **AXTree Navigation**: Prioritize Chrome DevTools Protocol Accessibility Tree blind navigation with transient numeric IDs (`[id=1]`) over vision models. Vision is only a fallback.
+- **Humanized Interaction**: Generate cubic Bézier mouse movement curves and Gaussian keypress delays (60–140ms). Injected cursor must display active agent name.
 
-### H. Human-in-the-Loop (HITL) Protocol
-- **Ambiguity Gate**: When instructions are ambiguous or high-risk operations are requested, dispatch a structured `ClarificationRequest`.
-- **Multi-Channel Dispatch**: Broadcast prompts to Desktop UI (modal), CLI (arrow-key selector), Voice HUD (transcription), and messaging channels.
-- **Non-Blocking Resolution**: The first valid answer from any channel unblocks execution and cancels prompts on other channels.
+### G. Per-Agent Workspace Schema (`~/.krypton/agents/<name>/`)
+- **Strict Decoupling**: Configuration is strictly decoupled from prompt markdown files.
+- **`config.json`**: Dedicated exclusively to machine configuration (model, provider, tools, permissions, token budget). Markdown files MUST NOT contain configuration keys or frontmatter settings.
+- **Markdown Context (`*.md`)**: `IDENTITY.md` (persona), `SOUL.md` (guardrails), `AGENTS.md` (conventions), `USER.md` (user model), `MEMORY.md` (long-term memory), `TODO.md` (task DAG ledger), `BOOTSTRAP.md` (first-run onboarding).
 
----
-
-## 4. Per-Agent Workspace Conventions (`~/.krypton/agents/<name>/`)
-
-Every agent instance strictly decouples machine-readable configuration from human/LLM context:
-- **`config.json`**: Dedicated exclusively to machine-readable configuration, agent settings, model parameters, API provider references, tool declarations, permissions, recursion limits, token budget, and runtime metadata. Markdown files MUST NOT contain configuration keys or application settings.
-- **`IDENTITY.md`**: Pure agent persona and system prompt instructions (who the agent is, creature, vibe, avatar, instructions). Contains zero configuration keys.
-- **`SOUL.md`**: Immutable character and reasoning directives, core truths, and behavioral guardrails.
-- **`AGENTS.md`**: Operational workspace conventions, memory guidelines, group chat rules, and environment notes.
-- **`USER.md`**: Durable user preferences, communication style, and profile directives.
-- **`MEMORY.md`**: Distilled long-term knowledge, verified facts, architectural decisions, and curated lessons learned.
-- **`TODO.md`**: Live, human-readable state of the agent's active task DAG and permanent historical task log.
-- **`BOOTSTRAP.md`**: First-run onboarding ritual (auto-cleared after setup).
-- **`short_term/`**: Append-only storage for transcripts, `events.jsonl` (event store), and verified trajectories (`trajectories/`).
+### H. Single-Artifact Distribution Rule
+- **1 OS = 1 Package**: Every OS release produces **EXACTLY ONE** installer/image (Windows NSIS `.exe`, macOS `.dmg`, Linux `.AppImage`).
+- **Embedded Sidecars**: Both `krypton-daemon` and `krypton-cli` are embedded directly inside the desktop application package. Loose daemons, WiX MSI installers, and intermediate CLI binaries are strictly suppressed.
 
 ---
 
-## 5. Standard Build & Development Commands
+## 3. Standard Build & Development Commands
 
 ```bash
+# Validate host environment prerequisites
+node scripts/setup-env.mjs
+
 # Install dependencies across all monorepo workspaces
 pnpm install
 
-# Typecheck and build shared contracts
-pnpm --filter @krypton/shared-types build
+# Build shared contracts, daemon runtime, and CLI
+pnpm run build
 
-# Start desktop development (Next.js frontend + Tauri shell)
-pnpm --filter desktop dev
+# Compile standalone native sidecars (krypton-daemon & krypton-cli)
+pnpm run build:binaries
 
-# Build Next.js frontend production bundle
-pnpm --filter desktop build
+# Typecheck all TypeScript packages
+pnpm run typecheck
 
-# Check Rust native backend code
-cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+# Run full monorepo test suite & Cargo check
+pnpm run test:all
 
-# Run daemon in development mode
-pnpm --filter @krypton/agent-runtime dev
+# Launch desktop app in development mode
+pnpm run dev:tauri
 
-# Compile standalone sidecar binary
-node scripts/build-sidecar.mjs
+# Run daemon in standalone development mode
+pnpm run dev:daemon
 
-# Compile standalone CLI binary
-node scripts/build-cli.mjs
+# Package desktop application & harvest unified release installer
+pnpm run build:desktop
 ```
-
----
-
-## 6. Communication & Documentation Rules
-- Reference exact relative paths (e.g., `packages/shared-types/src/agent.ts`).
-- When proposing multi-step implementations, consult and update `.idea/TODO.md`.
-- Never commit credentials, private keys, or session tokens; always route through `packages/agent-runtime/src/providers/vault.ts`.
