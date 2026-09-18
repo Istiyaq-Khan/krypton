@@ -74,11 +74,11 @@ jobs:
       - name: Build Monorepo Packages
         run: pnpm run build
 
-      - name: Run Monorepo Test Suites & Cargo Check
-        run: pnpm run test:all
-
       - name: Test Standalone CLI Compilation
         run: node scripts/build-cli.mjs
 
       - name: Test Sidecar Compilation
         run: node scripts/build-sidecar.mjs
+
+      - name: Run Monorepo Test Suites & Cargo Check
+        run: pnpm run test:all
