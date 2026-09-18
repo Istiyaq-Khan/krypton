@@ -183,22 +183,31 @@ pnpm --filter @krypton/cli dev run "Analyze codebase"
 
 ### Compiling Standalone Native Binaries
 ```bash
-# Compile single-binary daemon sidecar into apps/desktop/src-tauri/binaries/
-node scripts/build-sidecar.mjs
+# Compile internal sidecar binaries (daemon & CLI) into apps/desktop/src-tauri/binaries/
+pnpm build:binaries
 
-# Compile standalone krypton CLI executable
-node scripts/build-cli.mjs
+# Build desktop application and collect single unified release package into output/
+pnpm build:desktop
 ```
 
 ---
 
-## 🚢 Continuous Integration & Releases
+## 🚢 Single-Artifact Release Pipeline
 
-Krypton utilizes a GitHub Actions cross-compilation pipeline ([.github/workflows/release.yml](.github/workflows/release.yml)) configured with a matrix for:
-- **Windows** (`x86_64-pc-windows-msvc`) -> `.msi` & `.exe` (NSIS)
-- **macOS Intel** (`x86_64-apple-darwin`) -> `.dmg`
-- **macOS Apple Silicon** (`aarch64-apple-darwin`) -> `.dmg`
-- **Linux** (`x86_64-unknown-linux-gnu`) -> `.AppImage` & `.deb`
+Krypton follows a strict **Single-Artifact Distribution Architecture**: every release produces **EXACTLY ONE** self-contained, user-ready application package per supported operating system. Users never have to guess which intermediate binary or installer to download.
+
+All background daemons (`krypton-daemon`), command-line companions (`krypton-cli`), and runtime dependencies are compiled and bundled directly inside each single installer package.
+
+### Official Release Packages
+
+| Operating System | Single Download Package | Distribution Format | Architecture | Bundled Components |
+| :--- | :--- | :--- | :--- | :--- |
+| **Windows** | [`krypton-windows-x64-setup.exe`](https://github.com/Istiyaq-Khan/krypton/releases/latest/download/krypton-windows-x64-setup.exe) | Self-Contained NSIS Installer | `x86_64` | Desktop UI + Background Daemon + CLI Engine |
+| **macOS** | [`krypton-macos-universal.dmg`](https://github.com/Istiyaq-Khan/krypton/releases/latest/download/krypton-macos-universal.dmg) | Apple Disk Image (DMG) | Universal / Apple Silicon & Intel | Desktop UI + Background Daemon + CLI Engine |
+| **Linux** | [`krypton-linux-x86_64.AppImage`](https://github.com/Istiyaq-Khan/krypton/releases/latest/download/krypton-linux-x86_64.AppImage) | Universal AppImage | `x86_64` | Desktop UI + Background Daemon + CLI Engine |
+
+> Each release publishes cryptographic verification hashes in [`SHA256SUMS.txt`](https://github.com/Istiyaq-Khan/krypton/releases/latest/download/SHA256SUMS.txt).  
+> For technical details on sidecar bundling, runtime path resolution, and CI/CD matrices, see [Release Architecture Documentation](docs/RELEASE_ARCHITECTURE.md).
 
 Releases are published automatically to the **[Releases](https://github.com/Istiyaq-Khan/krypton/releases)** tab when a version tag (`v*`) is pushed or manually triggered via `workflow_dispatch`.
 

@@ -16,31 +16,35 @@ permissions:
 
 jobs:
   build:
-    name: Release ${{ matrix.artifact_name }} (${{ matrix.os }})
+    name: Package ${{ matrix.package_name }} (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: windows-x86_64
-            cli_name: krypton-windows-x86_64.exe
-            cli_dist: packages/cli/dist/krypton.exe
+            platform: windows
+            package_name: krypton-windows-x64-setup.exe
+            bundle_subdir: nsis
+            bundle_glob: "*.exe"
           - os: macos-13
             target: x86_64-apple-darwin
-            artifact_name: macos-x86_64
-            cli_name: krypton-macos-x86_64
-            cli_dist: packages/cli/dist/krypton
+            platform: macos
+            package_name: krypton-macos-x64.dmg
+            bundle_subdir: dmg
+            bundle_glob: "*.dmg"
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: macos-aarch64
-            cli_name: krypton-macos-aarch64
-            cli_dist: packages/cli/dist/krypton
+            platform: macos
+            package_name: krypton-macos-arm64.dmg
+            bundle_subdir: dmg
+            bundle_glob: "*.dmg"
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
-            artifact_name: linux-x86_64
-            cli_name: krypton-linux-x86_64
-            cli_dist: packages/cli/dist/krypton
+            platform: linux
+            package_name: krypton-linux-x86_64.AppImage
+            bundle_subdir: appimage
+            bundle_glob: "*.AppImage"
 
     runs-on: ${{ matrix.os }}
 
@@ -90,47 +94,72 @@ jobs:
       - name: Validate Environment
         run: node scripts/setup-env.mjs
 
-      - name: Build Shared Types & Packages
+      - name: Build Monorepo Packages
         run: |
           pnpm --filter @krypton/shared-types build
           pnpm --filter @krypton/agent-runtime build
           pnpm --filter @krypton/cli build
 
-      - name: Compile Sidecar Daemon Binary
-        run: node scripts/build-sidecar.mjs --target ${{ matrix.target }}
-
-      - name: Compile Standalone CLI Binary
-        run: node scripts/build-cli.mjs --target ${{ matrix.target }} --artifact-name ${{ matrix.artifact_name }}
+      - name: Compile Internal Sidecars (Daemon & CLI)
+        run: |
+          node scripts/build-sidecar.mjs --target ${{ matrix.target }}
+          node scripts/build-cli.mjs --target ${{ matrix.target }}
 
       - name: Build Next.js Desktop Dashboard
         run: pnpm --filter desktop build
 
       - name: Build Native Tauri Bundle
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Krypton ${{ github.ref_name }}"
-          releaseBody: "Krypton Autonomous Desktop AI Agent Runtime — Release ${{ github.ref_name }}"
-          releaseDraft: false
-          prerelease: false
           args: --target ${{ matrix.target }}
+          includeRelease: false
+          includeUpdaterJson: false
 
-      - name: Prepare Standalone CLI Release Asset
+      - name: Stage Single Unified Release Package & Compute SHA-256
         shell: bash
         run: |
           mkdir -p release-assets
-          if [ -f "${{ matrix.cli_dist }}" ]; then
-            cp "${{ matrix.cli_dist }}" "release-assets/${{ matrix.cli_name }}"
-          elif [ -f "krypton${{ matrix.os == 'windows-latest' && '.exe' || '' }}" ]; then
-            cp "krypton${{ matrix.os == 'windows-latest' && '.exe' || '' }}" "release-assets/${{ matrix.cli_name }}"
+
+          BUNDLE_SRC=""
+          POSSIBLE_DIRS=(
+            "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/${{ matrix.bundle_subdir }}"
+            "apps/desktop/src-tauri/target/release/bundle/${{ matrix.bundle_subdir }}"
+          )
+
+          for dir in "${POSSIBLE_DIRS[@]}"; do
+            if [ -d "$dir" ]; then
+              MATCH=$(find "$dir" -maxdepth 2 -type f -name "${{ matrix.bundle_glob }}" | head -n 1)
+              if [ -n "$MATCH" ]; then
+                BUNDLE_SRC="$MATCH"
+                break
+              fi
+            fi
+          done
+
+          if [ -z "$BUNDLE_SRC" ]; then
+            echo "::error::Could not find generated bundle for ${{ matrix.target }} in expected bundle directories."
+            exit 1
           fi
 
-      - name: Upload Standalone CLI Binary to Release
+          echo "✔ Located primary bundle source: $BUNDLE_SRC"
+          cp "$BUNDLE_SRC" "release-assets/${{ matrix.package_name }}"
+
+          cd release-assets
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${{ matrix.package_name }}" > "${{ matrix.package_name }}.sha256"
+          elif command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "${{ matrix.package_name }}" > "${{ matrix.package_name }}.sha256"
+          fi
+
+          echo "✔ Release package staged:"
+          ls -lh
+
+      - name: Upload Single Unified Package to GitHub Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
-          files: release-assets/*
+          files: |
+            release-assets/${{ matrix.package_name }}
+            release-assets/${{ matrix.package_name }}.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

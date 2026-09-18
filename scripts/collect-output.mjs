@@ -1,13 +1,23 @@
 #!/usr/bin/env node
 
 /**
- * Krypton Universal Build Output Collector
- * Automatically gathers built desktop binaries, installers, CLI executables,
- * and sidecar daemons from all platforms (Windows, macOS, Linux) into the root `output/` folder.
+ * Krypton Single-Artifact Output Collector & Release Bundler
+ * 
+ * Enforces the Single-Artifact Distribution Rule:
+ * Produces EXACTLY ONE self-contained, user-ready application package per supported OS:
+ *   - Windows: krypton-windows-x64-setup.exe (NSIS Setup Installer)
+ *   - macOS:   krypton-macos-universal.dmg   (Apple Disk Image DMG)
+ *   - Linux:   krypton-linux-x86_64.AppImage  (Universal Linux AppImage)
+ *
+ * All background daemons (krypton-daemon), internal CLIs (krypton-cli),
+ * and runtime dependencies are strictly bundled INSIDE these packages.
+ * Loose daemon sidecars, intermediate target-triple binaries, and duplicate
+ * installer formats (e.g. WiX MSI, DEB, RPM) are strictly suppressed and purged.
  */
 
 import * as fs from "node:fs"
 import * as path from "node:path"
+import * as crypto from "node:crypto"
 import { fileURLToPath } from "node:url"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -15,7 +25,7 @@ const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, "..")
 const outputDir = path.join(rootDir, "output")
 
-// Helper: Format bytes to human readable string
+// Helper: Format bytes to human-readable string
 function formatBytes(bytes) {
   if (bytes === 0) return "0 B"
   const k = 1024
@@ -24,43 +34,16 @@ function formatBytes(bytes) {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
 }
 
-// Helper: Safe copy with directory creation and optional chmod
-function copyFileSafe(src, dest, makeExecutable = false) {
-  try {
-    const parentDir = path.dirname(dest)
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true })
-    }
-    fs.copyFileSync(src, dest)
-    if (makeExecutable && process.platform !== "win32") {
-      try {
-        fs.chmodSync(dest, 0o755)
-      } catch {}
-    }
-    return true
-  } catch (err) {
-    console.error(`  ✖ Failed to copy ${src} -> ${dest}:`, err.message)
-    return false
-  }
+// Helper: Calculate SHA-256 checksum of a file
+function computeSha256(filePath) {
+  const hash = crypto.createHash("sha256")
+  const data = fs.readFileSync(filePath)
+  hash.update(data)
+  return hash.digest("hex")
 }
 
-// Helper: Safe directory copy (for macOS .app bundles)
-function copyDirSafe(src, dest) {
-  try {
-    const parentDir = path.dirname(dest)
-    if (!fs.existsSync(parentDir)) {
-      fs.mkdirSync(parentDir, { recursive: true })
-    }
-    fs.cpSync(src, dest, { recursive: true, force: true })
-    return true
-  } catch (err) {
-    console.error(`  ✖ Failed to copy dir ${src} -> ${dest}:`, err.message)
-    return false
-  }
-}
-
-// Recursively find files matching extensions
-function findFiles(dir, matchExts = [], maxDepth = 4, currentDepth = 0) {
+// Helper: Recursively find files matching criteria
+function findFiles(dir, matchPredicate, maxDepth = 5, currentDepth = 0) {
   const results = []
   if (!fs.existsSync(dir) || currentDepth > maxDepth) return results
 
@@ -69,16 +52,10 @@ function findFiles(dir, matchExts = [], maxDepth = 4, currentDepth = 0) {
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        // Special check for macOS .app directory bundles
-        if (entry.name.endsWith(".app")) {
-          results.push({ path: fullPath, isDir: true, name: entry.name })
-        } else {
-          results.push(...findFiles(fullPath, matchExts, maxDepth, currentDepth + 1))
-        }
+        results.push(...findFiles(fullPath, matchPredicate, maxDepth, currentDepth + 1))
       } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase()
-        if (matchExts.length === 0 || matchExts.includes(ext) || matchExts.some((m) => entry.name.endsWith(m))) {
-          results.push({ path: fullPath, isDir: false, name: entry.name })
+        if (matchPredicate(entry.name, fullPath)) {
+          results.push({ path: fullPath, name: entry.name })
         }
       }
     }
@@ -86,206 +63,227 @@ function findFiles(dir, matchExts = [], maxDepth = 4, currentDepth = 0) {
   return results
 }
 
-console.log("\n" + "=".repeat(72))
-console.log(" 📦 Krypton Build Output Collector")
-console.log("=".repeat(72))
-console.log(` Target Directory: ${outputDir}\n`)
+console.log("\n" + "=".repeat(76))
+console.log(" 📦 Krypton Single-Artifact Output Collector & Release Bundler")
+console.log("=".repeat(76))
+console.log(` Target Output Directory: ${outputDir}\n`)
 
+// Ensure clean output directory: purge stale intermediate cluster artifacts
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true })
-}
-
-const collectedItems = []
-
-// -----------------------------------------------------------------------------
-// 1. Collect Tauri Desktop Bundle Installers (NSIS, MSI, DMG, AppImage, DEB, RPM)
-// -----------------------------------------------------------------------------
-const bundleDir = path.join(rootDir, "apps", "desktop", "src-tauri", "target", "release", "bundle")
-if (fs.existsSync(bundleDir)) {
-  const bundleFiles = findFiles(bundleDir, [".exe", ".msi", ".dmg", ".pkg", ".deb", ".appimage", ".rpm", ".app"])
-  for (const item of bundleFiles) {
-    const dest = path.join(outputDir, item.name)
-    let size = 0
-    let success = false
-
-    if (item.isDir) {
-      success = copyDirSafe(item.path, dest)
-      // Estimate directory size
-      try {
-        const files = findFiles(item.path, [])
-        for (const f of files) {
-          if (!f.isDir) size += fs.statSync(f.path).size
-        }
-      } catch {}
-    } else {
-      success = copyFileSafe(item.path, dest, true)
-      try {
-        size = fs.statSync(item.path).size
-      } catch {}
-    }
-
-    if (success) {
-      let desc = "Desktop Bundle Installer"
-      if (item.name.endsWith(".exe")) desc = "Windows NSIS Setup Installer"
-      else if (item.name.endsWith(".msi")) desc = "Windows WiX MSI Installer"
-      else if (item.name.endsWith(".dmg")) desc = "macOS Apple Disk Image (DMG)"
-      else if (item.name.endsWith(".app")) desc = "macOS Application Bundle (.app)"
-      else if (item.name.endsWith(".AppImage") || item.name.endsWith(".appimage")) desc = "Linux Universal AppImage"
-      else if (item.name.endsWith(".deb")) desc = "Linux Debian / Ubuntu Package"
-      else if (item.name.endsWith(".rpm")) desc = "Linux Fedora / RedHat Package"
-
-      collectedItems.push({
-        name: item.name,
-        dest,
-        size,
-        desc,
-        category: "Desktop Installer",
-      })
-    }
+} else {
+  // Purge any loose daemons, MSI installers, or intermediate CLI binaries
+  const existingFiles = fs.readdirSync(outputDir)
+  for (const file of existingFiles) {
+    const filePath = path.join(outputDir, file)
+    try {
+      const stat = fs.statSync(filePath)
+      if (stat.isFile()) {
+        fs.unlinkSync(filePath)
+      } else if (stat.isDirectory()) {
+        fs.rmSync(filePath, { recursive: true, force: true })
+      }
+    } catch {}
   }
 }
 
-// -----------------------------------------------------------------------------
-// 2. Collect Standalone Desktop Executable
-// -----------------------------------------------------------------------------
-const releaseDir = path.join(rootDir, "apps", "desktop", "src-tauri", "target", "release")
-const desktopBinaries = [
-  { raw: "app.exe", destName: "krypton-desktop.exe", ext: ".exe" },
-  { raw: "krypton.exe", destName: "krypton-desktop.exe", ext: ".exe" },
-  { raw: "app", destName: "krypton-desktop", ext: "" },
-  { raw: "krypton", destName: "krypton-desktop", ext: "" },
-]
+// Search locations for Tauri bundles across host and target-triple output folders
+const targetBaseDir = path.join(rootDir, "apps", "desktop", "src-tauri", "target")
+const bundleDirs = []
 
-for (const bin of desktopBinaries) {
-  const srcPath = path.join(releaseDir, bin.raw)
-  if (fs.existsSync(srcPath) && fs.statSync(srcPath).isFile()) {
-    const destPath = path.join(outputDir, bin.destName)
-    if (copyFileSafe(srcPath, destPath, true)) {
-      const size = fs.statSync(destPath).size
-      collectedItems.push({
-        name: bin.destName,
+// Check standard release/bundle
+const defaultBundleDir = path.join(targetBaseDir, "release", "bundle")
+if (fs.existsSync(defaultBundleDir)) {
+  bundleDirs.push(defaultBundleDir)
+}
+
+// Check target-triple specific directories (e.g. target/x86_64-pc-windows-msvc/release/bundle)
+if (fs.existsSync(targetBaseDir)) {
+  try {
+    const entries = fs.readdirSync(targetBaseDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name !== "release" && entry.name !== "debug") {
+        const tripleBundle = path.join(targetBaseDir, entry.name, "release", "bundle")
+        if (fs.existsSync(tripleBundle) && !bundleDirs.includes(tripleBundle)) {
+          bundleDirs.push(tripleBundle)
+        }
+      }
+    }
+  } catch {}
+}
+
+const collectedPackages = []
+
+// -----------------------------------------------------------------------------
+// 1. Windows: Harvest EXACTLY ONE NSIS Setup Installer (Exclude WiX MSI & loose EXEs)
+// -----------------------------------------------------------------------------
+for (const bDir of bundleDirs) {
+  const nsisDir = path.join(bDir, "nsis")
+  if (fs.existsSync(nsisDir)) {
+    const nsisFiles = findFiles(nsisDir, (name) => name.endsWith(".exe"))
+    for (const file of nsisFiles) {
+      const targetName = "krypton-windows-x64-setup.exe"
+      const destPath = path.join(outputDir, targetName)
+
+      // Copy file with overwrite
+      fs.copyFileSync(file.path, destPath)
+      const stat = fs.statSync(destPath)
+      const sha256 = computeSha256(destPath)
+
+      collectedPackages.push({
+        platform: "Windows",
+        name: targetName,
+        source: file.path,
         dest: destPath,
-        size,
-        desc: "Standalone Desktop Executable (Portable)",
-        category: "Desktop Application",
+        size: stat.size,
+        sha256,
+        format: "Self-Contained NSIS Setup Installer",
+        desc: "Windows installer bundling desktop UI, background daemon & CLI engine",
+      })
+      break // Collect at most one primary Windows installer
+    }
+  }
+  if (collectedPackages.some((p) => p.platform === "Windows")) break
+}
+
+// -----------------------------------------------------------------------------
+// 2. macOS: Harvest EXACTLY ONE Apple Disk Image (.dmg) (Exclude loose .app)
+// -----------------------------------------------------------------------------
+for (const bDir of bundleDirs) {
+  const dmgDir = path.join(bDir, "dmg")
+  if (fs.existsSync(dmgDir)) {
+    const dmgFiles = findFiles(dmgDir, (name) => name.endsWith(".dmg"))
+    for (const file of dmgFiles) {
+      let targetName = "krypton-macos-universal.dmg"
+      if (file.name.includes("aarch64") || file.name.includes("arm64")) {
+        targetName = "krypton-macos-arm64.dmg"
+      } else if (file.name.includes("x86_64") || file.name.includes("x64")) {
+        targetName = "krypton-macos-x64.dmg"
+      }
+
+      const destPath = path.join(outputDir, targetName)
+      fs.copyFileSync(file.path, destPath)
+      const stat = fs.statSync(destPath)
+      const sha256 = computeSha256(destPath)
+
+      collectedPackages.push({
+        platform: "macOS",
+        name: targetName,
+        source: file.path,
+        dest: destPath,
+        size: stat.size,
+        sha256,
+        format: "Apple Disk Image (DMG)",
+        desc: "macOS drag-and-drop bundle with internal daemon & CLI",
       })
       break
     }
   }
+  if (collectedPackages.some((p) => p.platform === "macOS")) break
 }
 
 // -----------------------------------------------------------------------------
-// 3. Collect Standalone CLI Executable
+// 3. Linux: Harvest EXACTLY ONE Universal AppImage (Exclude DEB and RPM)
 // -----------------------------------------------------------------------------
-const cliDistDir = path.join(rootDir, "packages", "cli", "dist")
-const cliCandidates = [
-  { path: path.join(rootDir, "krypton.exe"), name: "krypton.exe", desc: "Krypton Standalone CLI (Windows x64)" },
-  { path: path.join(rootDir, "krypton"), name: "krypton", desc: "Krypton Standalone CLI (Unix)" },
-  { path: path.join(cliDistDir, "krypton.exe"), name: "krypton.exe", desc: "Krypton Standalone CLI (Windows x64)" },
-  { path: path.join(cliDistDir, "krypton"), name: "krypton", desc: "Krypton Standalone CLI (Unix)" },
-]
-
-for (const cli of cliCandidates) {
-  if (fs.existsSync(cli.path) && fs.statSync(cli.path).isFile()) {
-    const dest = path.join(outputDir, cli.name)
-    // Avoid re-copying if already collected
-    if (!collectedItems.some((item) => item.name === cli.name)) {
-      if (copyFileSafe(cli.path, dest, true)) {
-        collectedItems.push({
-          name: cli.name,
-          dest,
-          size: fs.statSync(dest).size,
-          desc: cli.desc,
-          category: "CLI Client",
-        })
+for (const bDir of bundleDirs) {
+  const appimageDir = path.join(bDir, "appimage")
+  if (fs.existsSync(appimageDir)) {
+    const appimageFiles = findFiles(appimageDir, (name) => name.endsWith(".AppImage") || name.endsWith(".appimage"))
+    for (const file of appimageFiles) {
+      let targetName = "krypton-linux-x86_64.AppImage"
+      if (file.name.includes("aarch64") || file.name.includes("arm64")) {
+        targetName = "krypton-linux-aarch64.AppImage"
       }
+
+      const destPath = path.join(outputDir, targetName)
+      fs.copyFileSync(file.path, destPath)
+      try {
+        fs.chmodSync(destPath, 0o755)
+      } catch {}
+      const stat = fs.statSync(destPath)
+      const sha256 = computeSha256(destPath)
+
+      collectedPackages.push({
+        platform: "Linux",
+        name: targetName,
+        source: file.path,
+        dest: destPath,
+        size: stat.size,
+        sha256,
+        format: "Universal Linux AppImage",
+        desc: "Self-contained portable Linux executable with embedded agent runtime",
+      })
+      break
     }
   }
-}
-
-// Also collect any cross-compiled CLI binaries in cli/dist
-if (fs.existsSync(cliDistDir)) {
-  const crossCliFiles = findFiles(cliDistDir, []).filter((f) => f.name.startsWith("krypton-krypton-") || f.name.startsWith("krypton-x86") || f.name.startsWith("krypton-aarch64"))
-  for (const f of crossCliFiles) {
-    const cleanName = f.name.replace(/^krypton-krypton-/, "krypton-")
-    const dest = path.join(outputDir, cleanName)
-    if (!collectedItems.some((item) => item.name === cleanName)) {
-      if (copyFileSafe(f.path, dest, true)) {
-        collectedItems.push({
-          name: cleanName,
-          dest,
-          size: fs.statSync(dest).size,
-          desc: "Krypton CLI Cross-Compiled Binary",
-          category: "CLI Client",
-        })
-      }
-    }
-  }
+  if (collectedPackages.some((p) => p.platform === "Linux")) break
 }
 
 // -----------------------------------------------------------------------------
-// 4. Collect Sidecar Daemon Binaries
+// 4. Generate SHA256SUMS.txt & README.md Manifest
 // -----------------------------------------------------------------------------
-const sidecarDir = path.join(rootDir, "apps", "desktop", "src-tauri", "binaries")
-if (fs.existsSync(sidecarDir)) {
-  const sidecarFiles = findFiles(sidecarDir, []).filter(
-    (f) => (f.name.startsWith("krypton-daemon") || f.name.startsWith("krypton-daemon.exe")) && !f.name.endsWith(".pdb") && !f.name.endsWith(".cmd") && !f.name.endsWith(".gitkeep")
-  )
-  for (const f of sidecarFiles) {
-    const dest = path.join(outputDir, f.name)
-    if (!collectedItems.some((item) => item.name === f.name)) {
-      if (copyFileSafe(f.path, dest, true)) {
-        collectedItems.push({
-          name: f.name,
-          dest,
-          size: fs.statSync(dest).size,
-          desc: "Krypton Sidecar Daemon",
-          category: "Agent Daemon",
-        })
-      }
-    }
-  }
-}
+if (collectedPackages.length > 0) {
+  // Generate SHA256SUMS.txt
+  const checksumLines = collectedPackages.map((pkg) => `${pkg.sha256}  ${pkg.name}`).join("\n") + "\n"
+  fs.writeFileSync(path.join(outputDir, "SHA256SUMS.txt"), checksumLines, "utf-8")
 
-// -----------------------------------------------------------------------------
-// 5. Generate output/README.md Manifest
-// -----------------------------------------------------------------------------
-if (collectedItems.length > 0) {
-  let manifestContent = `# Krypton Release Binaries\n\n`
-  manifestContent += `Generated on: \`${new Date().toISOString()}\`  \n`
-  manifestContent += `Operating System: \`${process.platform} (${process.arch})\`\n\n`
-  manifestContent += `All standalone executables, desktop bundles, and installers are consolidated here for distribution.\n\n`
-  manifestContent += `| File Name | Category | Description | Size |\n`
-  manifestContent += `| :--- | :--- | :--- | :--- |\n`
+  // Generate output/README.md
+  let manifest = `# Krypton Unified Release Packages\n\n`
+  manifest += `Generated on: \`${new Date().toISOString()}\`  \n`
+  manifest += `Build Environment: \`${process.platform} (${process.arch})\`\n\n`
+  manifest += `Krypton provides **exactly one self-contained, user-ready package per supported operating system**.\n`
+  manifest += `All background daemons (\`krypton-daemon\`), internal CLI tools (\`krypton-cli\`), and runtime dependencies are fully embedded inside each application package.\n\n`
 
-  for (const item of collectedItems) {
-    manifestContent += `| \`${item.name}\` | ${item.category} | ${item.desc} | **${formatBytes(item.size)}** |\n`
+  manifest += `## 🚀 Downloads & Packages\n\n`
+  manifest += `| Operating System | Package File | Format | Size | SHA-256 Checksum |\n`
+  manifest += `| :--- | :--- | :--- | :--- | :--- |\n`
+
+  for (const pkg of collectedPackages) {
+    manifest += `| **${pkg.platform}** | \`${pkg.name}\` | ${pkg.format} | **${formatBytes(pkg.size)}** | \`${pkg.sha256.slice(0, 16)}...\` |\n`
   }
 
-  manifestContent += `\n## How to Run\n\n`
-  manifestContent += `### Windows\n`
-  manifestContent += `- **Setup Installer**: Run \`krypton_0.1.0_x64-setup.exe\` to install desktop application.\n`
-  manifestContent += `- **MSI Installer**: Run \`krypton_0.1.0_x64_en-US.msi\` for enterprise/managed deployment.\n`
-  manifestContent += `- **Portable Desktop**: Double-click \`krypton-desktop.exe\`.\n`
-  manifestContent += `- **CLI Client**: Run \`.\\krypton.exe\` from PowerShell or Command Prompt.\n\n`
-  manifestContent += `### macOS\n`
-  manifestContent += `- Open the \`.dmg\` installer and drag Krypton into Applications, or run \`krypton-desktop\`.\n`
-  manifestContent += `- For CLI: \`./krypton\`.\n\n`
-  manifestContent += `### Linux\n`
-  manifestContent += `- **AppImage**: \`chmod +x krypton_*.AppImage && ./krypton_*.AppImage\`\n`
-  manifestContent += `- **Debian/Ubuntu**: \`sudo dpkg -i krypton_*.deb\`\n`
-  manifestContent += `- **CLI**: \`chmod +x krypton && ./krypton\`\n`
+  manifest += `\n> Full cryptographic checksums are available in [\`SHA256SUMS.txt\`](./SHA256SUMS.txt).\n\n`
 
-  fs.writeFileSync(path.join(outputDir, "README.md"), manifestContent, "utf-8")
+  manifest += `## 💿 Installation & Quickstart\n\n`
+  manifest += `### Windows\n`
+  manifest += `1. Download and run \`krypton-windows-x64-setup.exe\`.\n`
+  manifest += `2. Follow the setup wizard. Krypton automatically configures background daemons and runtime paths.\n`
+  manifest += `3. Launch **Krypton** from the Start Menu or Desktop.\n\n`
 
-  // Log summary to console
-  console.log(" Collected Release Artifacts:")
-  for (const item of collectedItems) {
-    console.log(`  \x1b[32m✔\x1b[0m \x1b[1m${item.name.padEnd(36)}\x1b[0m [${formatBytes(item.size).padStart(9)}]  \x1b[90m${item.desc}\x1b[0m`)
+  manifest += `### macOS\n`
+  manifest += `1. Download the \`.dmg\` disk image (\`krypton-macos-universal.dmg\` or architecture-specific package).\n`
+  manifest += `2. Open the image and drag **Krypton.app** into your \`Applications\` folder.\n`
+  manifest += `3. Launch Krypton from Launchpad or Spotlight.\n\n`
+
+  manifest += `### Linux\n`
+  manifest += `1. Download \`krypton-linux-x86_64.AppImage\`.\n`
+  manifest += `2. Grant execute permissions and run:\n`
+  manifest += `   \`\`\`bash\n`
+  manifest += `   chmod +x krypton-linux-x86_64.AppImage\n`
+  manifest += `   ./krypton-linux-x86_64.AppImage\n`
+  manifest += `   \`\`\`\n\n`
+
+  manifest += `## 🔒 Integrity Verification\n\n`
+  manifest += `Verify downloaded packages against \`SHA256SUMS.txt\`:\n`
+  manifest += `\`\`\`bash\n`
+  manifest += `# Windows (PowerShell)\n`
+  manifest += `Get-FileHash .\\krypton-windows-x64-setup.exe -Algorithm SHA256\n\n`
+  manifest += `# Linux / macOS\n`
+  manifest += `sha256sum -c SHA256SUMS.txt\n`
+  manifest += `\`\`\`\n`
+
+  fs.writeFileSync(path.join(outputDir, "README.md"), manifest, "utf-8")
+
+  console.log(" Collected Release Packages:")
+  for (const pkg of collectedPackages) {
+    console.log(`  \x1b[32m✔\x1b[0m \x1b[1m${pkg.name.padEnd(34)}\x1b[0m [${formatBytes(pkg.size).padStart(9)}]  \x1b[90m${pkg.desc}\x1b[0m`)
+    console.log(`    \x1b[36mSHA-256:\x1b[0m ${pkg.sha256}`)
   }
-  console.log(`\n\x1b[32m✔ Success: All binaries collected into:\x1b[0m ${outputDir}\n`)
+  console.log(`\n  \x1b[32m✔ Checksums saved to:\x1b[0m ${path.join(outputDir, "SHA256SUMS.txt")}`)
+  console.log(`  \x1b[32m✔ Release manifest saved to:\x1b[0m ${path.join(outputDir, "README.md")}`)
+  console.log(`\n\x1b[32m✔ Success: Clean single-artifact release generated in:\x1b[0m ${outputDir}\n`)
 } else {
-  console.warn("  ⚠ No build artifacts found in target directories. Run a build first.")
+  console.warn("  ⚠ No release bundles found in target directories. Run `pnpm build:desktop` first.")
 }
 
-console.log("=".repeat(72) + "\n")
+console.log("=".repeat(76) + "\n")

@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -40,6 +41,62 @@ fn get_state() -> &'static SidecarState {
     SIDECAR.get_or_init(SidecarState::default)
 }
 
+/// Resolves the bundled or local krypton-daemon binary path using robust candidate discovery.
+pub fn resolve_daemon_binary() -> Option<PathBuf> {
+    let daemon_name = if cfg!(target_os = "windows") {
+        "krypton-daemon.exe"
+    } else {
+        "krypton-daemon"
+    };
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // 1. Packaged installation: search relative to current_exe()
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            // Next to main executable (Windows NSIS / Linux / portable directory)
+            candidates.push(exe_dir.join(daemon_name));
+            candidates.push(exe_dir.join("binaries").join(daemon_name));
+
+            // macOS .app bundle paths (Contents/MacOS or Contents/Resources)
+            candidates.push(exe_dir.join("../Resources").join(daemon_name));
+            candidates.push(exe_dir.join("../Resources/binaries").join(daemon_name));
+            candidates.push(exe_dir.join("../MacOS").join(daemon_name));
+        }
+    }
+
+    // 2. Linux AppImage environment
+    if let Ok(appdir) = std::env::var("APPDIR") {
+        let appdir_path = PathBuf::from(appdir);
+        candidates.push(appdir_path.join("usr/bin").join(daemon_name));
+        candidates.push(appdir_path.join(daemon_name));
+    }
+
+    // 3. User home configuration directory (~/.krypton/bin)
+    let home_bin = crate::paths::get_krypton_home().join("bin").join(daemon_name);
+    candidates.push(home_bin);
+
+    // 4. Local development paths (relative to CWD / workspace)
+    candidates.push(PathBuf::from(format!("binaries/{}", daemon_name)));
+    candidates.push(PathBuf::from(format!("apps/desktop/src-tauri/binaries/{}", daemon_name)));
+    candidates.push(PathBuf::from(format!("../binaries/{}", daemon_name)));
+    candidates.push(PathBuf::from(format!("src-tauri/binaries/{}", daemon_name)));
+
+    // 5. Node.js fallback entrypoint in development
+    candidates.push(PathBuf::from("../../packages/agent-runtime/dist/daemon.js"));
+    candidates.push(PathBuf::from("../../packages/agent-runtime/dist/index.js"));
+    candidates.push(PathBuf::from("packages/agent-runtime/dist/daemon.js"));
+    candidates.push(PathBuf::from("packages/agent-runtime/dist/index.js"));
+
+    for candidate in candidates {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
 /// Spawns the krypton-daemon background process.
 #[tauri::command]
 pub fn spawn_daemon() -> Result<DaemonStatus, String> {
@@ -68,30 +125,30 @@ pub fn spawn_daemon() -> Result<DaemonStatus, String> {
         }
     }
 
-    // Try finding compiled sidecar or fallback to node runner in dev mode
-    let binary_candidates = [
-        "binaries/krypton-daemon.exe",
-        "binaries/krypton-daemon",
-        "../binaries/krypton-daemon.exe",
-        "../../packages/agent-runtime/dist/index.js",
-    ];
-
+    let resolved = resolve_daemon_binary();
     let mut launched: Option<Child> = None;
     let mut resolved_path = "krypton-daemon".to_string();
 
-    for candidate in &binary_candidates {
-        let path = std::path::Path::new(candidate);
-        if path.exists() {
-            resolved_path = path.to_string_lossy().to_string();
-            let child_res = if candidate.ends_with(".js") {
-                Command::new("node").arg(candidate).spawn()
-            } else {
-                Command::new(path).spawn()
-            };
+    if let Some(path) = resolved {
+        resolved_path = path.to_string_lossy().to_string();
+        let ext_str = path.extension().and_then(|s| s.to_str()).unwrap_or("");
 
-            if let Ok(c) = child_res {
+        let spawn_res = if ext_str == "js" {
+            Command::new("node").arg(&path).spawn()
+        } else {
+            let mut cmd = Command::new(&path);
+            if let Some(parent) = path.parent() {
+                cmd.current_dir(parent);
+            }
+            cmd.spawn()
+        };
+
+        match spawn_res {
+            Ok(c) => {
                 launched = Some(c);
-                break;
+            }
+            Err(e) => {
+                log::warn!("Failed to spawn daemon binary from {}: {}", resolved_path, e);
             }
         }
     }

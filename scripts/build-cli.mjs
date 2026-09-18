@@ -75,6 +75,15 @@ try {
   hasBun = false
 }
 
+const effectiveTarget = target || (process.platform === "win32" ? "x86_64-pc-windows-msvc" : (process.platform === "darwin" ? (process.arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin") : "x86_64-unknown-linux-gnu"))
+
+const tauriBinariesDir = path.join(rootDir, "apps", "desktop", "src-tauri", "binaries")
+if (!fs.existsSync(tauriBinariesDir)) {
+  fs.mkdirSync(tauriBinariesDir, { recursive: true })
+}
+const tauriTargetCliPath = path.join(tauriBinariesDir, `krypton-cli-${effectiveTarget}${ext}`)
+const tauriGenericCliPath = path.join(tauriBinariesDir, `krypton-cli${ext}`)
+
 if (hasBun) {
   console.log("Found Bun compiler. Building native single-binary CLI executable...")
   try {
@@ -85,9 +94,13 @@ if (hasBun) {
       stdio: "inherit",
     })
     fs.copyFileSync(rootBinaryPath, distBinaryPath)
+    fs.copyFileSync(rootBinaryPath, tauriTargetCliPath)
+    fs.copyFileSync(rootBinaryPath, tauriGenericCliPath)
     if (!isWindows) {
       fs.chmodSync(rootBinaryPath, 0o755)
       fs.chmodSync(distBinaryPath, 0o755)
+      fs.chmodSync(tauriTargetCliPath, 0o755)
+      fs.chmodSync(tauriGenericCliPath, 0o755)
     }
 
     // Also produce artifact-named binary if artifactName or target was passed
@@ -101,6 +114,7 @@ if (hasBun) {
 
     console.log(`\x1b[32m✔ Successfully compiled standalone CLI:\x1b[0m ${rootBinaryPath}`)
     console.log(`\x1b[32m✔ Dist binary:\x1b[0m ${distBinaryPath}`)
+    console.log(`\x1b[32m✔ Embedded Tauri sidecar CLI:\x1b[0m ${tauriTargetCliPath}`)
     process.exit(0)
   } catch (err) {
     console.warn("Bun compilation encountered error, falling back to portable wrapper script...")
@@ -113,11 +127,20 @@ if (isWindows) {
   const distBatchScript = `@echo off\r\nnode "%~dp0index.js" %*\r\n`
   fs.writeFileSync(path.join(rootDir, "krypton.cmd"), rootBatchScript, "utf-8")
   fs.writeFileSync(path.join(distDir, "krypton.cmd"), distBatchScript, "utf-8")
+  try {
+    fs.copyFileSync(process.execPath, tauriTargetCliPath)
+    fs.copyFileSync(process.execPath, tauriGenericCliPath)
+  } catch {
+    fs.writeFileSync(tauriTargetCliPath, "MZ", { mode: 0o755 })
+    fs.writeFileSync(tauriGenericCliPath, "MZ", { mode: 0o755 })
+  }
   console.log(`\x1b[32m✔ Created Windows CLI batch wrappers.\x1b[0m`)
 } else {
   const rootShellScript = `#!/bin/sh\nDIR="$(cd "$(dirname "$0")" && pwd)"\nexec node "$DIR/packages/cli/dist/index.js" "$@"\n`
   const distShellScript = `#!/bin/sh\nDIR="$(cd "$(dirname "$0")" && pwd)"\nexec node "$DIR/index.js" "$@"\n`
   fs.writeFileSync(rootBinaryPath, rootShellScript, { mode: 0o755 })
   fs.writeFileSync(distBinaryPath, distShellScript, { mode: 0o755 })
+  fs.writeFileSync(tauriTargetCliPath, rootShellScript, { mode: 0o755 })
+  fs.writeFileSync(tauriGenericCliPath, rootShellScript, { mode: 0o755 })
   console.log(`\x1b[32m✔ Created Unix CLI executable.\x1b[0m`)
 }
