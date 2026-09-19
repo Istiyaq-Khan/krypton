@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct AudioCaptureStatus {
     pub recording: bool,
     pub provider: String,
+    pub architecture: String,
     pub sample_rate: u32,
     pub amplitude: f32,
     pub device_name: String,
@@ -86,15 +87,26 @@ fn get_audio_state() -> &'static Arc<Mutex<AudioState>> {
     })
 }
 
+pub fn resolve_vtt_architecture(provider: &str) -> &'static str {
+    match provider {
+        "nvidia/parakeet-tdt-0.6b-v3" | "parakeet_v3" => "conformer_rnnt_tdt",
+        "whisper_api" => "cloud_api",
+        "custom" => "custom",
+        _ => "encoder_decoder_autoregressive", // whisper_local default
+    }
+}
+
 /// Retrieves current audio capture and STT status.
 #[tauri::command]
 pub fn get_audio_status() -> Result<AudioCaptureStatus, String> {
     let state = get_audio_state();
     let guard = state.lock().map_err(|e| e.to_string())?;
+    let arch = resolve_vtt_architecture(&guard.provider);
 
     Ok(AudioCaptureStatus {
         recording: guard.recording,
         provider: guard.provider.clone(),
+        architecture: arch.to_string(),
         sample_rate: 16000,
         amplitude: if guard.recording { 0.42 } else { 0.0 },
         device_name: guard.active_device.clone(),
@@ -111,10 +123,12 @@ pub fn start_audio_capture(provider: Option<String>) -> Result<AudioCaptureStatu
     if let Some(p) = provider {
         guard.provider = p;
     }
+    let arch = resolve_vtt_architecture(&guard.provider);
 
     Ok(AudioCaptureStatus {
         recording: true,
         provider: guard.provider.clone(),
+        architecture: arch.to_string(),
         sample_rate: 16000,
         amplitude: 0.25,
         device_name: guard.active_device.clone(),
@@ -135,10 +149,29 @@ pub fn stop_audio_capture() -> Result<TranscriptionResult, String> {
         .unwrap_or_default()
         .as_millis() as u64;
 
+    let (transcript, confidence) = match resolve_vtt_architecture(&provider) {
+        "conformer_rnnt_tdt" => (
+            "Autonomous task executed via NVIDIA Parakeet TDT 0.6B streaming transducer.",
+            0.99,
+        ),
+        "cloud_api" => (
+            "Autonomous task transcribed via Whisper Cloud API.",
+            0.98,
+        ),
+        "custom" => (
+            "Autonomous task transcribed via Custom STT endpoint.",
+            0.95,
+        ),
+        _ => (
+            "Autonomous task transcribed via local Whisper encoder-decoder.",
+            0.97,
+        ),
+    };
+
     Ok(TranscriptionResult {
-        transcript: "Autonomous task initiated via Voice HUD.".to_string(),
+        transcript: transcript.to_string(),
         is_final: true,
-        confidence: 0.98,
+        confidence,
         provider,
         timestamp: now,
     })

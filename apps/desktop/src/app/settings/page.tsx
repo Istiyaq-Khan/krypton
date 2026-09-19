@@ -68,7 +68,10 @@ export default function SettingsPage() {
       {/* Floating Voice HUD (Elevated top-level overlay with highest z-index) */}
       {isVoiceAgentVisible && (
         <FloatingVoiceAgent
-          activeAgentName={session.activeProject?.name || "Krypton"}
+          activeAgentName={session.activeAgentName || session.activeProject?.name || "Orchestrator"}
+          onSelectAgent={(agent) => {
+            session.setActiveAgentName(agent)
+          }}
           onSubmitPrompt={(prompt) => {
             session.submitPrompt(prompt)
             router.push("/dashboard")

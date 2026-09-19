@@ -12,6 +12,33 @@ export const ModelRouteSchema = z.object({
 export type ModelRoute = z.infer<typeof ModelRouteSchema>;
 
 /**
+ * Supported Voice-To-Text (VTT) speech transcription engine architectures.
+ * - `whisper_local`: Autoregressive encoder-decoder transformer running locally (Whisper.cpp / ONNX)
+ * - `whisper_api`: OpenAI Audio Transcriptions REST API
+ * - `nvidia/parakeet-tdt-0.6b-v3`: Fast Conformer RNN-T / TDT streaming transducer (0.6B params, ultra-low latency)
+ * - `custom`: User-configured custom STT endpoint
+ */
+export const VttEngineIdSchema = z.enum([
+  "whisper_local",
+  "whisper_api",
+  "nvidia/parakeet-tdt-0.6b-v3",
+  "custom",
+]);
+export type VttEngineId = z.infer<typeof VttEngineIdSchema>;
+
+export const VttConfigSchema = z.object({
+  engine: z.string().default("whisper_local"),
+  architecture: z
+    .enum(["encoder_decoder_autoregressive", "conformer_rnnt_tdt", "cloud_api", "custom"])
+    .default("encoder_decoder_autoregressive"),
+  customEndpoint: z.string().optional(),
+  apiKey: z.string().optional(),
+  model: z.string().optional(),
+  sampleRate: z.number().int().default(16000),
+});
+export type VttConfig = z.infer<typeof VttConfigSchema>;
+
+/**
  * Global application configuration stored at `~/.krypton/config.json`.
  */
 export const GlobalConfigSchema = z.object({
@@ -22,6 +49,7 @@ export const GlobalConfigSchema = z.object({
   defaultTerminalShell: z.string().default("system"),
   askForApproval: z.boolean().default(true),
   astSafetyEnforced: z.boolean().default(true),
+  vtt: VttConfigSchema.default({}),
   appearance: z
     .object({
       theme: z.enum(["dark", "midnight", "cyber", "oled"]).default("dark"),
@@ -341,6 +369,9 @@ export const SetupConfigPayloadSchema = z.object({
   askForApproval: z.boolean().default(true),
   astSafetyEnforced: z.boolean().default(true),
   telemetryEnabled: z.boolean().default(false),
+  vttEngine: z.string().default("whisper_local"),
+  vttCustomEndpoint: z.string().optional(),
+  vttApiKey: z.string().optional(),
 });
 export type SetupConfigPayload = z.infer<typeof SetupConfigPayloadSchema>;
 

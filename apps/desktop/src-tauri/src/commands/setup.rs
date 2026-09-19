@@ -56,6 +56,9 @@ pub struct SetupConfigPayload {
     pub ask_for_approval: Option<bool>,
     pub ast_safety_enforced: Option<bool>,
     pub telemetry_enabled: Option<bool>,
+    pub vtt_engine: Option<String>,
+    pub vtt_custom_endpoint: Option<String>,
+    pub vtt_api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -196,6 +199,26 @@ pub fn save_setup_configuration(payload: SetupConfigPayload) -> Result<bool, Str
             "logLevel": "info"
         });
     }
+
+    let vtt_engine = payload.vtt_engine.unwrap_or_else(|| "whisper_local".to_string());
+    let vtt_architecture = match vtt_engine.as_str() {
+        "nvidia/parakeet-tdt-0.6b-v3" => "conformer_rnnt_tdt",
+        "whisper_api" => "cloud_api",
+        "custom" => "custom",
+        _ => "encoder_decoder_autoregressive",
+    };
+    let mut vtt_obj = serde_json::json!({
+        "engine": &vtt_engine,
+        "architecture": vtt_architecture,
+        "sampleRate": 16000
+    });
+    if let Some(endpoint) = payload.vtt_custom_endpoint.as_ref().filter(|s| !s.trim().is_empty()) {
+        vtt_obj["customEndpoint"] = serde_json::json!(endpoint.trim());
+    }
+    if let Some(key) = payload.vtt_api_key.as_ref().filter(|s| !s.trim().is_empty()) {
+        vtt_obj["apiKey"] = serde_json::json!(key.trim());
+    }
+    config["vtt"] = vtt_obj;
 
     // Update default route provider & model dynamically without hardcoding
     if let Some(routes) = config.get_mut("defaultRoutes") {
@@ -455,6 +478,9 @@ pub struct AppSettingsPayload {
     pub font_size: Option<String>,
     pub ui_density: Option<String>,
     pub providers: Option<Vec<ProviderKeySetting>>,
+    pub vtt_engine: Option<String>,
+    pub vtt_custom_endpoint: Option<String>,
+    pub vtt_api_key: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -470,6 +496,9 @@ pub struct AppSettingsResult {
     pub font_size: String,
     pub ui_density: String,
     pub providers: Vec<ProviderKeySetting>,
+    pub vtt_engine: String,
+    pub vtt_custom_endpoint: Option<String>,
+    pub vtt_api_key: Option<String>,
 }
 
 /// Retrieves all global settings and provider credentials
@@ -489,6 +518,9 @@ pub fn get_app_settings() -> Result<AppSettingsResult, String> {
     let mut theme = "dark".to_string();
     let mut font_size = "standard".to_string();
     let mut ui_density = "comfortable".to_string();
+    let mut vtt_engine = "whisper_local".to_string();
+    let mut vtt_custom_endpoint: Option<String> = None;
+    let mut vtt_api_key: Option<String> = None;
 
     if config_path.exists() {
         if let Ok(raw) = fs::read_to_string(&config_path) {
@@ -511,6 +543,17 @@ pub fn get_app_settings() -> Result<AppSettingsResult, String> {
                 if let Some(orch) = cfg.get("defaultRoutes").and_then(|r| r.get("orchestrator")) {
                     if let Some(p) = orch.get("provider").and_then(|v| v.as_str()) {
                         active_provider = p.to_string();
+                    }
+                }
+                if let Some(vtt) = cfg.get("vtt") {
+                    if let Some(eng) = vtt.get("engine").and_then(|v| v.as_str()) {
+                        vtt_engine = eng.to_string();
+                    }
+                    if let Some(endp) = vtt.get("customEndpoint").and_then(|v| v.as_str()) {
+                        vtt_custom_endpoint = Some(endp.to_string());
+                    }
+                    if let Some(k) = vtt.get("apiKey").and_then(|v| v.as_str()) {
+                        vtt_api_key = Some(k.to_string());
                     }
                 }
                 if let Some(app) = cfg.get("appearance") {
@@ -568,6 +611,9 @@ pub fn get_app_settings() -> Result<AppSettingsResult, String> {
         font_size,
         ui_density,
         providers,
+        vtt_engine,
+        vtt_custom_endpoint,
+        vtt_api_key,
     })
 }
 
@@ -626,6 +672,39 @@ pub fn save_app_settings(payload: AppSettingsPayload) -> Result<bool, String> {
         appearance["density"] = serde_json::json!(den);
     }
     config["appearance"] = appearance;
+
+    if payload.vtt_engine.is_some() || payload.vtt_custom_endpoint.is_some() || payload.vtt_api_key.is_some() {
+        let mut vtt = config.get("vtt").cloned().unwrap_or(serde_json::json!({}));
+        if let Some(eng) = payload.vtt_engine {
+            let vtt_architecture = match eng.as_str() {
+                "nvidia/parakeet-tdt-0.6b-v3" => "conformer_rnnt_tdt",
+                "whisper_api" => "cloud_api",
+                "custom" => "custom",
+                _ => "encoder_decoder_autoregressive",
+            };
+            vtt["engine"] = serde_json::json!(eng);
+            vtt["architecture"] = serde_json::json!(vtt_architecture);
+        }
+        if let Some(endp) = payload.vtt_custom_endpoint {
+            if endp.trim().is_empty() {
+                if let Some(obj) = vtt.as_object_mut() {
+                    obj.remove("customEndpoint");
+                }
+            } else {
+                vtt["customEndpoint"] = serde_json::json!(endp.trim());
+            }
+        }
+        if let Some(key) = payload.vtt_api_key {
+            if key.trim().is_empty() {
+                if let Some(obj) = vtt.as_object_mut() {
+                    obj.remove("apiKey");
+                }
+            } else {
+                vtt["apiKey"] = serde_json::json!(key.trim());
+            }
+        }
+        config["vtt"] = vtt;
+    }
 
     let serialized = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;

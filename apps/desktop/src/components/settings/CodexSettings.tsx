@@ -30,6 +30,7 @@ import {
   Info,
   Layers,
   Cpu,
+  Mic,
 } from "lucide-react"
 import {
   ModelProviderId,
@@ -73,6 +74,9 @@ export function CodexSettings({
   const [askForApproval, setAskForApproval] = useState(true)
   const [astSafetyEnforced, setAstSafetyEnforced] = useState(true)
   const [telemetryEnabled, setTelemetryEnabled] = useState(false)
+  const [vttEngine, setVttEngine] = useState("whisper_local")
+  const [vttCustomEndpoint, setVttCustomEndpoint] = useState("")
+  const [vttApiKey, setVttApiKey] = useState("")
 
   // ----------------------------------------------------
   // Category 2: Agents & Identity State
@@ -165,6 +169,9 @@ export function CodexSettings({
             if (settings.theme) setTheme(settings.theme)
             if (settings.fontSize) setFontSize(settings.fontSize)
             if (settings.uiDensity) setUiDensity(settings.uiDensity)
+            if (settings.vttEngine) setVttEngine(settings.vttEngine)
+            if (settings.vttCustomEndpoint) setVttCustomEndpoint(settings.vttCustomEndpoint)
+            if (settings.vttApiKey) setVttApiKey(settings.vttApiKey)
 
             // Providers
             if (Array.isArray(settings.providers)) {
@@ -210,6 +217,14 @@ export function CodexSettings({
           if (rawKeys) {
             const parsed = JSON.parse(rawKeys)
             setProviderKeys((prev) => ({ ...prev, ...parsed }))
+          }
+
+          const rawVtt = localStorage.getItem("krypton_vtt_config")
+          if (rawVtt) {
+            const parsed = JSON.parse(rawVtt)
+            if (parsed.engine) setVttEngine(parsed.engine)
+            if (parsed.customEndpoint) setVttCustomEndpoint(parsed.customEndpoint)
+            if (parsed.apiKey) setVttApiKey(parsed.apiKey)
           }
         } catch {
           // ignore
@@ -264,6 +279,43 @@ export function CodexSettings({
       flashSavedNotice("General settings saved")
     },
     [onUpdateApproval, flashSavedNotice]
+  )
+
+  const persistVttSettings = useCallback(
+    async (newEngine: string, newEndpoint?: string, newApiKey?: string) => {
+      setVttEngine(newEngine)
+      const finalEndpoint = newEndpoint !== undefined ? newEndpoint : vttCustomEndpoint
+      const finalKey = newApiKey !== undefined ? newApiKey : vttApiKey
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(
+          "krypton_vtt_config",
+          JSON.stringify({
+            engine: newEngine,
+            customEndpoint: finalEndpoint,
+            apiKey: finalKey,
+          })
+        )
+      }
+
+      if (typeof window !== "undefined" && isTauri()) {
+        try {
+          await invoke("save_app_settings", {
+            payload: {
+              vttEngine: newEngine,
+              vttCustomEndpoint: finalEndpoint,
+              vttApiKey: finalKey,
+            },
+          })
+          await invoke("set_stt_provider", { provider: newEngine }).catch(() => {})
+        } catch (err) {
+          console.warn("save_app_settings vtt error:", err)
+        }
+      }
+
+      flashSavedNotice("Voice-To-Text configuration saved")
+    },
+    [flashSavedNotice, vttCustomEndpoint, vttApiKey]
   )
 
   const persistAppearanceSettings = useCallback(
@@ -900,6 +952,118 @@ export function CodexSettings({
                         }`}
                       />
                     </button>
+                  </div>
+
+                  {/* Voice-To-Text (VTT) Engine Configuration */}
+                  <div className="pt-4 border-t border-zinc-800/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Mic className="size-4 text-violet-400" />
+                        <span className="text-xs font-semibold text-zinc-200">Voice-To-Text (VTT) Configuration</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-violet-950/60 border border-violet-800/50 text-violet-300">
+                        Active: {vttEngine}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400">
+                      Configure your primary speech transcription engine. Architectures differ: Whisper utilizes an autoregressive encoder-decoder, whereas NVIDIA Parakeet TDT executes a high-speed streaming conformer transducer.
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                      {[
+                        {
+                          id: "whisper_local",
+                          title: "Whisper Local",
+                          badge: "Local",
+                          arch: "Encoder-Decoder Autoregressive (Whisper.cpp / ONNX)",
+                          desc: "Zero-latency local audio decoding on host CPU/GPU.",
+                        },
+                        {
+                          id: "nvidia/parakeet-tdt-0.6b-v3",
+                          title: "nvidia/parakeet-tdt-0.6b-v3",
+                          badge: "Fast RNN-T",
+                          arch: "Fast Conformer RNN-T / TDT Streaming Transducer",
+                          desc: "0.6B parameter model with streaming joint network decoding.",
+                        },
+                        {
+                          id: "whisper_api",
+                          title: "Whisper API",
+                          badge: "Cloud",
+                          arch: "OpenAI Audio Transcriptions REST API",
+                          desc: "High-accuracy cloud API for low-power host machines.",
+                        },
+                        {
+                          id: "custom",
+                          title: "Custom STT Endpoint",
+                          badge: "Custom",
+                          arch: "Self-Hosted / Remote Endpoint",
+                          desc: "Connect to your custom speech recognition server.",
+                        },
+                      ].map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => persistVttSettings(item.id)}
+                          className={`flex flex-col p-3 rounded-xl border cursor-pointer transition-all ${
+                            vttEngine === item.id
+                              ? "border-violet-500 bg-violet-950/20 text-zinc-100 shadow-sm"
+                              : "border-zinc-800/80 bg-zinc-900/30 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-zinc-200">{item.title}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">
+                              {item.badge}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-violet-400/90 font-mono mt-1">{item.arch}</span>
+                          <span className="text-[11px] text-zinc-400 mt-1">{item.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {vttEngine === "custom" && (
+                      <div className="flex flex-col gap-1.5 pt-2">
+                        <label className="text-xs text-zinc-300">Custom STT Endpoint URL</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={vttCustomEndpoint}
+                            onChange={(e) => setVttCustomEndpoint(e.target.value)}
+                            placeholder="e.g. http://localhost:8080/v1/audio/transcriptions"
+                            className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => persistVttSettings(vttEngine, vttCustomEndpoint)}
+                            className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-500 transition-colors"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {(vttEngine === "whisper_api" || vttEngine === "custom") && (
+                      <div className="flex flex-col gap-1.5 pt-2">
+                        <label className="text-xs text-zinc-300">Optional VTT API Key / Token</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="password"
+                            value={vttApiKey}
+                            onChange={(e) => setVttApiKey(e.target.value)}
+                            placeholder="API Key for STT provider"
+                            className="flex-1 rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => persistVttSettings(vttEngine, vttCustomEndpoint, vttApiKey)}
+                            className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-medium text-white hover:bg-violet-500 transition-colors"
+                          >
+                            Save Key
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

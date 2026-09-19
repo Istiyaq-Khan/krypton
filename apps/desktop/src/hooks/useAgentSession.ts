@@ -35,6 +35,7 @@ export function useAgentSession() {
   const [rightDrawerTab, setRightDrawerTab] = useState<"dag" | "audit" | "diff" | "fleet">("dag")
   const [askForApproval, setAskForApproval] = useState(true)
   const [selectedModel, setSelectedModel] = useState("5.6 Terra High")
+  const [activeAgentName, setActiveAgentName] = useState("Orchestrator")
 
   // Discovered / Cached models state
   const [availableModels, setAvailableModels] = useState<DiscoveredModel[]>([])
@@ -698,6 +699,8 @@ export function useAgentSession() {
     goForward,
     isStreaming,
     latestAssistantText,
+    activeAgentName,
+    setActiveAgentName,
   }
 }
 

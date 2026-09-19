@@ -1,21 +1,23 @@
 "use client"
 
 import React, { useState, useEffect, useRef, useCallback } from "react"
+import { isTauri, invoke } from "@tauri-apps/api/core"
 import {
   Mic,
   MicOff,
   Square,
   Sparkles,
+  Bot,
   ChevronDown,
   Volume2,
   VolumeX,
   X,
-  Maximize2,
-  Minimize2,
+  Check,
   AlertCircle,
   RotateCcw,
   Send,
-  Move,
+  ArrowUp,
+  Layers,
 } from "lucide-react"
 
 export type VoiceAgentState = "idle" | "listening" | "thinking" | "speaking" | "error"
@@ -26,6 +28,8 @@ export interface FloatingVoiceAgentProps {
   isAssistantThinking?: boolean
   latestAssistantText?: string
   onClose?: () => void
+  onSelectAgent?: (agentName: string) => void
+  availableAgents?: string[]
 }
 
 export function FloatingVoiceAgent({
@@ -34,22 +38,33 @@ export function FloatingVoiceAgent({
   isAssistantThinking = false,
   latestAssistantText,
   onClose,
+  onSelectAgent,
+  availableAgents = ["Orchestrator", "CoderBot", "TesterBot", "Scraper"],
 }: FloatingVoiceAgentProps) {
   // --- Operational State ---
   const [agentState, setAgentState] = useState<VoiceAgentState>("idle")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isExpanded, setIsExpanded] = useState(true)
   const [transcription, setTranscription] = useState("")
   const [amplitude, setAmplitude] = useState(0)
   const [audioFeedbackEnabled, setAudioFeedbackEnabled] = useState(true)
 
-  // --- Physics & Drag Coordinates ---
-  // Default docked at bottom-right corner
+  // --- Layout Modes & Gestures ---
+  // Double-click on orb toggles compact orb-only mode vs full pill
+  const [isOrbOnlyMode, setIsOrbOnlyMode] = useState(false)
+  // Triple-click or close triggers exit dismiss transition
+  const [isDismissing, setIsDismissing] = useState(false)
+  // Middle agent selector floating dropdown
+  const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState(activeAgentName)
+
+  // Multi-click arbiter refs for Animated Orb
+  const clickCountRef = useRef(0)
+  const clickTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // --- Smooth Multi-Monitor Dragging ---
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef({ mouseX: 0, mouseY: 0, initialX: 0, initialY: 0 })
-  const velocityRef = useRef({ vx: 0, vy: 0, lastX: 0, lastY: 0, lastTime: 0 })
-  const springAnimRef = useRef<number | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
 
   // --- Web Audio & Speech Recognition ---
@@ -60,7 +75,14 @@ export function FloatingVoiceAgent({
   const recognitionRef = useRef<any>(null)
   const renderAnimRef = useRef<number | null>(null)
 
-  // Synchronize state with incoming props
+  // Synchronize incoming activeAgentName
+  useEffect(() => {
+    if (activeAgentName) {
+      setSelectedAgent(activeAgentName)
+    }
+  }, [activeAgentName])
+
+  // Synchronize state with assistant thinking/speaking
   useEffect(() => {
     if (isAssistantThinking) {
       setAgentState("thinking")
@@ -74,11 +96,11 @@ export function FloatingVoiceAgent({
     }
   }, [isAssistantThinking, latestAssistantText, audioFeedbackEnabled])
 
-  // Initialize Position on mount (docked bottom-right)
+  // Initialize Position on mount (docked bottom-right of active screen)
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const initialX = Math.max(20, window.innerWidth - 440)
-      const initialY = Math.max(20, window.innerHeight - 200)
+      const initialX = Math.max(30, window.innerWidth - 480)
+      const initialY = Math.max(30, window.innerHeight - 110)
       setPosition({ x: initialX, y: initialY })
     }
   }, [])
@@ -101,12 +123,8 @@ export function FloatingVoiceAgent({
       utterance.rate = 1.05
       utterance.pitch = 1.0
 
-      utterance.onend = () => {
-        setAgentState("idle")
-      }
-      utterance.onerror = () => {
-        setAgentState("idle")
-      }
+      utterance.onend = () => setAgentState("idle")
+      utterance.onerror = () => setAgentState("idle")
 
       window.speechSynthesis.speak(utterance)
     } catch {
@@ -114,14 +132,23 @@ export function FloatingVoiceAgent({
     }
   }, [])
 
-  // --- Real Speech Recognition (Listening State) ---
+  // --- Speech Recognition (Listening State) ---
   const startListening = useCallback(async () => {
     try {
       setErrorMessage(null)
       setTranscription("")
       setAgentState("listening")
 
-      // 1. Web Audio API Analyser for organic dynamic visual reaction
+      // 1. Notify Tauri backend audio pipeline if available
+      if (typeof window !== "undefined" && isTauri()) {
+        try {
+          await invoke("start_audio_capture", { provider: "whisper_local" })
+        } catch (e) {
+          console.warn("Tauri start_audio_capture notice:", e)
+        }
+      }
+
+      // 2. Web Audio API Analyser for organic dynamic visual reaction
       if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
         micStreamRef.current = stream
@@ -138,7 +165,7 @@ export function FloatingVoiceAgent({
         analyserRef.current = analyser
       }
 
-      // 2. Real Web Speech API for real-time speech-to-text
+      // 3. Real Web Speech API for real-time speech-to-text
       const SpeechRecognition =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
 
@@ -161,20 +188,15 @@ export function FloatingVoiceAgent({
         recognition.onerror = (event: any) => {
           console.warn("Speech recognition event:", event.error)
           if (event.error !== "no-speech") {
-            setErrorMessage(`Microphone notice: ${event.error}`)
+            setErrorMessage(`Microphone: ${event.error}`)
             setAgentState("error")
           }
-        }
-
-        recognition.onend = () => {
-          // Auto clean if still listening
         }
 
         recognition.start()
         recognitionRef.current = recognition
       } else {
-        // Fallback for browsers without SpeechRecognition
-        setTranscription("Speech recognition engine ready. Type or speak instruction...")
+        setTranscription("Speech recognition active. Speak instruction...")
       }
     } catch (err: any) {
       console.warn("Microphone access request:", err)
@@ -183,37 +205,52 @@ export function FloatingVoiceAgent({
     }
   }, [])
 
-  const stopListening = useCallback((autoDispatch = true) => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop()
-      } catch {
-        // ignore
+  const stopListening = useCallback(
+    async (autoDispatch = true) => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {
+          // ignore
+        }
+        recognitionRef.current = null
       }
-      recognitionRef.current = null
-    }
 
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop())
-      micStreamRef.current = null
-    }
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((t) => t.stop())
+        micStreamRef.current = null
+      }
 
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {})
-      audioCtxRef.current = null
-    }
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close().catch(() => {})
+        audioCtxRef.current = null
+      }
 
-    analyserRef.current = null
-    setAmplitude(0)
+      analyserRef.current = null
+      setAmplitude(0)
 
-    if (autoDispatch && transcription.trim() && onSubmitPrompt) {
-      setAgentState("thinking")
-      onSubmitPrompt(transcription.trim())
-      setTranscription("")
-    } else {
-      setAgentState("idle")
-    }
-  }, [transcription, onSubmitPrompt])
+      // Notify Tauri backend
+      if (typeof window !== "undefined" && isTauri()) {
+        try {
+          const res = await invoke<{ transcript: string }>("stop_audio_capture")
+          if (res.transcript && !transcription.trim()) {
+            setTranscription(res.transcript)
+          }
+        } catch (e) {
+          console.warn("Tauri stop_audio_capture notice:", e)
+        }
+      }
+
+      if (autoDispatch && transcription.trim() && onSubmitPrompt) {
+        setAgentState("thinking")
+        onSubmitPrompt(transcription.trim())
+        setTranscription("")
+      } else {
+        setAgentState("idle")
+      }
+    },
+    [transcription, onSubmitPrompt]
+  )
 
   const toggleListening = useCallback(() => {
     if (agentState === "listening") {
@@ -223,6 +260,40 @@ export function FloatingVoiceAgent({
     }
   }, [agentState, startListening, stopListening])
 
+  // --- Multi-Click Gesture Detection on Animated Orb ---
+  const handleOrbClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      clickCountRef.current += 1
+
+      if (clickTimerRef.current) {
+        clearTimeout(clickTimerRef.current)
+      }
+
+      if (clickCountRef.current === 1) {
+        clickTimerRef.current = setTimeout(() => {
+          clickCountRef.current = 0
+          // Single Click: Toggle listening / push-to-talk
+          toggleListening()
+        }, 260)
+      } else if (clickCountRef.current === 2) {
+        clickTimerRef.current = setTimeout(() => {
+          clickCountRef.current = 0
+          // Double Click: Toggle orb-only collapsed mode
+          setIsOrbOnlyMode((prev) => !prev)
+        }, 240)
+      } else if (clickCountRef.current >= 3) {
+        clickCountRef.current = 0
+        // Triple Click: Trigger exit/dismiss animation and close
+        setIsDismissing(true)
+        setTimeout(() => {
+          onClose?.()
+        }, 320)
+      }
+    },
+    [toggleListening, onClose]
+  )
+
   // --- Organic Canvas Visualizer ---
   useEffect(() => {
     const canvas = canvasRef.current
@@ -231,11 +302,11 @@ export function FloatingVoiceAgent({
     if (!ctx) return
 
     let angle = 0
-    const particles = Array.from({ length: 24 }, (_, i) => ({
-      baseAngle: (i / 24) * Math.PI * 2,
-      distance: 22 + (i % 3) * 6,
-      speed: 0.02 + (i % 4) * 0.008,
-      size: 1.5 + (i % 3) * 0.8,
+    const particles = Array.from({ length: 20 }, (_, i) => ({
+      baseAngle: (i / 20) * Math.PI * 2,
+      distance: 14 + (i % 3) * 4,
+      speed: 0.025 + (i % 4) * 0.008,
+      size: 1.2 + (i % 3) * 0.6,
     }))
 
     const dataArray = new Uint8Array(32)
@@ -245,19 +316,17 @@ export function FloatingVoiceAgent({
       const centerX = canvas.width / 2
       const centerY = canvas.height / 2
 
-      // Read audio frequency amplitude if analyser connected
       let currentAmp = 0
       if (analyserRef.current) {
         analyserRef.current.getByteFrequencyData(dataArray)
         let sum = 0
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
-        currentAmp = Math.min(1, (sum / dataArray.length) / 110)
+        currentAmp = Math.min(1, sum / dataArray.length / 110)
         setAmplitude(currentAmp)
       }
 
-      angle += agentState === "thinking" ? 0.08 : 0.02
+      angle += agentState === "thinking" ? 0.08 : 0.025
 
-      // Color Palette based on agentState
       let primaryColor = "168, 85, 247" // violet
       let glowColor = "147, 51, 234"
       if (agentState === "listening") {
@@ -274,54 +343,55 @@ export function FloatingVoiceAgent({
         glowColor = "225, 29, 72"
       }
 
-      // 1. Ambient Radial Glow Core
-      const pulseScale = 1 + (agentState === "listening" ? currentAmp * 0.8 : Math.sin(angle * 2) * 0.08)
+      const pulseScale =
+        1 + (agentState === "listening" ? currentAmp * 0.7 : Math.sin(angle * 2) * 0.08)
+
+      // Core radial glow
       const grad = ctx.createRadialGradient(
         centerX,
         centerY,
-        4,
+        2,
         centerX,
         centerY,
-        28 * pulseScale
+        18 * pulseScale
       )
-      grad.addColorStop(0, `rgba(${primaryColor}, 0.85)`)
-      grad.addColorStop(0.5, `rgba(${glowColor}, 0.35)`)
+      grad.addColorStop(0, `rgba(${primaryColor}, 0.9)`)
+      grad.addColorStop(0.5, `rgba(${glowColor}, 0.4)`)
       grad.addColorStop(1, `rgba(${primaryColor}, 0)`)
       ctx.fillStyle = grad
       ctx.beginPath()
-      ctx.arc(centerX, centerY, 32 * pulseScale, 0, Math.PI * 2)
+      ctx.arc(centerX, centerY, 20 * pulseScale, 0, Math.PI * 2)
       ctx.fill()
 
-      // 2. Dual Refractive Orbital Rings
-      const ringRadius = 22 * pulseScale
+      // Orbital Rings
+      const ringRadius = 14 * pulseScale
       ctx.save()
       ctx.translate(centerX, centerY)
 
-      // Outer Ring
       ctx.rotate(angle)
-      ctx.strokeStyle = `rgba(${primaryColor}, 0.6)`
+      ctx.strokeStyle = `rgba(${primaryColor}, 0.65)`
       ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.ellipse(0, 0, ringRadius, ringRadius * 0.72, 0, 0, Math.PI * 2)
+      ctx.ellipse(0, 0, ringRadius, ringRadius * 0.7, 0, 0, Math.PI * 2)
       ctx.stroke()
 
-      // Inner Counter-Rotating Ring
       ctx.rotate(-angle * 1.6)
-      ctx.strokeStyle = `rgba(${primaryColor}, 0.35)`
+      ctx.strokeStyle = `rgba(${primaryColor}, 0.4)`
       ctx.lineWidth = 1
       ctx.beginPath()
-      ctx.ellipse(0, 0, ringRadius * 0.82, ringRadius * 0.5, 0, 0, Math.PI * 2)
+      ctx.ellipse(0, 0, ringRadius * 0.8, ringRadius * 0.45, 0, 0, Math.PI * 2)
       ctx.stroke()
       ctx.restore()
 
-      // 3. Floating Orbital Particle Aura
+      // Particle Aura
       for (const p of particles) {
         const curAngle = p.baseAngle + angle * (agentState === "thinking" ? 2 : 1)
-        const curDist = p.distance * (1 + (agentState === "listening" ? currentAmp * 0.5 : 0))
+        const curDist =
+          p.distance * (1 + (agentState === "listening" ? currentAmp * 0.5 : 0))
         const px = centerX + Math.cos(curAngle) * curDist
         const py = centerY + Math.sin(curAngle) * curDist
 
-        ctx.fillStyle = `rgba(${primaryColor}, 0.75)`
+        ctx.fillStyle = `rgba(${primaryColor}, 0.8)`
         ctx.beginPath()
         ctx.arc(px, py, p.size, 0, Math.PI * 2)
         ctx.fill()
@@ -336,15 +406,13 @@ export function FloatingVoiceAgent({
     }
   }, [agentState])
 
-  // --- Smooth Inertia Dragging & Magnetic Docking Physics ---
+  // --- Multi-Monitor Dragging Handler ---
   const handlePointerDown = (e: React.PointerEvent) => {
-    // Only drag from handle or non-button areas
     const target = e.target as HTMLElement
     if (target.closest("button") || target.closest("input") || target.closest("textarea")) {
       return
     }
 
-    if (springAnimRef.current) cancelAnimationFrame(springAnimRef.current)
     setIsDragging(true)
     dragStartRef.current = {
       mouseX: e.clientX,
@@ -352,282 +420,298 @@ export function FloatingVoiceAgent({
       initialX: position.x,
       initialY: position.y,
     }
-    velocityRef.current = { vx: 0, vy: 0, lastX: position.x, lastY: position.y, lastTime: performance.now() }
-    ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-  }
 
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging) return
-    const now = performance.now()
-    const dx = e.clientX - dragStartRef.current.mouseX
-    const dy = e.clientY - dragStartRef.current.mouseY
-
-    const newX = dragStartRef.current.initialX + dx
-    const newY = dragStartRef.current.initialY + dy
-
-    // Calculate instantaneous velocity for inertia
-    const dt = Math.max(1, now - velocityRef.current.lastTime)
-    velocityRef.current.vx = ((newX - velocityRef.current.lastX) / dt) * 16.6
-    velocityRef.current.vy = ((newY - velocityRef.current.lastY) / dt) * 16.6
-    velocityRef.current.lastX = newX
-    velocityRef.current.lastY = newY
-    velocityRef.current.lastTime = now
-
-    // Bound within viewport bounds
-    const maxX = Math.max(10, window.innerWidth - (isExpanded ? 430 : 90))
-    const maxY = Math.max(10, window.innerHeight - (isExpanded ? 190 : 90))
-    const boundedX = Math.min(Math.max(12, newX), maxX)
-    const boundedY = Math.min(Math.max(12, newY), maxY)
-
-    setPosition({ x: boundedX, y: boundedY })
-  }
-
-  const handlePointerUp = () => {
-    if (!isDragging) return
-    setIsDragging(false)
-
-    // Apply inertia and magnetic docking spring physics
-    let curX = position.x + velocityRef.current.vx * 3
-    let curY = position.y + velocityRef.current.vy * 3
-
-    const maxX = Math.max(10, window.innerWidth - (isExpanded ? 430 : 90))
-    const maxY = Math.max(10, window.innerHeight - (isExpanded ? 190 : 90))
-
-    // Magnetic Docking to closest edge if within 90px threshold
-    const DOCK_THRESHOLD = 90
-    let targetX = Math.min(Math.max(16, curX), maxX)
-    let targetY = Math.min(Math.max(16, curY), maxY)
-
-    if (targetX < DOCK_THRESHOLD) targetX = 16
-    else if (targetX > maxX - DOCK_THRESHOLD) targetX = maxX
-
-    if (targetY < DOCK_THRESHOLD) targetY = 16
-    else if (targetY > maxY - DOCK_THRESHOLD) targetY = maxY
-
-    // Realistic Spring Formula (stiffness: 300, damping: 28, mass: 0.8)
-    let vx = velocityRef.current.vx
-    let vy = velocityRef.current.vy
-    const stiffness = 300
-    const damping = 28
-    const mass = 0.8
-    const dt = 0.016
-
-    const stepSpring = () => {
-      const fx = -stiffness * (curX - targetX) - damping * vx
-      const fy = -stiffness * (curY - targetY) - damping * vy
-
-      const ax = fx / mass
-      const ay = fy / mass
-
-      vx += ax * dt
-      vy += ay * dt
-
-      curX += vx * dt
-      curY += vy * dt
-
-      setPosition({ x: curX, y: curY })
-
-      if (Math.abs(curX - targetX) > 0.5 || Math.abs(curY - targetY) > 0.5 || Math.abs(vx) > 0.5) {
-        springAnimRef.current = requestAnimationFrame(stepSpring)
-      } else {
-        setPosition({ x: targetX, y: targetY })
-      }
+    const onPointerMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - dragStartRef.current.mouseX
+      const dy = ev.clientY - dragStartRef.current.mouseY
+      // Free dragging without boundary lock across multi-monitors
+      setPosition({
+        x: dragStartRef.current.initialX + dx,
+        y: dragStartRef.current.initialY + dy,
+      })
     }
 
-    springAnimRef.current = requestAnimationFrame(stepSpring)
+    const onPointerUp = () => {
+      setIsDragging(false)
+      window.removeEventListener("pointermove", onPointerMove)
+      window.removeEventListener("pointerup", onPointerUp)
+    }
+
+    window.addEventListener("pointermove", onPointerMove)
+    window.addEventListener("pointerup", onPointerUp)
   }
+
+  // Handle agent selection
+  const handleAgentSelect = (agentName: string) => {
+    setSelectedAgent(agentName)
+    setIsAgentMenuOpen(false)
+    onSelectAgent?.(agentName)
+  }
+
+  const hasTranscription = Boolean(transcription.trim())
 
   return (
     <div
       ref={containerRef}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      data-tauri-drag-region="false"
+      data-tauri-drag-region="true"
       style={{
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         touchAction: "none",
-        WebkitAppRegion: "no-drag",
+        WebkitAppRegion: "drag",
       } as React.CSSProperties}
-      className={`fixed top-0 left-0 z-[9999] pointer-events-auto select-none transition-shadow ${
-        isDragging ? "cursor-grabbing shadow-[0_16px_48px_rgba(0,0,0,0.7)]" : "cursor-grab"
-      }`}
+      className={`fixed top-0 left-0 z-[9999] pointer-events-auto select-none transition-all duration-300 ${
+        isDismissing
+          ? "opacity-0 scale-75 -translate-y-2 pointer-events-none"
+          : "opacity-100 scale-100"
+      } ${isDragging ? "cursor-grabbing shadow-[0_16px_48px_rgba(0,0,0,0.75)]" : "cursor-grab"}`}
     >
-      {/* Minimized Floating Presence Orb */}
-      {!isExpanded ? (
+      {/* COMPACT ROUNDED PILL HUD */}
+      <div
+        data-tauri-drag-region="true"
+        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        className="relative flex items-center gap-2 p-1.5 rounded-full border border-white/[0.14] bg-zinc-950/90 backdrop-blur-2xl shadow-[0_10px_35px_rgba(0,0,0,0.65)] text-zinc-100 transition-all duration-300"
+      >
+        {/* ============================================================ */}
+        {/* 1. ANIMATED ORB (LEFT)                                      */}
+        {/*    Single click: Push-to-talk / Listen                      */}
+        {/*    Double click: Compress to Orb mode / Expand              */}
+        {/*    Triple click: Play exit transition and Dismiss           */}
+        {/* ============================================================ */}
         <div
-          onClick={() => setIsExpanded(true)}
-          className="group relative flex size-16 items-center justify-center rounded-full border border-white/[0.12] bg-zinc-950/85 backdrop-blur-2xl shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95"
-          title="Click to expand Krypton Voice HUD"
+          data-tauri-drag-region="false"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          onClick={handleOrbClick}
+          className="relative flex size-10 items-center justify-center rounded-full bg-zinc-900/90 border border-white/10 hover:border-violet-500/50 transition-all duration-200 cursor-pointer shadow-md hover:scale-105 active:scale-95 shrink-0 pointer-events-auto group"
+          title="Single click: Voice toggle | Double click: Collapse/Expand | Triple click: Dismiss"
         >
-          <canvas ref={canvasRef} width={64} height={64} className="size-full rounded-full" />
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-full">
-            <Maximize2 className="size-4 text-zinc-200" />
+          <canvas ref={canvasRef} width={40} height={40} className="size-full rounded-full" />
+          {/* Centered micro-icon showing state */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {agentState === "listening" ? (
+              <Square className="size-3.5 fill-emerald-400 text-emerald-400 animate-pulse" />
+            ) : agentState === "thinking" ? (
+              <Sparkles className="size-3.5 text-sky-400 animate-spin" />
+            ) : agentState === "speaking" ? (
+              <Volume2 className="size-3.5 text-pink-400" />
+            ) : agentState === "error" ? (
+              <AlertCircle className="size-3.5 text-rose-400" />
+            ) : (
+              <Mic className="size-3.5 text-zinc-300 group-hover:text-violet-300 transition-colors" />
+            )}
           </div>
         </div>
-      ) : (
-        /* Expanded Tactile Voice Command Card */
-        <div className="relative flex w-[410px] flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-zinc-950/85 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.6)] text-zinc-100 animate-in fade-in-0 zoom-in-95 duration-200">
-          {/* Top Drag & Window Controls Bar */}
-          <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1.5 border-b border-zinc-900/60 bg-zinc-950/50">
-            <div className="flex items-center gap-2">
-              <span className="flex size-2 rounded-full bg-violet-500 animate-pulse" />
-              <span className="font-semibold text-xs text-zinc-200 tracking-tight">Krypton Voice Agent</span>
-              <span className="text-[10px] text-zinc-500 font-mono">[{activeAgentName}]</span>
-            </div>
 
-            <div className="flex items-center gap-1 text-zinc-400">
+        {/* When NOT in compressed orb-only mode, render Middle & Right sections */}
+        {!isOrbOnlyMode && (
+          <>
+            {/* ======================================================== */}
+            {/* 2. AGENT SELECTOR BUTTON (MIDDLE)                        */}
+            {/*    Displays active agent name, opens custom floating      */}
+            {/*    panel, declares WebkitAppRegion: "no-drag"            */}
+            {/* ======================================================== */}
+            <div
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="relative shrink-0 pointer-events-auto"
+            >
               <button
                 type="button"
-                onClick={() => setAudioFeedbackEnabled(!audioFeedbackEnabled)}
-                className="flex size-6 items-center justify-center rounded hover:bg-zinc-800/80 hover:text-zinc-200 transition-colors"
-                title={audioFeedbackEnabled ? "Mute Voice Readout" : "Enable Voice Readout"}
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => setIsAgentMenuOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 rounded-full bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800/80 px-2.5 py-1 text-xs font-medium text-zinc-200 hover:text-white transition-all cursor-pointer pointer-events-auto"
+                title="Switch active agent context"
               >
-                {audioFeedbackEnabled ? <Volume2 className="size-3.5" /> : <VolumeX className="size-3.5" />}
+                <Bot className="size-3.5 text-violet-400 shrink-0" />
+                <span className="font-mono text-[11px] tracking-tight truncate max-w-[90px]">
+                  {selectedAgent}
+                </span>
+                <ChevronDown
+                  className={`size-3 text-zinc-400 transition-transform duration-200 ${
+                    isAgentMenuOpen ? "rotate-180 text-violet-400" : ""
+                  }`}
+                />
               </button>
 
+              {/* Custom Sleek Floating Agent Selector Panel */}
+              {isAgentMenuOpen && (
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="absolute bottom-full mb-2 left-0 w-52 rounded-2xl border border-zinc-800/90 bg-zinc-950/95 backdrop-blur-2xl shadow-2xl p-1.5 z-[10000] text-zinc-100 animate-in fade-in-0 zoom-in-95 duration-150 pointer-events-auto"
+                >
+                  <div className="px-2 py-1 mb-1 border-b border-zinc-900/80 flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+                      Switch Agent
+                    </span>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      {availableAgents.length} Active
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1 max-h-48 overflow-y-auto">
+                    {availableAgents.map((agent) => (
+                      <button
+                        key={agent}
+                        type="button"
+                        data-tauri-drag-region="false"
+                        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                        onClick={() => handleAgentSelect(agent)}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs text-left transition-colors cursor-pointer pointer-events-auto ${
+                          selectedAgent === agent
+                            ? "bg-violet-950/60 text-violet-200 border border-violet-800/50"
+                            : "hover:bg-zinc-900 text-zinc-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`size-1.5 rounded-full ${
+                              selectedAgent === agent ? "bg-violet-400" : "bg-zinc-600"
+                            }`}
+                          />
+                          <span className="font-medium text-[11px] truncate">{agent}</span>
+                        </div>
+                        {selectedAgent === agent && (
+                          <Check className="size-3 text-violet-400 shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ======================================================== */}
+            {/* 3. LIVE TRANSCRIPTION DISPLAY AREA (RIGHT)               */}
+            {/*    Collapses into clean idle pill when empty,            */}
+            {/*    expands dynamically when speech is present             */}
+            {/* ======================================================== */}
+            <div
+              data-tauri-drag-region="true"
+              style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+              className={`flex items-center transition-all duration-300 ease-in-out ${
+                hasTranscription
+                  ? "max-w-[280px] opacity-100 px-2"
+                  : "max-w-[90px] opacity-90 px-1"
+              }`}
+            >
+              {hasTranscription ? (
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="flex items-center gap-2 min-w-0 pointer-events-auto"
+                >
+                  <p className="text-xs leading-tight font-medium text-zinc-100 truncate max-w-[180px]">
+                    {transcription}
+                  </p>
+
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => setTranscription("")}
+                    className="flex size-6 items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors pointer-events-auto cursor-pointer"
+                    title="Clear transcription"
+                  >
+                    <RotateCcw className="size-3" />
+                  </button>
+
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => stopListening(true)}
+                    className="flex size-6 items-center justify-center rounded-full bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-600/30 transition-all pointer-events-auto cursor-pointer"
+                    title="Dispatch Prompt (Enter)"
+                  >
+                    <ArrowUp className="size-3 stroke-[2.5]" />
+                  </button>
+                </div>
+              ) : (
+                /* Idle Collapsed State Indicator */
+                <div
+                  data-tauri-drag-region="true"
+                  style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+                  className="flex items-center gap-1.5 text-[11px] text-zinc-400 px-1 font-mono tracking-tight"
+                >
+                  <span
+                    className={`size-1.5 rounded-full ${
+                      agentState === "listening"
+                        ? "bg-emerald-400 animate-pulse"
+                        : agentState === "thinking"
+                        ? "bg-sky-400 animate-pulse"
+                        : "bg-zinc-600"
+                    }`}
+                  />
+                  <span>
+                    {agentState === "listening"
+                      ? "Listening"
+                      : agentState === "thinking"
+                      ? "Thinking"
+                      : "Idle"}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Audio Mute & Dismiss Buttons */}
+            <div
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="flex items-center gap-1 pl-1 border-l border-zinc-800/80 pr-1 pointer-events-auto"
+            >
               <button
                 type="button"
-                onClick={() => setIsExpanded(false)}
-                className="flex size-6 items-center justify-center rounded hover:bg-zinc-800/80 hover:text-zinc-200 transition-colors"
-                title="Minimize Floating Orb"
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => setAudioFeedbackEnabled(!audioFeedbackEnabled)}
+                className="flex size-6 items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors pointer-events-auto cursor-pointer"
+                title={audioFeedbackEnabled ? "Mute Readout" : "Enable Readout"}
               >
-                <Minimize2 className="size-3.5" />
+                {audioFeedbackEnabled ? (
+                  <Volume2 className="size-3" />
+                ) : (
+                  <VolumeX className="size-3 text-zinc-500" />
+                )}
               </button>
 
               {onClose && (
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="flex size-6 items-center justify-center rounded hover:bg-zinc-800/80 hover:text-rose-400 transition-colors"
-                  title="Close Floating Voice Agent"
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  onClick={() => {
+                    setIsDismissing(true)
+                    setTimeout(() => onClose(), 280)
+                  }}
+                  className="flex size-6 items-center justify-center rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-rose-400 transition-colors pointer-events-auto cursor-pointer"
+                  title="Close Voice HUD"
                 >
-                  <X className="size-3.5" />
+                  <X className="size-3" />
                 </button>
               )}
             </div>
-          </div>
+          </>
+        )}
+      </div>
 
-          {/* Main Visualizer & Audio Reactive Stage */}
-          <div className="flex items-center gap-3.5 px-4 py-3">
-            {/* Canvas Organic Visualizer */}
-            <div className="relative shrink-0 flex size-14 items-center justify-center rounded-2xl bg-zinc-900/40 border border-zinc-800/60 shadow-inner">
-              <canvas ref={canvasRef} width={56} height={56} className="size-full rounded-2xl" />
-            </div>
-
-            {/* Live Real Speech Transcription Preview */}
-            <div className="flex flex-1 flex-col justify-center min-w-0 pr-1">
-              <div className="flex items-center justify-between pb-1">
-                <span
-                  className={`text-[10px] font-mono uppercase tracking-wider font-semibold ${
-                    agentState === "listening"
-                      ? "text-emerald-400"
-                      : agentState === "thinking"
-                      ? "text-sky-400 animate-pulse"
-                      : agentState === "speaking"
-                      ? "text-pink-400"
-                      : agentState === "error"
-                      ? "text-rose-400"
-                      : "text-zinc-500"
-                  }`}
-                >
-                  {agentState === "listening"
-                    ? "Listening..."
-                    : agentState === "thinking"
-                    ? "Reasoning..."
-                    : agentState === "speaking"
-                    ? "Speaking..."
-                    : agentState === "error"
-                    ? "Diagnostic Alert"
-                    : "Ready"}
-                </span>
-
-                {amplitude > 0 && agentState === "listening" && (
-                  <span className="text-[10px] font-mono text-emerald-500/80">
-                    {Math.round(amplitude * 100)}%
-                  </span>
-                )}
-              </div>
-
-              <p className="text-xs leading-snug line-clamp-2 font-medium text-zinc-200">
-                {transcription || (
-                  <span className="text-zinc-500 italic">
-                    {agentState === "listening"
-                      ? "Speak your instruction..."
-                      : "Click mic or press push-to-talk..."}
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Error Alert Display if present */}
-          {errorMessage && (
-            <div className="flex items-center gap-2 mx-3.5 mb-2 px-2.5 py-1.5 rounded-lg bg-rose-950/50 border border-rose-800/50 text-[11px] text-rose-300">
-              <AlertCircle className="size-3.5 shrink-0 text-rose-400" />
-              <span className="truncate flex-1">{errorMessage}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setErrorMessage(null)
-                  setAgentState("idle")
-                }}
-                className="hover:underline text-rose-200"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-
-          {/* Interactive Controls Footer */}
-          <div className="flex items-center justify-between px-3.5 py-2.5 border-t border-zinc-900/60 bg-zinc-950/60">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleListening}
-                className={`flex items-center gap-2 rounded-xl px-3 py-1.5 font-medium text-xs shadow-lg transition-all cursor-pointer ${
-                  agentState === "listening"
-                    ? "bg-rose-600 text-white shadow-rose-600/30 animate-pulse hover:bg-rose-500"
-                    : "bg-violet-600 text-white shadow-violet-600/30 hover:bg-violet-500"
-                }`}
-              >
-                {agentState === "listening" ? (
-                  <>
-                    <Square className="size-3.5 fill-white" />
-                    <span>Stop & Send</span>
-                  </>
-                ) : (
-                  <>
-                    <Mic className="size-3.5" />
-                    <span>Voice Input</span>
-                  </>
-                )}
-              </button>
-
-              {transcription && (
-                <button
-                  type="button"
-                  onClick={() => setTranscription("")}
-                  className="flex size-7 items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
-                  title="Clear input"
-                >
-                  <RotateCcw className="size-3" />
-                </button>
-              )}
-            </div>
-
-            {/* Send manual prompt trigger */}
-            {transcription && (
-              <button
-                type="button"
-                onClick={() => stopListening(true)}
-                className="flex items-center gap-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 text-xs text-zinc-200 font-medium transition-colors cursor-pointer"
-              >
-                <span>Dispatch</span>
-                <Send className="size-3" />
-              </button>
-            )}
-          </div>
+      {/* Error alert floating pill */}
+      {errorMessage && (
+        <div
+          data-tauri-drag-region="false"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          className="absolute top-full mt-2 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-950/90 border border-rose-800/70 text-[11px] text-rose-300 shadow-xl pointer-events-auto"
+        >
+          <AlertCircle className="size-3.5 shrink-0 text-rose-400" />
+          <span className="truncate max-w-[220px]">{errorMessage}</span>
+          <button
+            type="button"
+            onClick={() => setErrorMessage(null)}
+            className="text-rose-400 hover:text-rose-200 underline text-[10px]"
+          >
+            Clear
+          </button>
         </div>
       )}
     </div>
