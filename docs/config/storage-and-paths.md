@@ -70,7 +70,7 @@ Storage path detection is unified across runtime and desktop layers:
 - `diskUsageBytes`: Total combined storage utilization across all krypton directories.
 
 ### B. Tauri Desktop IPC (`apps/desktop/src-tauri/src/commands/maintenance.rs`)
-Invoking Tauri command `get_storage_paths_info` returns the live platform paths and disk footprint to the frontend UI (`CodexSettings.tsx`), providing real-time visibility into local resource usage.
+Invoking Tauri command `get_storage_paths_info` returns the live platform paths and disk footprint to the frontend UI (`KryptonSettings.tsx`), providing real-time visibility into local resource usage.
 
 ---
 

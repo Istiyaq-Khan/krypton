@@ -3,7 +3,7 @@ import fs from "fs"
 import path from "path"
 
 describe("Issue #12: Cross-Platform Uninstallation Registration, Backup Vault & Complete Purge Engine", () => {
-  const codexSettingsPath = path.resolve(__dirname, "../src/components/settings/CodexSettings.tsx")
+  const kryptonSettingsPath = path.resolve(__dirname, "../src/components/settings/KryptonSettings.tsx")
   const windowHeaderPath = path.resolve(__dirname, "../src/components/layout/WindowHeader.tsx")
   const maintenanceRustPath = path.resolve(__dirname, "../src-tauri/src/commands/maintenance.rs")
   const libRustPath = path.resolve(__dirname, "../src-tauri/src/lib.rs")
@@ -17,8 +17,8 @@ describe("Issue #12: Cross-Platform Uninstallation Registration, Backup Vault & 
 
 
   it("1. Settings Navigation: registers 'data' category and Data & Maintenance sidebar item", () => {
-    expect(fs.existsSync(codexSettingsPath)).toBe(true)
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+    expect(fs.existsSync(kryptonSettingsPath)).toBe(true)
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     expect(settingsSource).toContain('type SettingsCategory = "general" | "agents" | "providers" | "appearance"')
     expect(settingsSource).toContain('"data"')
@@ -35,7 +35,7 @@ describe("Issue #12: Cross-Platform Uninstallation Registration, Backup Vault & 
   })
 
   it("3. Backup Vault: integrates recursive export, native dialog, and compressed archive generation", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     expect(settingsSource).toContain("Backup & Export Vault")
     expect(settingsSource).toContain("handleExportBackup")
@@ -45,7 +45,7 @@ describe("Issue #12: Cross-Platform Uninstallation Registration, Backup Vault & 
   })
 
   it("4. Factory Reset: enforces double-confirmation modal with 'RESET' confirmation token", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     expect(settingsSource).toContain("Factory Reset & Complete Data Purge")
     expect(settingsSource).toContain("isPurgeModalOpen")
@@ -56,7 +56,7 @@ describe("Issue #12: Cross-Platform Uninstallation Registration, Backup Vault & 
   })
 
   it("5. In-App Uninstallation Trigger: integrates platform-aware teardown with optional purge", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     expect(settingsSource).toContain("Uninstall Krypton")
     expect(settingsSource).toContain("isUninstallModalOpen")
