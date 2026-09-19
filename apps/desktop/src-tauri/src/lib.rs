@@ -57,7 +57,13 @@ pub fn run() {
             save_app_settings,
             save_agent_config,
             list_agents_config,
+            create_backup_vault,
+            select_backup_save_dialog,
+            purge_app_data_and_reset,
+            trigger_app_uninstall,
+            get_storage_paths_info,
         ])
+
         .run(tauri::generate_context!())
         .expect("error while running krypton desktop application");
 }

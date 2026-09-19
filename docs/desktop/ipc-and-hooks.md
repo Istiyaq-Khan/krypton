@@ -18,6 +18,10 @@ The Rust backend exposes native desktop commands registered in `apps/desktop/src
 | `start_audio_capture` / `stop_audio_capture` | `audio.rs` | Captures microphone input for local speech-to-text. |
 | `check_setup_status` / `save_setup_configuration` | `setup.rs` | Inspects and writes initial onboarding configuration. |
 | `install_cli_to_path` | `installer.rs` | Registers `krypton` CLI executable to the host system PATH. |
+| `create_backup_vault` / `select_backup_save_dialog` | `maintenance.rs` | Aggregates workspaces and creates timestamped PKWARE ZIP archive. |
+| `purge_app_data_and_reset` | `maintenance.rs` | Gracefully stops daemons and purges all local platform data. |
+| `trigger_app_uninstall` | `maintenance.rs` | Spawns detached OS uninstaller script (`uninstall.ps1` / `uninstall.sh`). |
+| `get_storage_paths_info` | `maintenance.rs` | Calculates cross-platform storage locations and byte footprints. |
 
 ---
 

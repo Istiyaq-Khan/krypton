@@ -23,7 +23,8 @@ docs/
 │   ├── [First-Run Setup](desktop/first-run-setup.md)                   # Setup wizard lifecycle, configuration persistence
 │   ├── [Desktop IPC & Hooks](desktop/ipc-and-hooks.md)                 # Tauri Rust command handlers, useKryptonDaemon hook
 │   ├── [Voice Micro-HUD](desktop/voice-micro-hud.md)                   # Translucent floating overlay, global hotkeys, STT
-│   └── [Components Catalog](desktop/components-guide.md)               # Core UI component catalog & visual state machines
+│   ├── [Components Catalog](desktop/components-guide.md)               # Core UI component catalog & visual state machines
+│   └── [Lifecycle & Uninstallation](desktop/lifecycle-and-uninstallation.md) # OS packaging, backup vault, factory reset & uninstall
 │
 ├── ⚙ Runtime & Daemon Engine
 │   ├── [Daemon Architecture](runtime/daemon-architecture.md)           # Platform pipes, WebSocket streaming, JSON-RPC 2.0
@@ -39,6 +40,7 @@ docs/
 │
 ├── 📁 Storage & Configuration
 │   ├── [Storage Schemas](config/storage-schemas.md)                    # Cross-platform ~/.krypton filesystem layout
+│   ├── [Storage & Data Paths](config/storage-and-paths.md)            # Platform directory layout, caches & purge boundaries
 │   ├── [Agent Workspace Specs](config/agent-workspace-specs.md)        # config.json machine schema vs pure markdown context
 │   └── [Secret Vault & Keyring](config/vault-and-credentials.md)       # Native OS keyring integration, AES-256-GCM encryption
 │
@@ -53,7 +55,7 @@ docs/
 └── 📜 Historical & Hardening References
     ├── [Agent Storage Architecture](AGENT_STORAGE_ARCHITECTURE.md)     # Architectural specification for agent workspaces
     ├── [Production Hardening](PRODUCTION_HARDENING.md)                 # Frameless window unification & mock data purge
-    └── [Release Architecture](RELEASE_ARCHITECTURE.md)                 # Single-artifact bundling & packaging mechanics
+    └── [Release Architecture](RELEASE_ARCHITECTURE.md)                 # Single-Artifact packaging mechanics
 ```
 
 ---
@@ -71,6 +73,7 @@ docs/
 | **Inspect Tauri IPC commands or React hooks** | [`desktop/ipc-and-hooks.md`](desktop/ipc-and-hooks.md) |
 | **Work on the floating Voice Micro-HUD overlay** | [`desktop/voice-micro-hud.md`](desktop/voice-micro-hud.md) |
 | **Review UI components (Chatbar, Stream, DiffViewer)** | [`desktop/components-guide.md`](desktop/components-guide.md) |
+| **Export backup vault, factory reset, or uninstall app** | [`desktop/lifecycle-and-uninstallation.md`](desktop/lifecycle-and-uninstallation.md) |
 | **Add or update JSON-RPC methods or WebSocket events** | [`runtime/daemon-architecture.md`](runtime/daemon-architecture.md) |
 | **Modify TaskTree DAG scheduling or replanning** | [`runtime/task-dag-planner.md`](runtime/task-dag-planner.md) |
 | **Enhance AST security linter or sandbox runner** | [`runtime/sandboxing-and-security.md`](runtime/sandboxing-and-security.md) |
@@ -82,6 +85,7 @@ docs/
 | **Work on persistent PTY terminal or Tree-sitter** | [`runtime/terminal-and-os.md`](runtime/terminal-and-os.md) |
 | **Add chat adapters (Telegram, Discord, WhatsApp)** | [`runtime/channels-gateway.md`](runtime/channels-gateway.md) |
 | **Inspect system directories or config.json format** | [`config/storage-schemas.md`](config/storage-schemas.md) |
+| **Inspect platform caches, data paths, or purge boundaries**| [`config/storage-and-paths.md`](config/storage-and-paths.md) |
 | **Manage agent workspace files (IDENTITY, SOUL, MEMORY)**| [`config/agent-workspace-specs.md`](config/agent-workspace-specs.md) |
 | **Store or retrieve encrypted API keys securely** | [`config/vault-and-credentials.md`](config/vault-and-credentials.md) |
 | **Develop or debug the React+Ink terminal client** | [`cli/cli-architecture.md`](cli/cli-architecture.md) |

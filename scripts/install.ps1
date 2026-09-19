@@ -137,6 +137,50 @@ if ($CurrentPath -notlike "*$BinDir*") {
     Write-Host "[OK] $BinDir is already in User PATH." -ForegroundColor Green
 }
 
+# 5. Provision Uninstaller Script
+$UninstallScript = Join-Path $BinDir "uninstall.ps1"
+if ($ScriptDir -and (Test-Path (Join-Path $ScriptDir "uninstall.ps1"))) {
+    Copy-Item (Join-Path $ScriptDir "uninstall.ps1") $UninstallScript -Force
+}
+
+# 6. Register Windows Uninstall Registry Metadata (Apps & Features / Clean-up tools)
+Write-Host "Registering Windows Uninstall metadata..." -ForegroundColor Gray
+$RegKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\krypton"
+if (-not (Test-Path $RegKey)) {
+    New-Item -Path $RegKey -Force | Out-Null
+}
+
+$SemanticVersion = "0.1.0"
+$UninstallCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$UninstallScript`""
+$QuietUninstallCmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$UninstallScript`" -Quiet"
+
+Set-ItemProperty -Path $RegKey -Name "DisplayName" -Value "krypton"
+Set-ItemProperty -Path $RegKey -Name "DisplayVersion" -Value $SemanticVersion
+Set-ItemProperty -Path $RegKey -Name "Publisher" -Value "krypton"
+Set-ItemProperty -Path $RegKey -Name "DisplayIcon" -Value "$TargetBinary,0"
+Set-ItemProperty -Path $RegKey -Name "UninstallString" -Value $UninstallCmd
+Set-ItemProperty -Path $RegKey -Name "QuietUninstallString" -Value $QuietUninstallCmd
+Set-ItemProperty -Path $RegKey -Name "InstallLocation" -Value $KryptonDir
+Set-ItemProperty -Path $RegKey -Name "HelpLink" -Value "https://github.com/Istiyaq-Khan/krypton"
+Set-ItemProperty -Path $RegKey -Name "NoModify" -Value 1 -Type DWord
+Set-ItemProperty -Path $RegKey -Name "NoRepair" -Value 1 -Type DWord
+Write-Host "[OK] Windows Uninstall registry keys registered successfully." -ForegroundColor Green
+
+# 7. Create Start Menu Shortcut
+try {
+    $StartMenuDir = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs"
+    $ShortcutPath = Join-Path $StartMenuDir "Krypton.lnk"
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = $TargetBinary
+    $Shortcut.WorkingDirectory = $KryptonDir
+    $Shortcut.Description = "Krypton — Autonomous Desktop AI Agent Runtime"
+    $Shortcut.Save()
+    Write-Host "[OK] Start Menu shortcut created." -ForegroundColor Green
+} catch {
+    # Ignore COM failure in non-interactive environments
+}
+
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Green
 Write-Host "[OK] Installation Complete!" -ForegroundColor Green
@@ -148,3 +192,4 @@ Write-Host "You can now run:" -ForegroundColor Yellow
 Write-Host "  krypton --help" -ForegroundColor Cyan
 Write-Host "  krypton run 'Build a fullstack landing page'" -ForegroundColor Cyan
 Write-Host ""
+
