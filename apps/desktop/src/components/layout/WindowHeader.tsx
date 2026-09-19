@@ -210,8 +210,7 @@ export function WindowHeader({
   const handleToggleVoiceHud = async () => {
     if (onToggleVoiceHud) {
       onToggleVoiceHud()
-    }
-    if (isTauri()) {
+    } else if (isTauri()) {
       await invoke("toggle_overlay").catch(console.error)
     }
     setActiveMenu(null)

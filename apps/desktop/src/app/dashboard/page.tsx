@@ -46,6 +46,14 @@ export default function DashboardPage() {
     setIsNewProjectModalOpen(false)
   }
 
+  // Synchronized Voice HUD Toggle Handler
+  const toggleVoiceHud = useCallback(async () => {
+    setIsVoiceAgentVisible((prev) => !prev)
+    if (typeof window !== "undefined" && isTauri()) {
+      await invoke("toggle_overlay").catch(console.error)
+    }
+  }, [])
+
   // Global keyboard shortcuts: Ctrl+, / Cmd+, toggles settings, Ctrl+Shift+Space toggles Voice HUD
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -54,12 +62,12 @@ export default function DashboardPage() {
         setActiveView((prev) => (prev === "settings" ? "workspace" : "settings"))
       } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === " " || e.code === "Space")) {
         e.preventDefault()
-        setIsVoiceAgentVisible((prev) => !prev)
+        toggleVoiceHud()
       }
     }
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [])
+  }, [toggleVoiceHud])
 
   // Detect host machine initialization state
   useEffect(() => {
@@ -155,7 +163,7 @@ export default function DashboardPage() {
           if (cat) setActiveSettingsCategory(cat as SettingsCategory)
           setActiveView("settings")
         }}
-        onToggleVoiceHud={() => setIsVoiceAgentVisible((v) => !v)}
+        onToggleVoiceHud={toggleVoiceHud}
         canGoBack={activeView === "settings" ? true : session.canGoBack}
         canGoForward={session.canGoForward}
         onGoBack={() => {
@@ -236,7 +244,7 @@ export default function DashboardPage() {
               askForApproval={session.askForApproval}
               onToggleApproval={() => session.setAskForApproval(!session.askForApproval)}
               onSubmitPrompt={(p) => session.submitPrompt(p)}
-              onVoiceTrigger={() => setIsVoiceAgentVisible(true)}
+              onVoiceTrigger={toggleVoiceHud}
             />
           </main>
 
@@ -264,7 +272,15 @@ export default function DashboardPage() {
       {/* Floating Voice Presence (Toggled via header or mic button, visible across all pages) */}
       {isVoiceAgentVisible && (
         <FloatingVoiceAgent
-          activeAgentName={session.activeProject?.name || "Krypton"}
+          activeAgentName={session.activeAgentName || session.activeProject?.name || "Orchestrator"}
+          availableAgents={
+            daemon.fleet && daemon.fleet.length > 0
+              ? daemon.fleet.map((a) => a.name)
+              : ["Orchestrator", "CoderBot", "TesterBot", "Scraper"]
+          }
+          onSelectAgent={(agent) => {
+            session.setActiveAgentName(agent)
+          }}
           onSubmitPrompt={(prompt) => session.submitPrompt(prompt)}
           isAssistantThinking={session.isStreaming}
           latestAssistantText={session.latestAssistantText}

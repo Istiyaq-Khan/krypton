@@ -60,7 +60,7 @@ The onboarding modal guides the user through four essential configuration stages
 | **1** | **Agent Identity** | Supervisor Name (`Orchestrator`), Role description, Persona/Directive template, Reasoning Style (Analytical / Agile / Research). |
 | **2** | **Model & Providers** | Sequential Provider Selection (OpenAI, Anthropic, Ollama / Local Runtime, OpenRouter, Custom OpenAI-Compatible Base URL), Isolated Credential Inputs, Dynamic Model Discovery & Credential Validation, Primary Reasoning Model Selection, Local Cache Generation. |
 | **3** | **Workspace Path** | Root Project Directory (`%USERPROFILE%\Projects` or `$HOME/projects`), Initial Workspace Name (`krypton-workspace`). |
-| **4** | **Guardrails & Privacy**| HITL confirmation requirements, AST Safety Linter enforcement, Telemetry opt-in (disabled by default). |
+| **4** | **Guardrails, Voice & Privacy**| HITL confirmation requirements, AST Safety Linter enforcement, Voice-To-Text (VTT) Engine Selection & Speech Configuration (Whisper Local, Whisper API, NVIDIA Parakeet v3, Custom Endpoint), Telemetry opt-in (disabled by default). |
 
 ---
 
@@ -114,7 +114,11 @@ Step 2 implements a sequential, validated onboarding flow to prevent configurati
 When the wizard is submitted, the Rust backend handles atomic disk writes without hardcoding:
 
 1. **Directory Provisioning**: Creates the `~/.krypton/` hierarchy (`agents/`, `worktrees/`, `cache/`, `logs/`).
-2. **Global Config Generation**: Writes `~/.krypton/config.json` containing `isInitialized: true`, selected provider under `defaultRoutes.orchestrator.provider`, model settings, and default paths.
+2. **Global Config Generation**: Writes `~/.krypton/config.json` containing:
+   - `isInitialized: true`
+   - Default routing (`defaultRoutes.orchestrator.provider`, `model`)
+   - Voice-To-Text (`vtt.engine`, `vtt.architecture`, optional `vtt.customEndpoint`, `vtt.apiKey`)
+   - Default workspace paths and telemetry preferences.
 3. **Secret Storage**: Saves provider API keys and base URLs into `~/.krypton/credentials.json` (and encrypted vault) mapped cleanly to the active provider.
 4. **Model Cache Generation**: Saves discovered models array to `~/.krypton/models_cache.json` with timestamp and endpoint metadata.
 5. **Agent Manifest Initialization**: Scaffolds the default supervisor agent inside `~/.krypton/agents/<agentName>/`:
@@ -124,7 +128,20 @@ When the wizard is submitted, the Rust backend handles atomic disk writes withou
 
 ---
 
-## 5. In-App Model Switcher & Refresh Control
+## 5. Voice-To-Text (VTT) Engine Architecture Configuration
+
+In Step 4, users select their preferred speech transcription engine. Krypton distinguishes underlying computational architectures for execution:
+
+| Engine Option | Engine ID | Runtime Architecture | Execution Profile |
+| :--- | :--- | :--- | :--- |
+| **Whisper Local** | `whisper_local` | `encoder_decoder_autoregressive` | Zero-latency local inference via 80-channel log-Mel spectrogram and autoregressive Transformer decoder. Completely private, offline. |
+| **Whisper API** | `whisper_api` | `cloud_api` | High-accuracy OpenAI Whisper cloud API endpoint via HTTP multipart audio upload. |
+| **NVIDIA Parakeet v3** | `nvidia/parakeet-tdt-0.6b-v3` | `conformer_rnnt_tdt` | Ultra-fast Fast Conformer streaming transducer (RNN-T / Token-and-Duration Transducer) optimized for zero-wait speech transcription. |
+| **Custom Endpoint** | `custom` | `custom` | User-defined OpenAI-compatible `/v1/audio/transcriptions` or custom websocket/HTTP STT server with customizable endpoint and optional bearer token. |
+
+---
+
+## 6. In-App Model Switcher & Refresh Control
 
 In the main application command bar (`CommandContextBar.tsx`):
 - The model dropdown is populated from the local model cache (`~/.krypton/models_cache.json`).
