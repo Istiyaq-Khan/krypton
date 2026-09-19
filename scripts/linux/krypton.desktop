@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Krypton
+GenericName=Autonomous Desktop AI Agent
+Comment=Autonomous Desktop AI Agent Operating System
+Exec=krypton %U
+Icon=krypton
+Terminal=false
+Categories=Development;Utility;ArtificialIntelligence;
+StartupWMClass=krypton
+Keywords=ai;agent;automation;terminal;code;

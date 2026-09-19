@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+# Stop running daemon and processes before package removal
+pkill -TERM -f krypton-daemon 2>/dev/null || true
+pkill -TERM -f krypton 2>/dev/null || true
+
+# Stop and disable systemd user services if active
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user stop krypton-daemon.service 2>/dev/null || true
+    systemctl --user disable krypton-daemon.service 2>/dev/null || true
+fi
+
+exit 0

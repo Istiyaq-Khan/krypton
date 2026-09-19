@@ -31,6 +31,13 @@ import {
   Layers,
   Cpu,
   Mic,
+  HardDrive,
+  Download,
+  AlertTriangle,
+  FileArchive,
+  CheckCircle2,
+  Database,
+  X,
 } from "lucide-react"
 import {
   ModelProviderId,
@@ -45,8 +52,16 @@ import {
   loadWorkstationState,
   saveWorkstationState,
 } from "@/lib/persistence"
+import {
+  BackupVaultResult,
+  PurgeDataResult,
+  UninstallResult,
+  StoragePathsInfo,
+} from "@krypton/shared-types"
 
-export type SettingsCategory = "general" | "agents" | "providers" | "appearance"
+// type SettingsCategory = "general" | "agents" | "providers" | "appearance"
+export type SettingsCategory = "general" | "agents" | "providers" | "appearance" | "data"
+
 
 export interface CodexSettingsProps {
   initialCategory?: SettingsCategory
@@ -136,6 +151,26 @@ export function CodexSettings({
   const [fontSize, setFontSize] = useState<"compact" | "standard" | "comfortable">("standard")
   const [uiDensity, setUiDensity] = useState<"compact" | "comfortable">("comfortable")
 
+  // ----------------------------------------------------
+  // Category 5: Data & Maintenance State
+  // ----------------------------------------------------
+  const [storagePaths, setStoragePaths] = useState<StoragePathsInfo | null>(null)
+  const [isExportingBackup, setIsExportingBackup] = useState(false)
+  const [backupResult, setBackupResult] = useState<BackupVaultResult | null>(null)
+
+  // Factory Reset Double-Confirmation Modal State
+  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false)
+  const [purgeStep, setPurgeStep] = useState<1 | 2>(1)
+  const [purgeConfirmationInput, setPurgeConfirmationInput] = useState("")
+  const [isPurging, setIsPurging] = useState(false)
+  const [purgeResult, setPurgeResult] = useState<PurgeDataResult | null>(null)
+
+  // In-App Uninstallation Modal State
+  const [isUninstallModalOpen, setIsUninstallModalOpen] = useState(false)
+  const [uninstallWithPurge, setUninstallWithPurge] = useState(false)
+  const [isUninstalling, setIsUninstalling] = useState(false)
+  const [uninstallResult, setUninstallResult] = useState<UninstallResult | null>(null)
+
   const flashSavedNotice = useCallback((msg = "Saved") => {
     setSaveIndicator(msg)
     setTimeout(() => {
@@ -158,6 +193,13 @@ export function CodexSettings({
 
       // 2. Hydrate from Host / Tauri IPC
       if (typeof window !== "undefined" && isTauri()) {
+        try {
+          const paths = await invoke<StoragePathsInfo>("get_storage_paths_info")
+          if (paths) setStoragePaths(paths)
+        } catch (err) {
+          console.warn("Could not invoke get_storage_paths_info:", err)
+        }
+
         try {
           const settings = await invoke<any>("get_app_settings")
           if (settings) {
@@ -652,6 +694,139 @@ export function CodexSettings({
     [agents, selectedAgentId, flashSavedNotice, onRefreshFleet]
   )
 
+  // ----------------------------------------------------
+  // Data & Maintenance Action Handlers
+  // ----------------------------------------------------
+  const handleExportBackup = async (chooseDestination = false) => {
+    setIsExportingBackup(true)
+    setBackupResult(null)
+    try {
+      let targetPath: string | null = null
+      if (chooseDestination && isTauri()) {
+        const dateStr = new Date().toISOString().slice(0, 10)
+        const defaultName = `krypton-vault-backup-${dateStr}.zip`
+        targetPath = await invoke<string | null>("select_backup_save_dialog", { defaultName })
+        if (!targetPath) {
+          setIsExportingBackup(false)
+          return
+        }
+      }
+
+      if (isTauri()) {
+        const res = await invoke<BackupVaultResult>("create_backup_vault", {
+          targetPath: targetPath || null,
+        })
+        setBackupResult(res)
+        flashSavedNotice("Backup vault archive created")
+      } else {
+        const now = Date.now()
+        const res: BackupVaultResult = {
+          success: true,
+          archivePath: "~/Downloads/krypton-vault-backup-preview.zip",
+          archiveName: "krypton-vault-backup-preview.zip",
+          fileCount: 8,
+          totalBytesUncompressed: 14500,
+          totalBytesCompressed: 4200,
+          timestamp: now,
+          agentsIncluded: agents.map((a) => a.name),
+        }
+        setBackupResult(res)
+        flashSavedNotice("Vault backup created")
+      }
+    } catch (err: any) {
+      console.error("Backup export error:", err)
+      setBackupResult({
+        success: false,
+        archivePath: "",
+        archiveName: "",
+        fileCount: 0,
+        totalBytesUncompressed: 0,
+        totalBytesCompressed: 0,
+        timestamp: Date.now(),
+        agentsIncluded: [],
+      })
+    } finally {
+      setIsExportingBackup(false)
+    }
+  }
+
+  const handleExecutePurge = async () => {
+    setIsPurging(true)
+    setPurgeResult(null)
+    try {
+      if (isTauri()) {
+        const res = await invoke<PurgeDataResult>("purge_app_data_and_reset")
+        setPurgeResult(res)
+      } else {
+        const res: PurgeDataResult = {
+          success: true,
+          daemonsTerminated: true,
+          purgedDirectories: ["~/.krypton", "localStorage"],
+          failedDirectories: [],
+          timestamp: Date.now(),
+          message: "All local application data and workspaces purged.",
+        }
+        setPurgeResult(res)
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("krypton_general_settings")
+        localStorage.removeItem("krypton_provider_keys")
+        localStorage.removeItem("krypton_appearance_settings")
+        localStorage.removeItem("krypton_vtt_config")
+        localStorage.removeItem("krypton_workstation_state")
+      }
+
+      flashSavedNotice("Factory reset completed")
+    } catch (err: any) {
+      console.error("Purge error:", err)
+      setPurgeResult({
+        success: false,
+        daemonsTerminated: false,
+        purgedDirectories: [],
+        failedDirectories: [err.message || String(err)],
+        timestamp: Date.now(),
+        message: "Failed to complete data purge.",
+      })
+    } finally {
+      setIsPurging(false)
+    }
+  }
+
+  const handleExecuteUninstall = async () => {
+    setIsUninstalling(true)
+    setUninstallResult(null)
+    try {
+      if (isTauri()) {
+        const res = await invoke<UninstallResult>("trigger_app_uninstall", {
+          purgeData: uninstallWithPurge,
+        })
+        setUninstallResult(res)
+      } else {
+        const res: UninstallResult = {
+          success: true,
+          platform: "unknown",
+          actionTaken: "Uninstallation triggered in web preview mode.",
+          dataPurged: uninstallWithPurge,
+          uninstallerExecuted: false,
+          manualInstructions: "Delete application bundle from your Applications folder.",
+        }
+        setUninstallResult(res)
+      }
+    } catch (err: any) {
+      console.error("Uninstall error:", err)
+      setUninstallResult({
+        success: false,
+        platform: "unknown",
+        actionTaken: err.message || "Failed to trigger uninstaller.",
+        dataPurged: false,
+        uninstallerExecuted: false,
+      })
+    } finally {
+      setIsUninstalling(false)
+    }
+  }
+
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) || agents[0]
 
   return (
@@ -684,7 +859,9 @@ export function CodexSettings({
                 ? "Agents & Identity"
                 : activeCategory === "providers"
                 ? "Model Providers"
-                : "Appearance"}
+                : activeCategory === "appearance"
+                ? "Appearance"
+                : "Data & Maintenance"}
             </span>
           </div>
         </div>
@@ -770,7 +947,24 @@ export function CodexSettings({
                 <span className="text-[10px] text-zinc-500 font-normal">Theme, font & UI density</span>
               </div>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveCategory("data")}
+              className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all text-left cursor-pointer ${
+                activeCategory === "data"
+                  ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-xs"
+                  : "text-zinc-400 hover:bg-zinc-900/80 hover:text-zinc-200 border border-transparent"
+              }`}
+            >
+              <HardDrive className="size-4 shrink-0" />
+              <div className="flex flex-col">
+                <span>Data & Maintenance</span>
+                <span className="text-[10px] text-zinc-500 font-normal">Vault backup, reset & uninstall</span>
+              </div>
+            </button>
           </div>
+
 
           <div className="mt-auto rounded-xl border border-zinc-800/60 bg-zinc-900/30 p-3 text-[11px] text-zinc-500">
             <div className="font-semibold text-zinc-400 pb-1 flex items-center gap-1.5">
@@ -1625,9 +1819,429 @@ export function CodexSettings({
                 </div>
               </div>
             )}
+
+            {/* -------------------------------------------------- */}
+            {/* 5. DATA & MAINTENANCE SETTINGS                     */}
+            {/* -------------------------------------------------- */}
+            {activeCategory === "data" && (
+              <div className="space-y-6 animate-in fade-in-0 duration-150">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-100">Data & Maintenance</h2>
+                  <p className="text-xs text-zinc-400">
+                    Export Backup Vault archives, inspect storage paths, perform factory resets, or trigger application uninstallation.
+                  </p>
+                </div>
+
+                {/* Storage Paths Overview */}
+                <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                        <HardDrive className="size-4 text-violet-400" />
+                        <span>Storage & Runtime Paths</span>
+                      </h3>
+                      <p className="text-[11px] text-zinc-500">Active filesystem paths for configurations, credentials, and worktrees.</p>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300">
+                      OS: {storagePaths?.osPlatform || (typeof process !== "undefined" ? process.platform : "desktop")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div className="p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-950/60">
+                      <div className="text-[10px] text-zinc-500 font-sans font-medium">Canonical Runtime Root</div>
+                      <div className="text-zinc-300 truncate mt-0.5">{storagePaths?.kryptonHome || "~/.krypton"}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-950/60">
+                      <div className="text-[10px] text-zinc-500 font-sans font-medium">Agent Workspaces Directory</div>
+                      <div className="text-zinc-300 truncate mt-0.5">{storagePaths?.agentsDir || "~/.krypton/agents"}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-950/60">
+                      <div className="text-[10px] text-zinc-500 font-sans font-medium">Cache & Outputs Root</div>
+                      <div className="text-zinc-300 truncate mt-0.5">{storagePaths?.cacheDir || "~/.krypton/cache"}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl border border-zinc-800/80 bg-zinc-950/60">
+                      <div className="text-[10px] text-zinc-500 font-sans font-medium">Git Worktrees Root</div>
+                      <div className="text-zinc-300 truncate mt-0.5">{storagePaths?.worktreesDir || "~/.krypton/worktrees"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 1: Backup & Export Vault */}
+                <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+                    <div>
+                      <h3 className="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                        <FileArchive className="size-4 text-emerald-400" />
+                        <span>Backup & Export Vault</span>
+                      </h3>
+                      <p className="text-[11px] text-zinc-400">
+                        Bundle all agent <code className="text-zinc-300 font-mono">config.json</code> files, prompt instructions (<code className="text-zinc-300 font-mono">*.md</code>), active memory, trajectories, and global routing into a portable, compressed <code className="text-zinc-300 font-mono">.zip</code> vault.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-[11px] text-zinc-400">
+                    <span className="px-2 py-0.5 rounded-lg bg-zinc-800/60 border border-zinc-700/60 font-mono">
+                      {agents.length} Agents Configured
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg bg-zinc-800/60 border border-zinc-700/60 font-mono">
+                      Format: PKWARE ZIP (RFC 1951 Deflate)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-lg bg-zinc-800/60 border border-zinc-700/60 font-mono">
+                      Self-Contained Manifest
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleExportBackup(true)}
+                      disabled={isExportingBackup}
+                      className="flex items-center gap-2 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-medium text-white shadow-md shadow-violet-600/30 hover:bg-violet-500 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {isExportingBackup ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin" />
+                          <span>Generating Vault...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="size-3.5" />
+                          <span>Choose Destination & Export Vault (.zip)</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportBackup(false)}
+                      disabled={isExportingBackup}
+                      className="flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <FileArchive className="size-3.5 text-zinc-400" />
+                      <span>Quick Export to Downloads</span>
+                    </button>
+                  </div>
+
+                  {backupResult && (
+                    <div
+                      className={`flex items-start gap-2.5 rounded-xl border p-3 text-xs animate-in fade-in-0 duration-150 ${
+                        backupResult.success
+                          ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300"
+                          : "border-rose-500/30 bg-rose-950/20 text-rose-300"
+                      }`}
+                    >
+                      {backupResult.success ? (
+                        <CheckCircle2 className="size-4 text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <AlertCircle className="size-4 text-rose-400 shrink-0 mt-0.5" />
+                      )}
+                      <div className="flex-1 space-y-1">
+                        <div className="font-semibold">
+                          {backupResult.success ? "Backup Vault Generated Successfully" : "Backup Vault Generation Failed"}
+                        </div>
+                        {backupResult.success && (
+                          <div className="text-[11px] space-y-0.5 text-zinc-300 font-mono">
+                            <div className="truncate">Path: {backupResult.archivePath}</div>
+                            <div className="text-zinc-400">
+                              Files: {backupResult.fileCount} | Uncompressed: {Math.round(backupResult.totalBytesUncompressed / 1024)} KB | Compressed: {Math.round(backupResult.totalBytesCompressed / 1024)} KB
+                            </div>
+                            <div className="text-zinc-400">
+                              Agents: {backupResult.agentsIncluded.join(", ") || "None"}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Card 2: Factory Reset & Complete Data Purge */}
+                <div className="rounded-2xl border border-rose-900/40 bg-rose-950/10 p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b border-rose-900/30 pb-3">
+                    <div>
+                      <h3 className="text-xs font-semibold text-rose-300 flex items-center gap-2">
+                        <AlertTriangle className="size-4 text-rose-400" />
+                        <span>Factory Reset & Complete Data Purge</span>
+                      </h3>
+                      <p className="text-[11px] text-zinc-400">
+                        Gracefully terminate background daemons and permanently delete local application data directories across the host operating system.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-rose-900/30 bg-rose-950/20 p-3 text-[11px] text-rose-200/90 leading-relaxed">
+                    <p className="font-semibold text-rose-300">Warning: This action is irreversible.</p>
+                    <p className="mt-0.5 text-zinc-400">
+                      All agent workspaces, short-term trajectories, worktrees, credentials, models cache, and local application states will be purged. Background daemons will be terminated immediately.
+                    </p>
+                  </div>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPurgeStep(1)
+                        setPurgeConfirmationInput("")
+                        setPurgeResult(null)
+                        setIsPurgeModalOpen(true)
+                      }}
+                      className="flex items-center gap-2 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-medium text-white shadow-md shadow-rose-900/30 hover:bg-rose-500 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span>Purge App Data & Reset...</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Card 3: In-App Uninstallation */}
+                <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-4 space-y-4">
+                  <div className="flex items-center justify-between border-b border-zinc-800/60 pb-3">
+                    <div>
+                      <h3 className="text-xs font-semibold text-zinc-200 flex items-center gap-2">
+                        <Trash2 className="size-4 text-amber-400" />
+                        <span>Uninstall Krypton</span>
+                      </h3>
+                      <p className="text-[11px] text-zinc-400">
+                        Remove Krypton from the system, deregister operating system shortcuts, and stop all background services.
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                    Triggers the native operating system teardown process:
+                    spawns uninstaller executable on Windows, unloads LaunchAgents and moves app to Trash on macOS, or unregisters desktop shortcuts and services on Linux.
+                  </p>
+
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUninstallWithPurge(false)
+                        setUninstallResult(null)
+                        setIsUninstallModalOpen(true)
+                      }}
+                      className="flex items-center gap-2 rounded-xl border border-amber-600/40 bg-amber-950/20 px-3.5 py-2 text-xs font-medium text-amber-300 hover:bg-amber-900/40 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="size-3.5 text-amber-400" />
+                      <span>Uninstall Krypton...</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </main>
       </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL 1: Double-Confirmation Factory Reset Modal      */}
+      {/* ---------------------------------------------------- */}
+      {isPurgeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in-0 duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-rose-800/60 bg-zinc-950 p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2 text-rose-400 font-semibold text-sm">
+                <AlertTriangle className="size-4.5" />
+                <span>Confirm Factory Reset (Step {purgeStep} of 2)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPurgeModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-300 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {purgeStep === 1 && (
+              <div className="space-y-3 text-xs text-zinc-300">
+                <p>
+                  You are about to execute a complete factory reset. This will:
+                </p>
+                <ul className="list-disc list-inside space-y-1 text-zinc-400 pl-1 font-mono text-[11px]">
+                  <li>Send termination signals to active background daemons</li>
+                  <li>Delete all agent workspaces, prompts (*.md), and memories</li>
+                  <li>Delete trajectories, logs, and Git worktrees</li>
+                  <li>Clear stored credentials and local browser states</li>
+                </ul>
+                <p className="text-zinc-400 pt-1">
+                  We strongly recommend exporting a <strong>Backup Vault (.zip)</strong> before continuing.
+                </p>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setIsPurgeModalOpen(false)}
+                    className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPurgeStep(2)}
+                    className="rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-rose-500 cursor-pointer"
+                  >
+                    Proceed to Step 2
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {purgeStep === 2 && (
+              <div className="space-y-3 text-xs text-zinc-300">
+                <p className="text-rose-300 font-medium">
+                  Final confirmation: Please type <code className="bg-rose-950 px-1.5 py-0.5 rounded font-mono text-white">RESET</code> below to confirm permanent deletion.
+                </p>
+
+                <input
+                  type="text"
+                  value={purgeConfirmationInput}
+                  onChange={(e) => setPurgeConfirmationInput(e.target.value)}
+                  placeholder="Type RESET to confirm"
+                  className="w-full rounded-xl border border-rose-900/60 bg-zinc-900 px-3 py-2 text-xs font-mono text-white outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+                />
+
+                {purgeResult && (
+                  <div
+                    className={`rounded-xl border p-2.5 text-[11px] ${
+                      purgeResult.success
+                        ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300"
+                        : "border-rose-500/30 bg-rose-950/20 text-rose-300"
+                    }`}
+                  >
+                    <div className="font-semibold">{purgeResult.message}</div>
+                    <div className="text-[10px] font-mono mt-1 text-zinc-400">
+                      Purged {purgeResult.purgedDirectories.length} directories.
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setIsPurgeModalOpen(false)}
+                    disabled={isPurging}
+                    className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 disabled:opacity-50 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecutePurge}
+                    disabled={purgeConfirmationInput.trim() !== "RESET" || isPurging}
+                    className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-rose-500 disabled:opacity-40 cursor-pointer shadow-md shadow-rose-900/40"
+                  >
+                    {isPurging ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin" />
+                        <span>Purging Data...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="size-3.5" />
+                        <span>Confirm Permanent Purge</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL 2: Uninstallation Confirmation Modal           */}
+      {/* ---------------------------------------------------- */}
+      {isUninstallModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in-0 duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
+                <Trash2 className="size-4 text-amber-400" />
+                <span>Uninstall Krypton Application</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsUninstallModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-300 cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-zinc-300">
+              <p>
+                This will terminate background processes and invoke the native platform uninstallation routine for your operating system.
+              </p>
+
+              <label className="flex items-start gap-2.5 p-3 rounded-xl border border-zinc-800 bg-zinc-900/50 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={uninstallWithPurge}
+                  onChange={(e) => setUninstallWithPurge(e.target.checked)}
+                  className="mt-0.5 accent-violet-500 cursor-pointer"
+                />
+                <div className="space-y-0.5">
+                  <div className="font-semibold text-zinc-200">Also delete user workspaces & runtime data</div>
+                  <div className="text-[11px] text-zinc-400">
+                    Purges <code className="font-mono text-zinc-300">~/.krypton</code> and application cache directories before uninstalling.
+                  </div>
+                </div>
+              </label>
+
+              {uninstallResult && (
+                <div
+                  className={`rounded-xl border p-2.5 text-[11px] ${
+                    uninstallResult.success
+                      ? "border-emerald-500/30 bg-emerald-950/20 text-emerald-300"
+                      : "border-rose-500/30 bg-rose-950/20 text-rose-300"
+                  }`}
+                >
+                  <div className="font-semibold">{uninstallResult.actionTaken}</div>
+                  {uninstallResult.manualInstructions && (
+                    <div className="mt-1.5 p-2 rounded bg-black/40 font-mono text-[10px] text-zinc-200 select-all">
+                      {uninstallResult.manualInstructions}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800/80">
+                <button
+                  type="button"
+                  onClick={() => setIsUninstallModalOpen(false)}
+                  disabled={isUninstalling}
+                  className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteUninstall}
+                  disabled={isUninstalling}
+                  className="flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-amber-500 disabled:opacity-50 cursor-pointer shadow-md shadow-amber-900/30"
+                >
+                  {isUninstalling ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>Uninstalling...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="size-3.5" />
+                      <span>Execute Uninstallation</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
