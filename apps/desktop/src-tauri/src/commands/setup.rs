@@ -433,3 +433,309 @@ pub fn get_provider_config() -> Result<ProviderConfigData, String> {
     })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderKeySetting {
+    pub provider: String,
+    pub api_key: Option<String>,
+    pub base_url: Option<String>,
+    pub custom_model: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsPayload {
+    pub default_workspace_dir: Option<String>,
+    pub default_terminal_shell: Option<String>,
+    pub ask_for_approval: Option<bool>,
+    pub ast_safety_enforced: Option<bool>,
+    pub telemetry_enabled: Option<bool>,
+    pub active_provider: Option<String>,
+    pub theme: Option<String>,
+    pub font_size: Option<String>,
+    pub ui_density: Option<String>,
+    pub providers: Option<Vec<ProviderKeySetting>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettingsResult {
+    pub default_workspace_dir: String,
+    pub default_terminal_shell: String,
+    pub ask_for_approval: bool,
+    pub ast_safety_enforced: bool,
+    pub telemetry_enabled: bool,
+    pub active_provider: String,
+    pub theme: String,
+    pub font_size: String,
+    pub ui_density: String,
+    pub providers: Vec<ProviderKeySetting>,
+}
+
+/// Retrieves all global settings and provider credentials
+#[tauri::command]
+pub fn get_app_settings() -> Result<AppSettingsResult, String> {
+    let home = get_krypton_home();
+    let config_path = home.join("config.json");
+    let creds_path = home.join("credentials.json");
+    let default_ws = resolve_default_workspace();
+
+    let mut default_workspace_dir = default_ws;
+    let mut default_terminal_shell = "system".to_string();
+    let mut ask_for_approval = true;
+    let mut ast_safety_enforced = true;
+    let mut telemetry_enabled = false;
+    let mut active_provider = "openai".to_string();
+    let mut theme = "dark".to_string();
+    let mut font_size = "standard".to_string();
+    let mut ui_density = "comfortable".to_string();
+
+    if config_path.exists() {
+        if let Ok(raw) = fs::read_to_string(&config_path) {
+            if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&raw) {
+                if let Some(ws) = cfg.get("defaultWorkspaceDir").and_then(|v| v.as_str()) {
+                    default_workspace_dir = ws.to_string();
+                }
+                if let Some(sh) = cfg.get("defaultTerminalShell").and_then(|v| v.as_str()) {
+                    default_terminal_shell = sh.to_string();
+                }
+                if let Some(appr) = cfg.get("askForApproval").and_then(|v| v.as_bool()) {
+                    ask_for_approval = appr;
+                }
+                if let Some(ast) = cfg.get("astSafetyEnforced").and_then(|v| v.as_bool()) {
+                    ast_safety_enforced = ast;
+                }
+                if let Some(tel) = cfg.get("telemetry").and_then(|t| t.get("enabled")).and_then(|v| v.as_bool()) {
+                    telemetry_enabled = tel;
+                }
+                if let Some(orch) = cfg.get("defaultRoutes").and_then(|r| r.get("orchestrator")) {
+                    if let Some(p) = orch.get("provider").and_then(|v| v.as_str()) {
+                        active_provider = p.to_string();
+                    }
+                }
+                if let Some(app) = cfg.get("appearance") {
+                    if let Some(t) = app.get("theme").and_then(|v| v.as_str()) {
+                        theme = t.to_string();
+                    }
+                    if let Some(f) = app.get("fontSize").and_then(|v| v.as_str()) {
+                        font_size = f.to_string();
+                    }
+                    if let Some(d) = app.get("density").and_then(|v| v.as_str()) {
+                        ui_density = d.to_string();
+                    }
+                }
+            }
+        }
+    }
+
+    let mut providers: Vec<ProviderKeySetting> = Vec::new();
+    let known_providers = vec!["openai", "anthropic", "openrouter", "ollama", "custom"];
+
+    let creds_json: serde_json::Value = if creds_path.exists() {
+        fs::read_to_string(&creds_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or(serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    for p in known_providers {
+        let key_name = format!("{}_api_key", p);
+        let url_name = format!("{}_base_url", p);
+        let model_name = format!("{}_custom_model", p);
+
+        let api_key = creds_json.get(&key_name).and_then(|v| v.as_str()).map(String::from);
+        let base_url = creds_json.get(&url_name).and_then(|v| v.as_str()).map(String::from);
+        let custom_model = creds_json.get(&model_name).and_then(|v| v.as_str()).map(String::from);
+
+        providers.push(ProviderKeySetting {
+            provider: p.to_string(),
+            api_key,
+            base_url,
+            custom_model,
+        });
+    }
+
+    Ok(AppSettingsResult {
+        default_workspace_dir,
+        default_terminal_shell,
+        ask_for_approval,
+        ast_safety_enforced,
+        telemetry_enabled,
+        active_provider,
+        theme,
+        font_size,
+        ui_density,
+        providers,
+    })
+}
+
+/// Saves updated global settings and provider credentials immediately
+#[tauri::command]
+pub fn save_app_settings(payload: AppSettingsPayload) -> Result<bool, String> {
+    ensure_krypton_directories()?;
+    let home = get_krypton_home();
+    let config_path = home.join("config.json");
+    let creds_path = home.join("credentials.json");
+
+    let mut config: serde_json::Value = if config_path.exists() {
+        fs::read_to_string(&config_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_else(|| serde_json::json!({}))
+    } else {
+        serde_json::json!({})
+    };
+
+    if let Some(ws) = payload.default_workspace_dir {
+        config["defaultWorkspaceDir"] = serde_json::json!(ws);
+    }
+    if let Some(sh) = payload.default_terminal_shell {
+        config["defaultTerminalShell"] = serde_json::json!(sh);
+    }
+    if let Some(appr) = payload.ask_for_approval {
+        config["askForApproval"] = serde_json::json!(appr);
+    }
+    if let Some(ast) = payload.ast_safety_enforced {
+        config["astSafetyEnforced"] = serde_json::json!(ast);
+    }
+    if let Some(tel) = payload.telemetry_enabled {
+        config["telemetry"] = serde_json::json!({
+            "enabled": tel,
+            "logLevel": "info"
+        });
+    }
+    if let Some(p) = payload.active_provider {
+        if let Some(routes) = config.get_mut("defaultRoutes") {
+            if let Some(orch) = routes.get_mut("orchestrator") {
+                orch["provider"] = serde_json::json!(p);
+            }
+        }
+    }
+
+    // Appearance
+    let mut appearance = config.get("appearance").cloned().unwrap_or(serde_json::json!({}));
+    if let Some(th) = payload.theme {
+        appearance["theme"] = serde_json::json!(th);
+    }
+    if let Some(fsz) = payload.font_size {
+        appearance["fontSize"] = serde_json::json!(fsz);
+    }
+    if let Some(den) = payload.ui_density {
+        appearance["density"] = serde_json::json!(den);
+    }
+    config["appearance"] = appearance;
+
+    let serialized = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Failed to serialize config: {}", e))?;
+    fs::write(&config_path, serialized)
+        .map_err(|e| format!("Failed to write config {:?}: {}", config_path, e))?;
+
+    // Credentials
+    if let Some(prov_list) = payload.providers {
+        let mut creds: serde_json::Map<String, serde_json::Value> = if creds_path.exists() {
+            fs::read_to_string(&creds_path)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default()
+        } else {
+            serde_json::Map::new()
+        };
+
+        for p in prov_list {
+            let p_name = p.provider.to_lowercase();
+            let key_name = format!("{}_api_key", p_name);
+            let url_name = format!("{}_base_url", p_name);
+            let model_name = format!("{}_custom_model", p_name);
+
+            if let Some(k) = p.api_key {
+                if k.trim().is_empty() {
+                    creds.remove(&key_name);
+                } else {
+                    creds.insert(key_name, serde_json::json!(k.trim()));
+                }
+            }
+            if let Some(u) = p.base_url {
+                if u.trim().is_empty() {
+                    creds.remove(&url_name);
+                } else {
+                    creds.insert(url_name, serde_json::json!(u.trim()));
+                }
+            }
+            if let Some(m) = p.custom_model {
+                if m.trim().is_empty() {
+                    creds.remove(&model_name);
+                } else {
+                    creds.insert(model_name, serde_json::json!(m.trim()));
+                }
+            }
+        }
+
+        let serialized_creds = serde_json::to_string_pretty(&creds)
+            .map_err(|e| format!("Failed to serialize credentials: {}", e))?;
+        fs::write(&creds_path, serialized_creds)
+            .map_err(|e| format!("Failed to write credentials {:?}: {}", creds_path, e))?;
+    }
+
+    Ok(true)
+}
+
+/// Saves agent configuration strictly to ~/.krypton/agents/<agent_name>/config.json
+#[tauri::command]
+pub fn save_agent_config(agent_name: String, config: serde_json::Value) -> Result<bool, String> {
+    ensure_krypton_directories()?;
+    let home = get_krypton_home();
+    let sanitized_name = agent_name.trim();
+    if sanitized_name.is_empty() {
+        return Err("Agent name is required".to_string());
+    }
+
+    let agent_dir = home.join("agents").join(sanitized_name);
+    if !agent_dir.exists() {
+        fs::create_dir_all(&agent_dir)
+            .map_err(|e| format!("Failed to create agent dir {:?}: {}", agent_dir, e))?;
+    }
+
+    let config_path = agent_dir.join("config.json");
+    let serialized = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Serialization error: {}", e))?;
+
+    fs::write(&config_path, serialized)
+        .map_err(|e| format!("Failed to write agent config {:?}: {}", config_path, e))?;
+
+    Ok(true)
+}
+
+/// Lists all agent configurations found in ~/.krypton/agents/
+#[tauri::command]
+pub fn list_agents_config() -> Result<Vec<serde_json::Value>, String> {
+    let home = get_krypton_home();
+    let agents_dir = home.join("agents");
+    let mut result: Vec<serde_json::Value> = Vec::new();
+
+    if !agents_dir.exists() {
+        return Ok(result);
+    }
+
+    if let Ok(entries) = fs::read_dir(&agents_dir) {
+        for entry in entries.flatten() {
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    let cfg_path = entry.path().join("config.json");
+                    if cfg_path.exists() {
+                        if let Ok(raw) = fs::read_to_string(&cfg_path) {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&raw) {
+                                result.push(json);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+

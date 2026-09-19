@@ -64,7 +64,14 @@ The global configuration conforms to `GlobalConfigSchema` (`packages/shared-type
   "isInitialized": true,
   "customAgentName": "Orchestrator",
   "defaultWorkspaceDir": "C:\\Users\\user\\Projects",
+  "defaultTerminalShell": "powershell",
   "askForApproval": true,
+  "astSafetyEnforced": true,
+  "appearance": {
+    "theme": "dark",
+    "fontSize": "standard",
+    "density": "comfortable"
+  },
   "defaultRoutes": {
     "orchestrator": {
       "provider": "openai",

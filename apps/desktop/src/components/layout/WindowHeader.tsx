@@ -22,6 +22,7 @@ import {
   Maximize2,
   Search,
   Bell,
+  Settings as SettingsIcon,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
@@ -35,6 +36,8 @@ interface WindowHeaderProps {
   onNewChat: () => void
   onCreateProject?: () => void
   onOpenSetupWizard?: () => void
+  onOpenSettings?: (category?: string) => void
+  onToggleVoiceHud?: () => void
   canGoBack?: boolean
   canGoForward?: boolean
   onGoBack?: () => void
@@ -53,6 +56,8 @@ export function WindowHeader({
   onNewChat,
   onCreateProject,
   onOpenSetupWizard,
+  onOpenSettings,
+  onToggleVoiceHud,
   canGoBack = false,
   canGoForward = false,
   onGoBack,
@@ -62,7 +67,7 @@ export function WindowHeader({
 }: WindowHeaderProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isLogoMenuOpen, setIsLogoMenuOpen] = useState(false)
-  const [activeMenu, setActiveMenu] = useState<"file" | "edit" | "view" | "help" | null>(null)
+  const [activeMenu, setActiveMenu] = useState<"file" | "edit" | "view" | "settings" | "help" | null>(null)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
   const menuContainerRef = useRef<HTMLDivElement>(null)
@@ -134,6 +139,20 @@ export function WindowHeader({
     }
   }, [activeMenu, isLogoMenuOpen])
 
+  // Wire standard Settings shortcut (Ctrl+, on Windows/Linux, Cmd+, on macOS)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault()
+        onOpenSettings?.()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [onOpenSettings])
+
   // Window management handlers
   const handleMinimize = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -164,6 +183,9 @@ export function WindowHeader({
   }
 
   const handleToggleVoiceHud = async () => {
+    if (onToggleVoiceHud) {
+      onToggleVoiceHud()
+    }
     if (isTauri()) {
       await invoke("toggle_overlay").catch(console.error)
     }
@@ -254,12 +276,12 @@ export function WindowHeader({
                   data-tauri-drag-region="false"
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                   onClick={() => {
-                    onOpenSetupWizard?.()
+                    onOpenSettings?.()
                     setIsLogoMenuOpen(false)
                   }}
                   className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                 >
-                  <span>Setup Wizard...</span>
+                  <span>Settings...</span>
                   <span className="text-[10px] text-zinc-500 font-mono">Ctrl+,</span>
                 </button>
                 <button
@@ -415,12 +437,12 @@ export function WindowHeader({
                     data-tauri-drag-region="false"
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
-                      onOpenSetupWizard?.()
+                      onOpenSettings?.()
                       setActiveMenu(null)
                     }}
                     className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
-                    <span>Setup Wizard...</span>
+                    <span>Settings...</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+,</span>
                   </button>
                   <div className="h-px bg-zinc-800 my-1" />
@@ -478,12 +500,13 @@ export function WindowHeader({
                     data-tauri-drag-region="false"
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
-                      onOpenSetupWizard?.()
+                      onOpenSettings?.()
                       setActiveMenu(null)
                     }}
                     className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
                     <span>Preferences...</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">Ctrl+,</span>
                   </button>
                 </div>
               )}
@@ -548,6 +571,108 @@ export function WindowHeader({
                   >
                     <span>Toggle Voice Micro-HUD</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+Space</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Settings Menu */}
+            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+              <button
+                type="button"
+                data-tauri-drag-region="false"
+                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                onClick={() => {
+                  setActiveMenu(activeMenu === "settings" ? null : "settings")
+                  setIsLogoMenuOpen(false)
+                }}
+                className={`px-2 py-1 rounded hover:bg-zinc-800/80 transition-colors cursor-pointer pointer-events-auto ${
+                  activeMenu === "settings" ? "bg-zinc-800 text-zinc-100 font-medium" : "hover:text-zinc-200"
+                }`}
+              >
+                Settings
+              </button>
+
+              {activeMenu === "settings" && (
+                <div
+                  data-tauri-drag-region="false"
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                  className="absolute left-0 top-full mt-1.5 w-56 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto"
+                >
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSettings?.()
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span className="font-medium">Preferences...</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">Ctrl+,</span>
+                  </button>
+                  <div className="h-px bg-zinc-800 my-1" />
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSettings?.("general")
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span>General</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSettings?.("agents")
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span>Agents & Identity</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSettings?.("providers")
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span>Model Providers</span>
+                  </button>
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSettings?.("appearance")
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span>Appearance</span>
+                  </button>
+                  <div className="h-px bg-zinc-800 my-1" />
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSetupWizard?.()
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-400 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span>Setup Wizard...</span>
                   </button>
                 </div>
               )}
@@ -791,7 +916,7 @@ export function WindowHeader({
               { key: "Ctrl+B", action: "Toggle workspaces sidebar" },
               { key: "Ctrl+J", action: "Toggle task DAG & trajectory drawer" },
               { key: "Ctrl+Shift+Space", action: "Toggle floating Voice Micro-HUD" },
-              { key: "Ctrl+,", action: "Open First-Run Setup Wizard / Settings" },
+              { key: "Ctrl+,", action: "Open Settings / Preferences (Codex View)" },
             ].map((sc) => (
               <div key={sc.key} className="flex items-center justify-between rounded-lg bg-zinc-900/60 px-3 py-1.5 border border-zinc-800/80">
                 <span className="text-zinc-300">{sc.action}</span>

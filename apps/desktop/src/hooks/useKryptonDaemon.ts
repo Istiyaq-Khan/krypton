@@ -428,6 +428,7 @@ export function useKryptonDaemon() {
     isConnected,
     tasks,
     fleet,
+    setFleet,
     logs,
     telemetry,
     totalTokensUsed,

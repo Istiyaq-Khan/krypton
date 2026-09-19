@@ -53,6 +53,10 @@ pub fn run() {
             get_cached_models,
             save_cached_models,
             get_provider_config,
+            get_app_settings,
+            save_app_settings,
+            save_agent_config,
+            list_agents_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running krypton desktop application");

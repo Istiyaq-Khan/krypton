@@ -47,7 +47,7 @@ Every interactive element in the header is explicitly isolated from window drag 
 The isolated interactive controls include:
 1. **App Logo & Dropdown**: Krypton brand emblem button with quick menu for new sessions, new workspaces, settings, voice HUD, shortcuts, and exit.
 2. **Navigation History Buttons**: `Back` (`<`) and `Forward` (`>`) buttons for chronological navigation between projects and sessions.
-3. **Application Menus**: `File`, `Edit`, `View`, and `Help` dropdown menus with native-style keyboard shortcuts.
+3. **Application Menus**: `File`, `Edit`, `View`, `Settings`, and `Help` dropdown menus with native-style keyboard shortcuts (`Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+B`, `Ctrl+J`, `Ctrl+,`).
 4. **Breadcrumbs Container**: Active workspace folder and conversation thread breadcrumb pill.
 5. **Search & Notification Icons**: Quick search (`Ctrl+K`) and notifications (`Bell`) action buttons.
 6. **Layout Toggles**: Left sidebar (`PanelLeft`) and right output drawer (`PanelRight`) toggle buttons.
@@ -104,6 +104,7 @@ const handleToggleMaximize = async () => {
 ## 4. In-App Titlebar Menus & Navigation History
 
 The header integrates classic application menu bars and browser-style navigation:
-- **Application Menus**: `File`, `Edit`, `View`, and `Help` dropdown menus with native-style keyboard shortcuts (`Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+B`, `Ctrl+J`, `Ctrl+,`).
-- **Preferences Access**: Direct menu shortcuts to reopen the First-Run Setup Wizard or settings modal.
-- **Chronological History**: `Back` and `Forward` buttons allowing users to navigate between visited project workspaces and chat threads.
+- **Application Menus Order**: `File`, `Edit`, `View`, `Settings`, and `Help` (with `Settings` positioned directly before `Help`).
+- **Settings Menu**: Provides direct shortcuts to full-screen Codex Settings (`Preferences... Ctrl+,` or `Cmd+,` on macOS) and specific category navigation (`General`, `Agents & Identity`, `Model Providers`, `Appearance`).
+- **Preferences Access**: Direct menu shortcuts to open the Codex Settings interface or First-Run Setup Wizard.
+- **Chronological History**: `Back` and `Forward` buttons allowing users to navigate between visited project workspaces, settings, and chat threads.

@@ -66,3 +66,16 @@ The audio pipeline bridges native microphone recording to high-speed transcripti
 Once speech transcription stabilizes, the text instruction is either:
 1. Dispatched as a new primary objective to the chosen target agent.
 2. Injected into the **Mid-Flight Steering Queue** (`Buffer B`) of an actively executing agent task, redirecting behavior dynamically without restarting.
+
+---
+
+## 4. In-App Decoupled Floating Voice HUD (`FloatingVoiceAgent.tsx`)
+
+In addition to the secondary transparent OS window, Krypton features an in-app decoupled floating Voice HUD widget designed to provide seamless voice interaction across all internal views:
+
+### Key Architectural Invariants:
+1. **Top-Level Z-Index Elevation (`z-[9999]`)**: The Voice HUD is elevated above all workstation elements, sidebars, output drawers, diff viewers, and settings panels. It is never clipped, masked, or trapped inside the chat or stream scroll containers.
+2. **Pointer Event & Drag Isolation**: Marked with `data-tauri-drag-region="false"` and `WebkitAppRegion: "no-drag"` (`pointer-events-auto`), guaranteeing that fluid dragging, magnetic edge docking, and audio toggles are completely isolated from Tauri native window drag regions.
+3. **Cross-View Persistence**: Mounted at the top level of the app workstation shell, the Voice HUD remains persistently alive, draggable, and reactive whether the user is on the active Project Workspace or the Codex Settings interface.
+4. **Instant Keyboard Toggle**: Toggled globally from any view via `Ctrl+Shift+Space` (or `Cmd+Shift+Space` on macOS) or via the `View` / `Krypton` menu options.
+
