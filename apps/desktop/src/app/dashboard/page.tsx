@@ -13,7 +13,7 @@ import { QuestionModal } from "@/components/QuestionModal"
 import { VcsDiffViewer } from "@/components/VcsDiffViewer"
 import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 import { FirstRunSetupWizard, SetupCompletedData } from "@/components/setup/FirstRunSetupWizard"
-import { CodexSettings, SettingsCategory } from "@/components/settings/CodexSettings"
+import { KryptonSettings, SettingsCategory } from "@/components/settings/KryptonSettings"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function DashboardPage() {
@@ -176,10 +176,10 @@ export default function DashboardPage() {
         onGoForward={session.goForward}
       />
 
-      {/* 2. Main Workstation Shell or Codex Settings Interface */}
+      {/* 2. Main Workstation Shell or Krypton Settings Interface */}
       {activeView === "settings" ? (
         <div className="flex flex-1 overflow-hidden min-h-0 relative">
-          <CodexSettings
+          <KryptonSettings
             initialCategory={activeSettingsCategory}
             onBack={() => setActiveView("workspace")}
             onUpdateApproval={session.setAskForApproval}

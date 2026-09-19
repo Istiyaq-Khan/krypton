@@ -48,7 +48,7 @@ import {
 
 export type SettingsCategory = "general" | "agents" | "providers" | "appearance"
 
-export interface CodexSettingsProps {
+export interface KryptonSettingsProps {
   initialCategory?: SettingsCategory
   onBack: () => void
   onUpdateApproval?: (ask: boolean) => void
@@ -56,13 +56,13 @@ export interface CodexSettingsProps {
   onRefreshFleet?: () => void
 }
 
-export function CodexSettings({
+export function KryptonSettings({
   initialCategory = "general",
   onBack,
   onUpdateApproval,
   onUpdateModel,
   onRefreshFleet,
-}: CodexSettingsProps) {
+}: KryptonSettingsProps) {
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory)
   const [saveIndicator, setSaveIndicator] = useState<string | null>(null)
 

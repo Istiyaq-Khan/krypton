@@ -105,8 +105,8 @@ const handleToggleMaximize = async () => {
 
 The header integrates classic application menu bars and browser-style navigation:
 - **Application Menus Order**: `File`, `Edit`, `View`, `Settings`, and `Help` (with `Settings` positioned directly before `Help`).
-- **Settings Menu**: Provides direct shortcuts to full-screen Codex Settings (`Preferences... Ctrl+,` or `Cmd+,` on macOS) and specific category navigation (`General`, `Agents & Identity`, `Model Providers`, `Appearance`).
-- **Preferences Access**: Direct menu shortcuts to open the Codex Settings interface or First-Run Setup Wizard.
+- **Settings Menu**: Provides direct shortcuts to full-screen Krypton Settings (`Preferences... Ctrl+,` or `Cmd+,` on macOS) and specific category navigation (`General`, `Agents & Identity`, `Model Providers`, `Appearance`).
+- **Preferences Access**: Direct menu shortcuts to open the Krypton Settings interface or First-Run Setup Wizard.
 - **Chronological History**: `Back` and `Forward` buttons allowing users to navigate between visited project workspaces, settings, and chat threads.
 
 ---

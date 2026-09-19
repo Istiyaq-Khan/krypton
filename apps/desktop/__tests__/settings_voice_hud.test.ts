@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest"
 import fs from "fs"
 import path from "path"
 
-describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", () => {
+describe("Issue #4: Krypton Settings System & Floating Voice HUD Overlay", () => {
   const windowHeaderPath = path.resolve(__dirname, "../src/components/layout/WindowHeader.tsx")
-  const codexSettingsPath = path.resolve(__dirname, "../src/components/settings/CodexSettings.tsx")
+  const kryptonSettingsPath = path.resolve(__dirname, "../src/components/settings/KryptonSettings.tsx")
   const floatingVoiceAgentPath = path.resolve(__dirname, "../src/components/voice/FloatingVoiceAgent.tsx")
   const dashboardPagePath = path.resolve(__dirname, "../src/app/dashboard/page.tsx")
   const settingsPagePath = path.resolve(__dirname, "../src/app/settings/page.tsx")
@@ -56,9 +56,9 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
     expect(headerSource).toContain('onOpenSettings?.("appearance")')
   })
 
-  it("3. Codex Settings Interface: renders Top Navigation with 'Back to app' button", () => {
-    expect(fs.existsSync(codexSettingsPath)).toBe(true)
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("3. Krypton Settings Interface: renders Top Navigation with 'Back to app' button", () => {
+    expect(fs.existsSync(kryptonSettingsPath)).toBe(true)
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // Back to app button
     expect(settingsSource).toContain("Back to app")
@@ -66,8 +66,8 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
     expect(settingsSource).toContain("ArrowLeft")
   })
 
-  it("4. Codex Settings Interface: provides Left Navigation Sidebar with 4 required categories", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("4. Krypton Settings Interface: provides Left Navigation Sidebar with 4 required categories", () => {
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // 4 Categories present
     expect(settingsSource).toContain('type SettingsCategory = "general" | "agents" | "providers" | "appearance"')
@@ -77,8 +77,8 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
     expect(settingsSource).toContain('onClick={() => setActiveCategory("appearance")}')
   })
 
-  it("5. Codex Settings: General category provides workspace directory, terminal shell, and approval toggles", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("5. Krypton Settings: General category provides workspace directory, terminal shell, and approval toggles", () => {
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // Default workspace directory
     expect(settingsSource).toContain("Default Workspace Directory")
@@ -98,8 +98,8 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
     expect(settingsSource).toContain("Anonymous Crash Reporting")
   })
 
-  it("6. Codex Settings: Agents & Identity lists agents, creates new agents, and saves strictly to config.json", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("6. Krypton Settings: Agents & Identity lists agents, creates new agents, and saves strictly to config.json", () => {
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // Roster and creation
     expect(settingsSource).toContain("Agents & Identity")
@@ -112,8 +112,8 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
     expect(settingsSource).toContain("handleUpdateAgentField")
   })
 
-  it("7. Codex Settings: Model Providers supports keys, custom base URLs, and test connections", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("7. Krypton Settings: Model Providers supports keys, custom base URLs, and test connections", () => {
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // Model provider tabs
     expect(settingsSource).toContain("Model Providers")
@@ -131,8 +131,8 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
     expect(settingsSource).toContain("testAndFetchModels")
   })
 
-  it("8. Codex Settings: Appearance allows immediate theme, font sizing, and UI density changes without restart", () => {
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("8. Krypton Settings: Appearance allows immediate theme, font sizing, and UI density changes without restart", () => {
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // Theme, font size, density
     expect(settingsSource).toContain("Dark Obsidian")
@@ -161,12 +161,12 @@ describe("Issue #4: Codex-Style Settings System & Floating Voice HUD Overlay", (
 
     // Active in both dashboard and settings routes
     const dashboardSource = fs.readFileSync(dashboardPagePath, "utf-8")
-    expect(dashboardSource).toContain("<CodexSettings")
+    expect(dashboardSource).toContain("<KryptonSettings")
     expect(dashboardSource).toContain("<FloatingVoiceAgent")
     expect(dashboardSource).toContain('activeView === "settings"')
 
     const settingsSource = fs.readFileSync(settingsPagePath, "utf-8")
-    expect(settingsSource).toContain("<CodexSettings")
+    expect(settingsSource).toContain("<KryptonSettings")
     expect(settingsSource).toContain("<FloatingVoiceAgent")
   })
 

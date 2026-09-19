@@ -1045,7 +1045,7 @@ export function WindowHeader({
               { key: "Ctrl+B", action: "Toggle workspaces sidebar" },
               { key: "Ctrl+J", action: "Toggle task DAG & trajectory drawer" },
               { key: "Ctrl+Shift+Space", action: "Toggle floating Voice Micro-HUD" },
-              { key: "Ctrl+,", action: "Open Settings / Preferences (Codex View)" },
+              { key: "Ctrl+,", action: "Open Settings / Preferences (Krypton View)" },
             ].map((sc) => (
               <div key={sc.key} className="flex items-center justify-between rounded-lg bg-zinc-900/60 px-3 py-1.5 border border-zinc-800/80">
                 <span className="text-zinc-300">{sc.action}</span>

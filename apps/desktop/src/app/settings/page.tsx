@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { WindowHeader } from "@/components/layout/WindowHeader"
-import { CodexSettings, SettingsCategory } from "@/components/settings/CodexSettings"
+import { KryptonSettings, SettingsCategory } from "@/components/settings/KryptonSettings"
 import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 import { useAgentSession } from "@/hooks/useAgentSession"
 
@@ -55,9 +55,9 @@ export default function SettingsPage() {
         onGoBack={() => router.push("/dashboard")}
       />
 
-      {/* Main Codex Settings Interface */}
+      {/* Main Krypton Settings Interface */}
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
-        <CodexSettings
+        <KryptonSettings
           initialCategory={activeCategory}
           onBack={() => router.push("/dashboard")}
           onUpdateApproval={session.setAskForApproval}

@@ -16,7 +16,7 @@ apps/desktop/src/app/
 ├── dashboard/
 │   └── page.tsx              # Main Workstation Shell (Sidebar, Stream, Chatbar, Drawers) & Settings view switcher
 ├── settings/
-│   └── page.tsx              # Standalone Codex-Style Settings view route
+│   └── page.tsx              # Standalone Krypton Settings view route
 └── overlay/
     └── page.tsx              # Standalone Voice Micro-HUD window route
 ```
@@ -40,11 +40,11 @@ The primary interactive workstation window:
 - Renders the main **ExecutionStream** containing agent thought traces, user messages, and tool cards.
 - Hosts the interactive **Chatbar** with command menus (`/run`, `/test`, `@agent`).
 - Toggles the side and bottom drawers: **TodoTree** (`Ctrl+J`), **VcsDiffViewer**, and **OutputsDrawer**.
-- Supports seamless in-shell switching between the active project workspace and the **CodexSettings** view (`Ctrl+,` or `Cmd+,`).
+- Supports seamless in-shell switching between the active project workspace and the **KryptonSettings** view (`Ctrl+,` or `Cmd+,`).
 - Persistently mounts the top-level **FloatingVoiceAgent** overlay (`z-[9999]`), ensuring it remains visible, draggable, and interactive across all workspace and settings views.
 
 ### C. Settings Route (`/settings`)
-Dedicated full-screen Codex settings interface:
+Dedicated full-screen Krypton settings interface:
 - **Top Navigation**: "Back to app" button returning directly to the active workstation.
 - **Left Navigation Sidebar**: 4 modular categories:
   - `General`: Default workspace directory, default terminal shell, approval mode ("Ask for approval" vs autonomous execution), AST safety enforcement, telemetry.

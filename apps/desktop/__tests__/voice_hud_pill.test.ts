@@ -5,7 +5,7 @@ import path from "path"
 describe("Issue #6: Floating Interactive Pill Voice HUD & VTT Onboarding", () => {
   const floatingVoiceAgentPath = path.resolve(__dirname, "../src/components/voice/FloatingVoiceAgent.tsx")
   const firstRunWizardPath = path.resolve(__dirname, "../src/components/setup/FirstRunSetupWizard.tsx")
-  const codexSettingsPath = path.resolve(__dirname, "../src/components/settings/CodexSettings.tsx")
+  const kryptonSettingsPath = path.resolve(__dirname, "../src/components/settings/KryptonSettings.tsx")
   const dashboardPagePath = path.resolve(__dirname, "../src/app/dashboard/page.tsx")
   const overlayPagePath = path.resolve(__dirname, "../src/app/overlay/page.tsx")
   const windowHeaderPath = path.resolve(__dirname, "../src/components/layout/WindowHeader.tsx")
@@ -49,9 +49,9 @@ describe("Issue #6: Floating Interactive Pill Voice HUD & VTT Onboarding", () =>
     expect(wizardSource).toContain("krypton_vtt_config")
   })
 
-  it("3. Codex Settings VTT Configuration: allows selecting STT engine and persists via save_app_settings", () => {
-    expect(fs.existsSync(codexSettingsPath)).toBe(true)
-    const settingsSource = fs.readFileSync(codexSettingsPath, "utf-8")
+  it("3. Krypton Settings VTT Configuration: allows selecting STT engine and persists via save_app_settings", () => {
+    expect(fs.existsSync(kryptonSettingsPath)).toBe(true)
+    const settingsSource = fs.readFileSync(kryptonSettingsPath, "utf-8")
 
     // VTT configuration card
     expect(settingsSource).toContain("Voice-To-Text (VTT) Configuration")

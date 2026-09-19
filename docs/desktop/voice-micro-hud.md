@@ -72,7 +72,7 @@ Krypton unifies all Voice HUD invocation entry points into a single synchronized
 
 ## 4. Voice-To-Text (VTT) Engine Architectures
 
-Krypton supports multiple decoupled speech transcription architectures, configured during onboarding or in Codex Settings:
+Krypton supports multiple decoupled speech transcription architectures, configured during onboarding or in Krypton Settings:
 
 | Engine Identifier | Architecture | Latency / Environment | Execution Mechanics |
 | :--- | :--- | :--- | :--- |
