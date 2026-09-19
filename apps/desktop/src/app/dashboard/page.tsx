@@ -14,7 +14,7 @@ import { VcsDiffViewer } from "@/components/VcsDiffViewer"
 import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 import { FirstRunSetupWizard, SetupCompletedData } from "@/components/setup/FirstRunSetupWizard"
 import { CodexSettings, SettingsCategory } from "@/components/settings/CodexSettings"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function DashboardPage() {
   const session = useAgentSession()
@@ -28,6 +28,23 @@ export default function DashboardPage() {
   const [isFirstRun, setIsFirstRun] = useState(false)
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false)
   const [defaultWsDir, setDefaultWsDir] = useState("")
+
+  // New Project Workspace modal state
+  const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false)
+  const [newProjName, setNewProjName] = useState("")
+  const [newProjPath, setNewProjPath] = useState("")
+
+  const handleCreateProjectSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newProjName.trim()) return
+    session.createProject(
+      newProjName.trim(),
+      newProjPath.trim() || `projects/${newProjName.trim()}`
+    )
+    setNewProjName("")
+    setNewProjPath("")
+    setIsNewProjectModalOpen(false)
+  }
 
   // Global keyboard shortcuts: Ctrl+, / Cmd+, toggles settings, Ctrl+Shift+Space toggles Voice HUD
   useEffect(() => {
@@ -115,6 +132,12 @@ export default function DashboardPage() {
       <WindowHeader
         projectName={session.activeProject?.name}
         threadTitle={activeView === "settings" ? `Settings / ${activeSettingsCategory}` : session.activeThread?.title}
+        projects={session.projects}
+        activeProjectId={session.activeProjectId}
+        onSelectProject={(id) => {
+          setActiveView("workspace")
+          session.selectProject(id)
+        }}
         isLeftSidebarOpen={session.isLeftSidebarOpen}
         isRightDrawerOpen={session.isRightDrawerOpen}
         onToggleLeftSidebar={() => session.setIsLeftSidebarOpen(!session.isLeftSidebarOpen)}
@@ -125,7 +148,7 @@ export default function DashboardPage() {
         }}
         onCreateProject={() => {
           setActiveView("workspace")
-          session.createProject("my-project", "projects/my-project")
+          setIsNewProjectModalOpen(true)
         }}
         onOpenSetupWizard={() => setIsSetupModalOpen(true)}
         onOpenSettings={(cat) => {
@@ -271,6 +294,53 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* CREATE WORKSPACE PROJECT MODAL */}
+      <Dialog open={isNewProjectModalOpen} onOpenChange={setIsNewProjectModalOpen}>
+        <DialogContent className="max-w-sm bg-zinc-950 border border-zinc-800 text-zinc-100">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">New Workspace Project</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateProjectSubmit} className="flex flex-col gap-3 pt-2 text-xs">
+            <div className="flex flex-col gap-1">
+              <label className="text-zinc-400 font-medium">Workspace Name</label>
+              <input
+                type="text"
+                placeholder="e.g. agent-workspace"
+                value={newProjName}
+                onChange={(e) => setNewProjName(e.target.value)}
+                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none focus:border-violet-500"
+                required
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-zinc-400 font-medium">Filesystem Path</label>
+              <input
+                type="text"
+                placeholder="e.g. C:/Projects/my-app"
+                value={newProjPath}
+                onChange={(e) => setNewProjPath(e.target.value)}
+                className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-zinc-100 outline-none focus:border-violet-500"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setIsNewProjectModalOpen(false)}
+                className="rounded-lg px-3 py-1.5 text-zinc-400 hover:text-zinc-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="rounded-lg bg-violet-600 hover:bg-violet-500 px-3 py-1.5 text-white font-medium"
+              >
+                Create Workspace
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* SETUP WIZARD / PREFERENCES MODAL */}
       <Dialog open={isSetupModalOpen} onOpenChange={setIsSetupModalOpen}>

@@ -48,7 +48,7 @@ The isolated interactive controls include:
 1. **App Logo & Dropdown**: Krypton brand emblem button with quick menu for new sessions, new workspaces, settings, voice HUD, shortcuts, and exit.
 2. **Navigation History Buttons**: `Back` (`<`) and `Forward` (`>`) buttons for chronological navigation between projects and sessions.
 3. **Application Menus**: `File`, `Edit`, `View`, `Settings`, and `Help` dropdown menus with native-style keyboard shortcuts (`Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+B`, `Ctrl+J`, `Ctrl+,`).
-4. **Breadcrumbs Container**: Active workspace folder and conversation thread breadcrumb pill.
+4. **Breadcrumbs & Workspace Switcher Popover**: Active workspace folder and conversation thread breadcrumb pill with chevron toggle. Clicking the breadcrumb exclusively toggles the drag-isolated Workspace Switcher popover, allowing instant workspace activation with active checkmark indication and "+ New Workspace..." creation without mutating the workspace list.
 5. **Search & Notification Icons**: Quick search (`Ctrl+K`) and notifications (`Bell`) action buttons.
 6. **Layout Toggles**: Left sidebar (`PanelLeft`) and right output drawer (`PanelRight`) toggle buttons.
 7. **Window Action Buttons**: Native minimize, maximize/restore, and close buttons.
@@ -108,3 +108,19 @@ The header integrates classic application menu bars and browser-style navigation
 - **Settings Menu**: Provides direct shortcuts to full-screen Codex Settings (`Preferences... Ctrl+,` or `Cmd+,` on macOS) and specific category navigation (`General`, `Agents & Identity`, `Model Providers`, `Appearance`).
 - **Preferences Access**: Direct menu shortcuts to open the Codex Settings interface or First-Run Setup Wizard.
 - **Chronological History**: `Back` and `Forward` buttons allowing users to navigate between visited project workspaces, settings, and chat threads.
+
+---
+
+## 5. Breadcrumb Workspace Switcher Popover
+
+The middle segment breadcrumb (`<projectName> / <threadTitle>`) serves as a clickable gateway to switch workspaces:
+- **Click Behavior**: Clicking the breadcrumb exclusively toggles the `isWorkspaceSwitcherOpen` state. It carries **zero side effects** on the workspace collection and never triggers workspace creation.
+- **Popover Contents**:
+  - Displays the total number of configured workspaces.
+  - Lists each workspace with its folder icon, workspace name, normalized filesystem path, and total conversation thread count.
+  - Marks the currently active workspace with a distinctive purple border, background highlight, and checkmark icon (`Check`).
+  - Contains a `+ New Workspace...` action button that opens the workspace creation modal.
+- **Click-to-Activate**: Clicking any workspace from the popover invokes `onSelectProject(proj.id)` and immediately closes the popover.
+- **Dismissal Controls**: Closes gracefully upon outside mouse clicks, selecting a project, opening another header menu, or pressing the `Escape` key.
+- **Drag Isolation**: Nested within an explicit `data-tauri-drag-region="false"` container with CSS `app-region-no-drag` and `pointer-events-auto`, ensuring clicks and scrolls inside the popover are never captured by window drag handlers.
+

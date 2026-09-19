@@ -86,3 +86,28 @@ Krypton uses a dark-first aesthetic with curated CSS custom properties defined i
 - **Glassmorphism**: Translucent panels with `backdrop-filter: blur(16px)` and subtle glowing borders.
 - **Micro-Animations**: Smooth transitions on drawer toggles, agent thought accordions, and live streaming tokens.
 - **Scroll Optimization**: Clean, styled scrollbars adhering to system color schemes.
+
+---
+
+## 4. Workspace State Management & Idempotency
+
+Krypton manages project workspaces through `useAgentSession` in the desktop client and persists workstation state into `localStorage` (`krypton_workstation_state_v2`) via `persistence.ts`:
+
+### A. Idempotent Workspace Creation & Activation
+- **Strict Uniqueness**: Workspaces are keyed off unique identifiers (`proj-<timestamp>-<hash>`) and normalized filesystem paths.
+- **Switch Rather Than Re-Insert**: Invoking `createProject(name, path)` or selecting an existing workspace checks against existing entries using `normalizeWorkspacePath`. If an existing workspace matches, it switches active focus to that workspace and its active thread rather than prepending or duplicating entries.
+- **Race Prevention**: Functional updaters in state setters atomically re-verify against concurrent invocations before appending new workspaces.
+
+### B. Filesystem Path Normalization (`normalizeWorkspacePath`)
+Deterministic path equality comparison accounts for cross-platform differences:
+- Converts backslashes (`\`) to forward slashes (`/`).
+- Normalizes Windows drive letters to lowercase (`C:` -> `c:`).
+- Collapses redundant consecutive slashes and strips leading `./`.
+- Trims trailing slashes while preserving root directories.
+
+### C. Hydration Sanitizer (`sanitizeWorkspaces`)
+When loading persisted state on application mount, `loadWorkstationState()` executes `sanitizeWorkspaces`:
+- **Deduplication**: Eliminates duplicate workspace entries sharing identical IDs or normalized filesystem paths.
+- **Thread Preservation**: Merges conversation threads across duplicate records to ensure no user session history is dropped.
+- **Pointer Validation**: Verifies that `activeProjectId` and `activeThreadId` target valid entities, automatically healing orphaned pointers and saving back sanitized state.
+

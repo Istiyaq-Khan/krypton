@@ -34,6 +34,12 @@ export default function SettingsPage() {
       <WindowHeader
         projectName={session.activeProject?.name}
         threadTitle={`Settings / ${activeCategory}`}
+        projects={session.projects}
+        activeProjectId={session.activeProjectId}
+        onSelectProject={(id) => {
+          session.selectProject(id)
+          router.push("/dashboard")
+        }}
         isLeftSidebarOpen={false}
         isRightDrawerOpen={false}
         onToggleLeftSidebar={() => {}}

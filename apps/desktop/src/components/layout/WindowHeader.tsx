@@ -23,18 +23,24 @@ import {
   Search,
   Bell,
   Settings as SettingsIcon,
+  Check,
+  Plus,
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ProjectWorkspace } from "@/lib/persistence"
 
 interface WindowHeaderProps {
   projectName?: string
   threadTitle?: string
+  projects?: ProjectWorkspace[]
+  activeProjectId?: string
   isLeftSidebarOpen: boolean
   isRightDrawerOpen: boolean
   onToggleLeftSidebar: () => void
   onToggleRightDrawer: () => void
   onNewChat: () => void
   onCreateProject?: () => void
+  onSelectProject?: (projectId: string) => void
   onOpenSetupWizard?: () => void
   onOpenSettings?: (category?: string) => void
   onToggleVoiceHud?: () => void
@@ -49,12 +55,15 @@ interface WindowHeaderProps {
 export function WindowHeader({
   projectName,
   threadTitle,
+  projects,
+  activeProjectId,
   isLeftSidebarOpen,
   isRightDrawerOpen,
   onToggleLeftSidebar,
   onToggleRightDrawer,
   onNewChat,
   onCreateProject,
+  onSelectProject,
   onOpenSetupWizard,
   onOpenSettings,
   onToggleVoiceHud,
@@ -67,11 +76,13 @@ export function WindowHeader({
 }: WindowHeaderProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isLogoMenuOpen, setIsLogoMenuOpen] = useState(false)
+  const [isWorkspaceSwitcherOpen, setIsWorkspaceSwitcherOpen] = useState(false)
   const [activeMenu, setActiveMenu] = useState<"file" | "edit" | "view" | "settings" | "help" | null>(null)
   const [isAboutOpen, setIsAboutOpen] = useState(false)
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
   const menuContainerRef = useRef<HTMLDivElement>(null)
   const logoMenuRef = useRef<HTMLDivElement>(null)
+  const workspaceSwitcherRef = useRef<HTMLDivElement>(null)
 
   // Query window maximization state on mount and listen to changes
   useEffect(() => {
@@ -120,7 +131,7 @@ export function WindowHeader({
     }
   }, [])
 
-  // Close open dropdowns when clicking outside
+  // Close open dropdowns when clicking outside or pressing Escape
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const target = e.target as Node
@@ -130,14 +141,28 @@ export function WindowHeader({
       if (logoMenuRef.current && !logoMenuRef.current.contains(target)) {
         setIsLogoMenuOpen(false)
       }
+      if (workspaceSwitcherRef.current && !workspaceSwitcherRef.current.contains(target)) {
+        setIsWorkspaceSwitcherOpen(false)
+      }
     }
-    if (activeMenu || isLogoMenuOpen) {
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setActiveMenu(null)
+        setIsLogoMenuOpen(false)
+        setIsWorkspaceSwitcherOpen(false)
+      }
+    }
+
+    if (activeMenu || isLogoMenuOpen || isWorkspaceSwitcherOpen) {
       window.addEventListener("mousedown", handleClickOutside)
+      window.addEventListener("keydown", handleKeyDown)
     }
     return () => {
       window.removeEventListener("mousedown", handleClickOutside)
+      window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [activeMenu, isLogoMenuOpen])
+  }, [activeMenu, isLogoMenuOpen, isWorkspaceSwitcherOpen])
 
   // Wire standard Settings shortcut (Ctrl+, on Windows/Linux, Cmd+, on macOS)
   useEffect(() => {
@@ -742,16 +767,29 @@ export function WindowHeader({
 
         {/* Middle Segment: Breadcrumbs (Click-Isolated) */}
         <div
+          ref={workspaceSwitcherRef}
           data-tauri-drag-region="false"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-          className="flex items-center justify-center shrink-0 min-w-0 max-w-md pointer-events-auto app-region-no-drag z-10"
+          className="relative flex items-center justify-center shrink-0 min-w-0 max-w-md pointer-events-auto app-region-no-drag z-10"
         >
-          <div
+          <button
+            type="button"
             data-tauri-drag-region="false"
             style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-            onClick={() => onCreateProject?.()}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-zinc-900/90 text-zinc-300 transition-colors cursor-pointer border border-transparent hover:border-zinc-800/80 truncate text-xs pointer-events-auto"
-            title={`Workspace: ${projectName || "No Workspace Open"}${threadTitle ? ` / ${threadTitle}` : ""}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              setIsWorkspaceSwitcherOpen((prev) => !prev)
+              setActiveMenu(null)
+              setIsLogoMenuOpen(false)
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer border truncate text-xs pointer-events-auto ${
+              isWorkspaceSwitcherOpen
+                ? "bg-zinc-800 text-zinc-100 border-zinc-700"
+                : "hover:bg-zinc-900/90 text-zinc-300 border-transparent hover:border-zinc-800/80"
+            }`}
+            title={`Workspace: ${projectName || "No Workspace Open"}${threadTitle ? ` / ${threadTitle}` : ""} (Click to switch)`}
+            aria-expanded={isWorkspaceSwitcherOpen}
+            aria-haspopup="true"
           >
             <Folder className="size-3.5 text-zinc-500 shrink-0" />
             <span className="truncate font-medium">{projectName || "No Workspace Open"}</span>
@@ -761,7 +799,99 @@ export function WindowHeader({
                 <span className="text-zinc-200 truncate font-normal">{threadTitle}</span>
               </>
             )}
-          </div>
+            <ChevronDown
+              className={`size-3 text-zinc-500 transition-transform ${
+                isWorkspaceSwitcherOpen ? "rotate-180 text-zinc-300" : ""
+              }`}
+            />
+          </button>
+
+          {/* Workspace Switcher Popover */}
+          {isWorkspaceSwitcherOpen && (
+            <div
+              data-tauri-drag-region="false"
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+              className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 w-80 rounded-xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-2xl backdrop-blur-xl z-50 text-xs flex flex-col pointer-events-auto animate-in fade-in-0 zoom-in-95 duration-100"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-zinc-800/80 text-[11px] font-semibold text-zinc-400">
+                <span>Switch Workspace</span>
+                <span className="text-[10px] text-zinc-500 font-normal">
+                  {projects?.length || 0} available
+                </span>
+              </div>
+
+              {/* Workspaces List */}
+              <div className="max-h-60 overflow-y-auto no-scrollbar flex flex-col gap-0.5 py-1">
+                {!projects || projects.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-zinc-500 text-xs">
+                    No workspaces configured
+                  </div>
+                ) : (
+                  projects.map((proj) => {
+                    const isSelected = proj.id === activeProjectId
+                    return (
+                      <button
+                        key={proj.id}
+                        type="button"
+                        data-tauri-drag-region="false"
+                        style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                        onClick={() => {
+                          onSelectProject?.(proj.id)
+                          setIsWorkspaceSwitcherOpen(false)
+                        }}
+                        className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-left transition-colors pointer-events-auto cursor-pointer ${
+                          isSelected
+                            ? "bg-zinc-800/90 text-zinc-100 font-medium border border-zinc-700/50"
+                            : "hover:bg-zinc-800/50 text-zinc-300 hover:text-zinc-100"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0 pr-2">
+                          <Folder
+                            className={`size-3.5 shrink-0 ${
+                              isSelected ? "text-violet-400" : "text-zinc-500"
+                            }`}
+                          />
+                          <div className="flex flex-col min-w-0">
+                            <span className="truncate text-xs">{proj.name}</span>
+                            <span className="truncate text-[10px] text-zinc-500 font-mono">
+                              {proj.path}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-zinc-500">
+                            {proj.threads.length} {proj.threads.length === 1 ? "session" : "sessions"}
+                          </span>
+                          {isSelected && <Check className="size-3.5 text-violet-400 shrink-0" />}
+                        </div>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Bottom Action: New Workspace */}
+              {onCreateProject && (
+                <>
+                  <div className="h-px bg-zinc-800/80 my-1" />
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      setIsWorkspaceSwitcherOpen(false)
+                      onCreateProject()
+                    }}
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100 transition-colors pointer-events-auto cursor-pointer text-xs"
+                  >
+                    <Plus className="size-3.5 text-zinc-400" />
+                    <span>New Workspace...</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Empty Draggable Region between Breadcrumbs and Controls */}
