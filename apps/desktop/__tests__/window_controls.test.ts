@@ -59,11 +59,22 @@ describe("Issue #1: Window Chrome Suppression, Drag Regions & Window IPC Control
     expect(headerSource).toContain('title="Krypton Menu"')
     expect(headerSource).toContain('WebkitAppRegion: "no-drag"')
 
-    // Application menus (File, Edit, View, Help)
+    // Application menus (File, Edit, View, Settings, Help)
     expect(headerSource).toContain("File Menu")
     expect(headerSource).toContain("Edit Menu")
     expect(headerSource).toContain("View Menu")
+    expect(headerSource).toContain("Settings Menu")
     expect(headerSource).toContain("Help Menu")
+
+    const fileIdx = headerSource.indexOf("{/* File Menu */}")
+    const editIdx = headerSource.indexOf("{/* Edit Menu */}")
+    const viewIdx = headerSource.indexOf("{/* View Menu */}")
+    const settingsIdx = headerSource.indexOf("{/* Settings Menu */}")
+    const helpIdx = headerSource.indexOf("{/* Help Menu */}")
+    expect(fileIdx).toBeLessThan(editIdx)
+    expect(editIdx).toBeLessThan(viewIdx)
+    expect(viewIdx).toBeLessThan(settingsIdx)
+    expect(settingsIdx).toBeLessThan(helpIdx)
 
     // Navigation buttons (< and >)
     expect(headerSource).toContain('title="Back"')

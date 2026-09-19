@@ -19,7 +19,16 @@ export const GlobalConfigSchema = z.object({
   isInitialized: z.boolean().default(false),
   customAgentName: z.string().default("Orchestrator"),
   defaultWorkspaceDir: z.string().optional(),
+  defaultTerminalShell: z.string().default("system"),
   askForApproval: z.boolean().default(true),
+  astSafetyEnforced: z.boolean().default(true),
+  appearance: z
+    .object({
+      theme: z.enum(["dark", "midnight", "cyber", "oled"]).default("dark"),
+      fontSize: z.enum(["compact", "standard", "comfortable"]).default("standard"),
+      density: z.enum(["compact", "comfortable"]).default("comfortable"),
+    })
+    .default({}),
   activeProviders: z.array(z.string()).default(["anthropic", "openai"]),
   defaultRoutes: z
     .object({

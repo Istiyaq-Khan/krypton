@@ -13,18 +13,36 @@ import { QuestionModal } from "@/components/QuestionModal"
 import { VcsDiffViewer } from "@/components/VcsDiffViewer"
 import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 import { FirstRunSetupWizard, SetupCompletedData } from "@/components/setup/FirstRunSetupWizard"
+import { CodexSettings, SettingsCategory } from "@/components/settings/CodexSettings"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 export default function DashboardPage() {
   const session = useAgentSession()
   const daemon = useKryptonDaemon()
   const [isVoiceAgentVisible, setIsVoiceAgentVisible] = useState(false)
+  const [activeView, setActiveView] = useState<"workspace" | "settings">("workspace")
+  const [activeSettingsCategory, setActiveSettingsCategory] = useState<SettingsCategory>("general")
 
   // First-run setup state
   const [isSetupChecked, setIsSetupChecked] = useState(false)
   const [isFirstRun, setIsFirstRun] = useState(false)
   const [isSetupModalOpen, setIsSetupModalOpen] = useState(false)
   const [defaultWsDir, setDefaultWsDir] = useState("")
+
+  // Global keyboard shortcuts: Ctrl+, / Cmd+, toggles settings, Ctrl+Shift+Space toggles Voice HUD
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+        e.preventDefault()
+        setActiveView((prev) => (prev === "settings" ? "workspace" : "settings"))
+      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === " " || e.code === "Space")) {
+        e.preventDefault()
+        setIsVoiceAgentVisible((prev) => !prev)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   // Detect host machine initialization state
   useEffect(() => {
@@ -96,90 +114,131 @@ export default function DashboardPage() {
       {/* 1. Unified Frameless Window Header with Native IPC Controls */}
       <WindowHeader
         projectName={session.activeProject?.name}
-        threadTitle={session.activeThread?.title}
+        threadTitle={activeView === "settings" ? `Settings / ${activeSettingsCategory}` : session.activeThread?.title}
         isLeftSidebarOpen={session.isLeftSidebarOpen}
         isRightDrawerOpen={session.isRightDrawerOpen}
         onToggleLeftSidebar={() => session.setIsLeftSidebarOpen(!session.isLeftSidebarOpen)}
         onToggleRightDrawer={() => session.setIsRightDrawerOpen(!session.isRightDrawerOpen)}
-        onNewChat={session.createNewChat}
-        onCreateProject={() => session.createProject("my-project", "projects/my-project")}
+        onNewChat={() => {
+          setActiveView("workspace")
+          session.createNewChat()
+        }}
+        onCreateProject={() => {
+          setActiveView("workspace")
+          session.createProject("my-project", "projects/my-project")
+        }}
         onOpenSetupWizard={() => setIsSetupModalOpen(true)}
-        canGoBack={session.canGoBack}
+        onOpenSettings={(cat) => {
+          if (cat) setActiveSettingsCategory(cat as SettingsCategory)
+          setActiveView("settings")
+        }}
+        onToggleVoiceHud={() => setIsVoiceAgentVisible((v) => !v)}
+        canGoBack={activeView === "settings" ? true : session.canGoBack}
         canGoForward={session.canGoForward}
-        onGoBack={session.goBack}
+        onGoBack={() => {
+          if (activeView === "settings") {
+            setActiveView("workspace")
+          } else {
+            session.goBack()
+          }
+        }}
         onGoForward={session.goForward}
       />
 
-      {/* 2. Main Workstation Shell */}
-      <div className="flex flex-1 overflow-hidden min-h-0 relative">
-        {/* Left Collapsible Projects & Threads Sidebar */}
-        <ProjectSidebar
-          projects={session.projects}
-          activeProjectId={session.activeProjectId}
-          activeThreadId={session.activeThreadId}
-          onSelectProject={session.selectProject}
-          onSelectThread={session.selectThread}
-          onNewChat={session.createNewChat}
-          onCreateProject={session.createProject}
-          onDeleteThread={session.deleteThread}
-          isOpen={session.isLeftSidebarOpen}
-        />
-
-        {/* Center Main Execution & Conversation Stream */}
-        <main className="flex flex-1 flex-col overflow-hidden bg-zinc-950 min-w-0 relative">
-          {/* Conversation & Tool Cards Stream */}
-          <ExecutionStream
-            thread={session.activeThread}
-            projectName={session.activeProject?.name || ""}
-            onSelectPrompt={(prompt) => session.submitPrompt(prompt)}
-            onReviewDiff={() => {
-              session.setRightDrawerTab("diff")
-              session.setIsRightDrawerOpen(true)
+      {/* 2. Main Workstation Shell or Codex Settings Interface */}
+      {activeView === "settings" ? (
+        <div className="flex flex-1 overflow-hidden min-h-0 relative">
+          <CodexSettings
+            initialCategory={activeSettingsCategory}
+            onBack={() => setActiveView("workspace")}
+            onUpdateApproval={session.setAskForApproval}
+            onUpdateModel={session.setSelectedModel}
+            onRefreshFleet={() => {
+              if (typeof window !== "undefined") {
+                const raw = localStorage.getItem("krypton_workstation_state_v2")
+                if (raw) {
+                  try {
+                    const ws = JSON.parse(raw)
+                    if (ws.fleet && daemon.setFleet) daemon.setFleet(ws.fleet)
+                  } catch {
+                    // ignore
+                  }
+                }
+              }
             }}
-            onResolveApproval={session.resolveMessageApproval}
-            onCreateProject={() => session.createProject("my-project", "projects/my-project")}
-            isStreaming={session.isStreaming}
+          />
+        </div>
+      ) : (
+        <div className="flex flex-1 overflow-hidden min-h-0 relative">
+          {/* Left Collapsible Projects & Threads Sidebar */}
+          <ProjectSidebar
+            projects={session.projects}
+            activeProjectId={session.activeProjectId}
+            activeThreadId={session.activeThreadId}
+            onSelectProject={session.selectProject}
+            onSelectThread={session.selectThread}
+            onNewChat={session.createNewChat}
+            onCreateProject={session.createProject}
+            onDeleteThread={session.deleteThread}
+            isOpen={session.isLeftSidebarOpen}
           />
 
-          {/* Sticky Bottom Unified Command Bar */}
-          <CommandContextBar
-            projectName={session.activeProject?.name || ""}
-            branchName={session.activeProject?.branch || ""}
-            isLocal={true}
-            model={session.selectedModel}
-            onModelChange={session.setSelectedModel}
+          {/* Center Main Execution & Conversation Stream */}
+          <main className="flex flex-1 flex-col overflow-hidden bg-zinc-950 min-w-0 relative">
+            {/* Conversation & Tool Cards Stream */}
+            <ExecutionStream
+              thread={session.activeThread}
+              projectName={session.activeProject?.name || ""}
+              onSelectPrompt={(prompt) => session.submitPrompt(prompt)}
+              onReviewDiff={() => {
+                session.setRightDrawerTab("diff")
+                session.setIsRightDrawerOpen(true)
+              }}
+              onResolveApproval={session.resolveMessageApproval}
+              onCreateProject={() => session.createProject("my-project", "projects/my-project")}
+              isStreaming={session.isStreaming}
+            />
+
+            {/* Sticky Bottom Unified Command Bar */}
+            <CommandContextBar
+              projectName={session.activeProject?.name || ""}
+              branchName={session.activeProject?.branch || ""}
+              isLocal={true}
+              model={session.selectedModel}
+              onModelChange={session.setSelectedModel}
+              availableModels={session.availableModels}
+              onRefreshModels={session.refreshModels}
+              isRefreshingModels={session.isRefreshingModels}
+              activeProvider={session.activeProvider}
+              askForApproval={session.askForApproval}
+              onToggleApproval={() => session.setAskForApproval(!session.askForApproval)}
+              onSubmitPrompt={(p) => session.submitPrompt(p)}
+              onVoiceTrigger={() => setIsVoiceAgentVisible(true)}
+            />
+          </main>
+
+          {/* Right Collapsible Outputs Drawer */}
+          <OutputsDrawer
+            isOpen={session.isRightDrawerOpen}
+            onClose={() => session.setIsRightDrawerOpen(false)}
+            activeTab={session.rightDrawerTab}
+            onTabChange={session.setRightDrawerTab}
+            tasks={daemon.tasks}
+            logs={daemon.logs}
+            fleet={daemon.fleet}
+            diffData={daemon.activeDiff}
             availableModels={session.availableModels}
-            onRefreshModels={session.refreshModels}
-            isRefreshingModels={session.isRefreshingModels}
-            activeProvider={session.activeProvider}
-            askForApproval={session.askForApproval}
-            onToggleApproval={() => session.setAskForApproval(!session.askForApproval)}
-            onSubmitPrompt={(p) => session.submitPrompt(p)}
-            onVoiceTrigger={() => setIsVoiceAgentVisible(true)}
+            onApproveMerge={daemon.approveMerge}
+            onRollbackStep={daemon.rollbackStep}
+            onRejectAbort={daemon.rejectAbort}
+            onCreateAgent={daemon.createAgent}
+            onControlProcess={daemon.controlProcess}
+            telemetry={daemon.telemetry}
           />
-        </main>
+        </div>
+      )}
 
-        {/* Right Collapsible Outputs Drawer */}
-        <OutputsDrawer
-          isOpen={session.isRightDrawerOpen}
-          onClose={() => session.setIsRightDrawerOpen(false)}
-          activeTab={session.rightDrawerTab}
-          onTabChange={session.setRightDrawerTab}
-          tasks={daemon.tasks}
-          logs={daemon.logs}
-          fleet={daemon.fleet}
-          diffData={daemon.activeDiff}
-          availableModels={session.availableModels}
-          onApproveMerge={daemon.approveMerge}
-          onRollbackStep={daemon.rollbackStep}
-          onRejectAbort={daemon.rejectAbort}
-          onCreateAgent={daemon.createAgent}
-          onControlProcess={daemon.controlProcess}
-          telemetry={daemon.telemetry}
-        />
-      </div>
-
-      {/* Floating Voice Presence (Toggled via header or mic button) */}
+      {/* Floating Voice Presence (Toggled via header or mic button, visible across all pages) */}
       {isVoiceAgentVisible && (
         <FloatingVoiceAgent
           activeAgentName={session.activeProject?.name || "Krypton"}
