@@ -8,6 +8,7 @@ import {
   StreamMessage,
   loadWorkstationState,
   saveWorkstationState,
+  normalizeWorkspacePath,
   ToolExecutionEvent,
   ThoughtTrace,
   ApprovalGate,
@@ -252,14 +253,31 @@ export function useAgentSession() {
     }
   }, [])
 
-  // Switch active project
-  const selectProject = useCallback((projectId: string) => {
-    setActiveProjectId(projectId)
-    const proj = projects.find((p) => p.id === projectId)
-    const nextThreadId = proj && proj.threads.length > 0 ? proj.threads[0].id : ""
-    setActiveThreadId(nextThreadId)
-    pushHistory(projectId, nextThreadId)
-  }, [projects, pushHistory])
+  // Switch active project by ID or normalized path
+  const selectProject = useCallback(
+    (projectIdOrPath: string) => {
+      const rawTarget = projectIdOrPath.trim()
+      if (!rawTarget) return
+
+      const normTarget = normalizeWorkspacePath(rawTarget)
+      const proj = projects.find(
+        (p) =>
+          p.id === rawTarget ||
+          (normTarget && normalizeWorkspacePath(p.path) === normTarget) ||
+          p.name === rawTarget
+      )
+      if (!proj) return
+
+      setActiveProjectId(proj.id)
+      const nextThreadId =
+        proj.activeThreadId && proj.threads.some((t) => t.id === proj.activeThreadId)
+          ? proj.activeThreadId
+          : proj.threads[0]?.id || ""
+      setActiveThreadId(nextThreadId)
+      pushHistory(proj.id, nextThreadId)
+    },
+    [projects, pushHistory]
+  )
 
   // Select a specific thread
   const selectThread = useCallback((threadId: string) => {
@@ -296,34 +314,77 @@ export function useAgentSession() {
     pushHistory(activeProjectId, newThreadId)
   }, [activeProjectId, pushHistory])
 
-  // Create a new project workspace
-  const createProject = useCallback((name: string, path: string, branch = "main") => {
-    const newProjId = `proj-${Date.now()}`
-    const initialThreadId = `thread-${Date.now()}`
-    const newProj: ProjectWorkspace = {
-      id: newProjId,
-      name: name.trim(),
-      path: path.trim(),
-      branch,
-      activeThreadId: initialThreadId,
-      threads: [
-        {
-          id: initialThreadId,
-          projectId: newProjId,
-          title: "Initial Session",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          status: "idle",
-          messages: [],
-        },
-      ],
-    }
+  // Create or switch to an existing project workspace (strictly idempotent)
+  const createProject = useCallback(
+    (name: string, path: string, branch = "main") => {
+      const trimmedName = name.trim()
+      const trimmedPath = path.trim() || trimmedName
+      if (!trimmedName && !trimmedPath) return null
 
-    setProjects((prev) => [newProj, ...prev])
-    setActiveProjectId(newProjId)
-    setActiveThreadId(initialThreadId)
-    pushHistory(newProjId, initialThreadId)
-  }, [pushHistory])
+      const normTarget = normalizeWorkspacePath(trimmedPath)
+
+      // 1. Guard against existing workspace by path or ID/name
+      const existing = projects.find(
+        (p) =>
+          (normTarget && normalizeWorkspacePath(p.path) === normTarget) ||
+          p.id === trimmedPath ||
+          p.id === trimmedName ||
+          p.name.toLowerCase() === trimmedName.toLowerCase()
+      )
+
+      if (existing) {
+        // Workspace already exists: activate it idempotently without mutating or expanding array
+        setActiveProjectId(existing.id)
+        const targetThreadId =
+          existing.activeThreadId && existing.threads.some((t) => t.id === existing.activeThreadId)
+            ? existing.activeThreadId
+            : existing.threads[0]?.id || ""
+        setActiveThreadId(targetThreadId)
+        pushHistory(existing.id, targetThreadId)
+        return existing
+      }
+
+      // 2. Workspace does not exist: create unique new project workspace
+      const newProjId = `proj-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+      const initialThreadId = `thread-${Date.now()}`
+      const newProj: ProjectWorkspace = {
+        id: newProjId,
+        name: trimmedName || trimmedPath,
+        path: trimmedPath,
+        branch,
+        activeThreadId: initialThreadId,
+        threads: [
+          {
+            id: initialThreadId,
+            projectId: newProjId,
+            title: "Initial Session",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            status: "idle",
+            messages: [],
+          },
+        ],
+      }
+
+      setProjects((prev) => {
+        // Atomic functional check to prevent race conditions from concurrent calls
+        const alreadyInState = prev.some(
+          (p) =>
+            (normTarget && normalizeWorkspacePath(p.path) === normTarget) ||
+            p.id === newProjId ||
+            p.id === trimmedPath
+        )
+        if (alreadyInState) return prev
+        return [newProj, ...prev]
+      })
+
+      setActiveProjectId(newProjId)
+      setActiveThreadId(initialThreadId)
+      pushHistory(newProjId, initialThreadId)
+      return newProj
+    },
+    [projects, pushHistory]
+  )
 
   // Delete a thread
   const deleteThread = useCallback((threadId: string) => {

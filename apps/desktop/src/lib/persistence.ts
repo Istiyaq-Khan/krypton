@@ -208,7 +208,131 @@ export const DEFAULT_INITIAL_STATE: WorkstationState = {
 }
 
 /**
- * Loads persistent state from localStorage with safe fallback.
+ * Normalizes a workspace filesystem path for deterministic comparison and keying.
+ * - Trims whitespace
+ * - Replaces backslashes with forward slashes
+ * - Strips leading `./`
+ * - Strips redundant trailing slashes
+ * - Normalizes Windows drive letter to lowercase
+ */
+export function normalizeWorkspacePath(rawPath: string): string {
+  if (!rawPath) return ""
+  let normalized = rawPath.trim().replace(/\\/g, "/")
+
+  // Normalize Windows drive letter casing if present (e.g. C:/ -> c:/)
+  normalized = normalized.replace(/^([a-zA-Z]):/, (_, letter: string) => `${letter.toLowerCase()}:`)
+
+  // Remove redundant consecutive slashes except if starting with protocol / UNC
+  normalized = normalized.replace(/([^:]\/)\/+/g, "$1")
+
+  // Remove leading ./
+  if (normalized.startsWith("./")) {
+    normalized = normalized.slice(2)
+  }
+
+  // Remove trailing slashes unless it's root (e.g. "/" or "c:/")
+  while (normalized.length > 1 && normalized.endsWith("/") && !/^[a-zA-Z]:\/$/.test(normalized)) {
+    normalized = normalized.slice(0, -1)
+  }
+
+  return normalized
+}
+
+/**
+ * Migration & hydration sanitizer that filters out duplicate workspace entries,
+ * validates required fields, merges unique conversation threads, and ensures active pointers are valid.
+ */
+export function sanitizeWorkspaces(rawProjects: unknown[]): ProjectWorkspace[] {
+  if (!Array.isArray(rawProjects)) return []
+
+  const sanitized: ProjectWorkspace[] = []
+
+  for (const item of rawProjects) {
+    if (!item || typeof item !== "object") continue
+    const candidate = item as Partial<ProjectWorkspace>
+
+    const id = typeof candidate.id === "string" ? candidate.id.trim() : ""
+    const name = typeof candidate.name === "string" ? candidate.name.trim() : ""
+    const path = typeof candidate.path === "string" ? candidate.path.trim() : ""
+    const branch = typeof candidate.branch === "string" ? candidate.branch.trim() : "main"
+
+    if (!id && !path) continue
+
+    const effectiveId = id || `proj-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`
+    const effectiveName = name || path || "untitled-workspace"
+    const normPath = normalizeWorkspacePath(path || name || effectiveId)
+
+    // Check if we've already added a project with this ID or this normalized path
+    const existingIndex = sanitized.findIndex(
+      (p) => p.id === effectiveId || (normPath && normalizeWorkspacePath(p.path) === normPath)
+    )
+
+    // Sanitize candidate threads
+    const candidateThreads: AgentThread[] = Array.isArray(candidate.threads)
+      ? candidate.threads.filter(
+          (t): t is AgentThread =>
+            Boolean(t && typeof t === "object" && typeof t.id === "string" && t.id.trim())
+        )
+      : []
+
+    if (existingIndex >= 0) {
+      // Duplicate found! Merge any threads from candidate into existing project so no history is lost
+      const existingProj = sanitized[existingIndex]
+      const existingThreadIds = new Set(existingProj.threads.map((t) => t.id))
+      for (const t of candidateThreads) {
+        if (!existingThreadIds.has(t.id)) {
+          existingProj.threads.push(t)
+          existingThreadIds.add(t.id)
+        }
+      }
+      // Continue without adding duplicate workspace entry
+      continue
+    }
+
+    // Deduplicate threads within candidate
+    const uniqueThreads: AgentThread[] = []
+    const seenThreadIds = new Set<string>()
+    for (const t of candidateThreads) {
+      if (!seenThreadIds.has(t.id)) {
+        seenThreadIds.add(t.id)
+        uniqueThreads.push(t)
+      }
+    }
+
+    // Ensure at least one thread exists
+    if (uniqueThreads.length === 0) {
+      const fallbackThreadId = `thread-${Date.now()}`
+      uniqueThreads.push({
+        id: fallbackThreadId,
+        projectId: effectiveId,
+        title: "Initial Session",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: "idle",
+        messages: [],
+      })
+    }
+
+    const activeThreadId =
+      candidate.activeThreadId && uniqueThreads.some((t) => t.id === candidate.activeThreadId)
+        ? candidate.activeThreadId
+        : uniqueThreads[0].id
+
+    sanitized.push({
+      id: effectiveId,
+      name: effectiveName,
+      path: path || normPath,
+      branch,
+      activeThreadId,
+      threads: uniqueThreads,
+    })
+  }
+
+  return sanitized
+}
+
+/**
+ * Loads persistent state from localStorage with safe fallback and hydration deduplication sanitization.
  */
 export function loadWorkstationState(): WorkstationState {
   if (typeof window === "undefined") {
@@ -228,8 +352,36 @@ export function loadWorkstationState(): WorkstationState {
       return DEFAULT_INITIAL_STATE
     }
 
+    const originalLength = parsed.projects.length
+    const sanitizedProjects = sanitizeWorkspaces(parsed.projects)
+    const isStateModified =
+      sanitizedProjects.length !== originalLength ||
+      !parsed.projects.every((p, idx) => p.id === sanitizedProjects[idx]?.id)
+
+    parsed.projects = sanitizedProjects
+
+    // Validate activeProjectId
+    const activeProjectExists = parsed.projects.some((p) => p.id === parsed.activeProjectId)
+    if (!activeProjectExists) {
+      parsed.activeProjectId = parsed.projects[0]?.id || ""
+    }
+
+    // Validate activeThreadId
+    const activeProj = parsed.projects.find((p) => p.id === parsed.activeProjectId)
+    if (activeProj) {
+      const threadExists = activeProj.threads.some((t) => t.id === parsed.activeThreadId)
+      if (!threadExists) {
+        parsed.activeThreadId = activeProj.activeThreadId || activeProj.threads[0]?.id || ""
+      }
+    } else {
+      parsed.activeThreadId = ""
+    }
+
     if (!parsed.fleet || parsed.fleet.length === 0) {
       parsed.fleet = DEFAULT_INITIAL_STATE.fleet
+    }
+
+    if (isStateModified) {
       saveWorkstationState(parsed)
     }
 
