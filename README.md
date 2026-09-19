@@ -213,6 +213,19 @@ Releases are published automatically to the **[Releases](https://github.com/Isti
 
 ---
 
+## 🤝 Contributing
+
+Contributions are warmly welcomed! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, environment setup, testing standards, and the pull request submission process.
+
+---
+
+## 🔒 Security
+
+For vulnerability reporting guidelines, SLA details, and our local-first defense-in-depth security model, please refer to our [Security Policy](SECURITY.md).
+
+---
+
 ## 📄 License
 
 This project is licensed under the [MIT License](LICENSE).
+

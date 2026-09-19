@@ -52,6 +52,11 @@ docs/
 │   ├── [Build Pipelines](ci-cd/build-pipelines.md)                     # Monorepo build commands, binary compilation scripts
 │   └── [GitHub Actions CI/CD](ci-cd/github-actions.md)                 # CI test workflow matrix, release workflow, issue/PR templates
 │
+├── 🤝 Governance & Community
+│   ├── [Contributing Guide](../CONTRIBUTING.md)                        # Contribution flow, verification standards, worktrees
+│   ├── [Security Policy](../SECURITY.md)                               # Vulnerability reporting, SLA, defense-in-depth model
+│   └── [MIT License](../LICENSE)                                       # Open source software license
+│
 └── 📜 Historical & Hardening References
     ├── [Agent Storage Architecture](AGENT_STORAGE_ARCHITECTURE.md)     # Architectural specification for agent workspaces
     ├── [Production Hardening](PRODUCTION_HARDENING.md)                 # Frameless window unification & mock data purge
@@ -92,6 +97,9 @@ docs/
 | **Understand single-installer packaging per OS** | [`ci-cd/single-artifact-standard.md`](ci-cd/single-artifact-standard.md) |
 | **Run local builds or cross-compile sidecars** | [`ci-cd/build-pipelines.md`](ci-cd/build-pipelines.md) |
 | **Inspect or update GitHub Actions CI/CD workflows** | [`ci-cd/github-actions.md`](ci-cd/github-actions.md) |
+| **Contribute code, read guidelines, or verify PRs** | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) |
+| **Report vulnerabilities or inspect security model** | [`../SECURITY.md`](../SECURITY.md) |
+| **Review project open source license (MIT)** | [`../LICENSE`](../LICENSE) |
 
 ---
 
