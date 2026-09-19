@@ -685,7 +685,20 @@ export function WindowHeader({
                   >
                     <span>Appearance</span>
                   </button>
+                  <button
+                    type="button"
+                    data-tauri-drag-region="false"
+                    style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+                    onClick={() => {
+                      onOpenSettings?.("data")
+                      setActiveMenu(null)
+                    }}
+                    className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-300 text-left transition-colors pointer-events-auto cursor-pointer"
+                  >
+                    <span>Data & Maintenance</span>
+                  </button>
                   <div className="h-px bg-zinc-800 my-1" />
+
                   <button
                     type="button"
                     data-tauri-drag-region="false"

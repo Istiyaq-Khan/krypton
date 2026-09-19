@@ -133,7 +133,52 @@ if [ ! -f "$CONFIG_FILE" ]; then
 EOF
 fi
 
-# 4. Add to Shell Profile PATH if not present
+# 4. Provision Uninstaller Script
+UNINSTALL_SCRIPT="$BIN_DIR/uninstall.sh"
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/uninstall.sh" ]; then
+  cp "$SCRIPT_DIR/uninstall.sh" "$UNINSTALL_SCRIPT"
+  chmod +x "$UNINSTALL_SCRIPT"
+fi
+
+# 5. Linux Desktop Integration (FreeDesktop Standard)
+if [ "$PLATFORM" = "linux" ]; then
+  echo "• Configuring Linux desktop integration..."
+  APPS_DIR="$HOME/.local/share/applications"
+  ICONS_DIR="$HOME/.local/share/icons/hicolor/128x128/apps"
+  mkdir -p "$APPS_DIR"
+  mkdir -p "$ICONS_DIR"
+
+  if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/linux/krypton.desktop" ]; then
+    sed "s|Exec=krypton|Exec=$TARGET_BIN|g" "$SCRIPT_DIR/linux/krypton.desktop" > "$APPS_DIR/krypton.desktop"
+    chmod +x "$APPS_DIR/krypton.desktop"
+  else
+    cat <<EOF > "$APPS_DIR/krypton.desktop"
+[Desktop Entry]
+Type=Application
+Name=Krypton
+GenericName=Autonomous Desktop AI Agent
+Comment=Autonomous Desktop AI Agent Operating System
+Exec=$TARGET_BIN %U
+Icon=krypton
+Terminal=false
+Categories=Development;Utility;ArtificialIntelligence;
+StartupWMClass=krypton
+Keywords=ai;agent;automation;terminal;code;
+EOF
+    chmod +x "$APPS_DIR/krypton.desktop"
+  fi
+
+  # Copy icon if present in repo
+  if [ -n "$REPO_ROOT" ] && [ -f "$REPO_ROOT/apps/desktop/src-tauri/icons/128x128.png" ]; then
+    cp "$REPO_ROOT/apps/desktop/src-tauri/icons/128x128.png" "$ICONS_DIR/krypton.png"
+  fi
+
+  if command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database "$APPS_DIR" 2>/dev/null || true
+  fi
+fi
+
+# 6. Add to Shell Profile PATH if not present
 EXPORT_LINE="export PATH=\"$BIN_DIR:\$PATH\""
 SHELL_PROFILES=("$HOME/.bashrc" "$HOME/.zshrc" "$HOME/.profile")
 
@@ -165,3 +210,4 @@ echo "You can now run:"
 echo "  krypton --help"
 echo "  krypton run \"Build a fullstack landing page\""
 echo ""
+

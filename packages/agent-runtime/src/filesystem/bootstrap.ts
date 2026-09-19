@@ -246,3 +246,40 @@ export async function ensureBrowserBinaries(
 
   return binaryPath;
 }
+
+/**
+ * Returns all platform user data and cache directories associated with Krypton
+ * across Windows, macOS, and Linux.
+ */
+export function resolveAllPlatformDataDirectories(customRoot?: string): string[] {
+  const kryptonHome = resolveKryptonHome(customRoot);
+  const home = os.homedir();
+  const dirs: string[] = [kryptonHome];
+
+  if (process.platform === "win32") {
+    const roaming = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    const local = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+    dirs.push(path.join(roaming, "krypton"));
+    dirs.push(path.join(roaming, "com.krypton.desktop"));
+    dirs.push(path.join(local, "krypton"));
+    dirs.push(path.join(local, "com.krypton.desktop"));
+  } else if (process.platform === "darwin") {
+    dirs.push(path.join(home, "Library", "Application Support", "krypton"));
+    dirs.push(path.join(home, "Library", "Application Support", "com.krypton.desktop"));
+    dirs.push(path.join(home, "Library", "Caches", "krypton"));
+    dirs.push(path.join(home, "Library", "Caches", "com.krypton.desktop"));
+  } else {
+    const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(home, ".config");
+    const xdgData = process.env.XDG_DATA_HOME || path.join(home, ".local", "share");
+    const xdgCache = process.env.XDG_CACHE_HOME || path.join(home, ".cache");
+    dirs.push(path.join(xdgConfig, "krypton"));
+    dirs.push(path.join(xdgConfig, "com.krypton.desktop"));
+    dirs.push(path.join(xdgData, "krypton"));
+    dirs.push(path.join(xdgData, "com.krypton.desktop"));
+    dirs.push(path.join(xdgCache, "krypton"));
+    dirs.push(path.join(xdgCache, "com.krypton.desktop"));
+  }
+
+  return dirs;
+}
+

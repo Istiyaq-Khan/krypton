@@ -11,6 +11,8 @@ export * from "./filesystem/watcher.js";
 
 // Providers & Keyring secret vault
 export * from "./providers/index.js";
+export * from "./vault/backup-engine.js";
+
 
 // AST safety linter & sandbox execution runner
 export * from "./sandbox/linter.js";
