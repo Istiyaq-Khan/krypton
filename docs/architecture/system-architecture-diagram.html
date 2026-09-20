@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Krypton — Full System Architecture</title>
+  <!-- Typography pairing per diagram-design: Instrument Serif + Geist + Geist Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Design System Tokens (Default: Minimal Light Editorial) */
+    :root {
+      --color-paper:       #f5f5f5;
+      --color-paper-2:     #ffffff;
+      --color-paper-zone:  rgba(45, 49, 66, 0.02);
+      --color-ink:         #2d3142;
+      --color-muted:       #4f5d75;
+      --color-soft:        #7a8399;
+      --color-rule:        rgba(45, 49, 66, 0.12);
+      --color-rule-solid:  rgba(79, 93, 117, 0.25);
+      --color-accent:      #eb6c36;
+      --color-accent-tint: rgba(235, 108, 54, 0.08);
+      --color-link:        #2e5aa8;
+      --color-badge-bg:    #ececec;
+
+      --font-sans:  'Geist', system-ui, -apple-system, sans-serif;
+      --font-serif: 'Instrument Serif', 'Times New Roman', Georgia, serif;
+      --font-mono:  'Geist Mono', ui-monospace, SFMono-Regular, monospace;
+    }
+
+    /* Dark Variant Tokens (Minimal Dark Editorial) */
+    [data-theme="dark"] {
+      --color-paper:       #161923;
+      --color-paper-2:     #1f2330;
+      --color-paper-zone:  rgba(245, 245, 245, 0.02);
+      --color-ink:         #f5f5f5;
+      --color-muted:       #8f9ba8;
+      --color-soft:        #657182;
+      --color-rule:        rgba(245, 245, 245, 0.12);
+      --color-rule-solid:  rgba(143, 155, 168, 0.25);
+      --color-accent:      #ff7a45;
+      --color-accent-tint: rgba(255, 122, 69, 0.14);
+      --color-link:        #5c8ee6;
+      --color-badge-bg:    #2a3040;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      padding: 3rem 2rem;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Header Section */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    .header-content {
+      max-width: 800px;
+    }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2rem, 3.2vw + 1rem, 2.85rem);
+      font-weight: 400;
+      letter-spacing: -0.025em;
+      line-height: 1.08;
+      color: var(--color-ink);
+      margin-bottom: 0.75rem;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      line-height: 1.55;
+      color: var(--color-muted);
+    }
+
+    /* Toolbar Controls */
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .btn {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 0.5rem 0.875rem;
+      border-radius: 4px;
+      border: 1px solid var(--color-rule);
+      background: var(--color-paper-2);
+      color: var(--color-ink);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      border-color: var(--color-rule-solid);
+      transform: translateY(-1px);
+    }
+
+    /* Diagram Container */
+    .diagram-card {
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-rule);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      overflow-x: auto;
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+
+    svg {
+      width: 100%;
+      min-width: 1080px;
+      height: auto;
+      display: block;
+      user-select: none;
+    }
+
+    /* Node Hover & Interactive State */
+    .node-group {
+      cursor: pointer;
+      transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .node-group:hover rect.node-box {
+      stroke-width: 1.6;
+      stroke: var(--color-ink);
+    }
+
+    .node-group.focal:hover rect.node-box {
+      stroke-width: 2;
+      stroke: var(--color-accent);
+    }
+
+    /* Detail Inspector Drawer */
+    .inspector {
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 2.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    .inspector-title {
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-ink);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .inspector-badge {
+      font-family: var(--font-mono);
+      font-size: 0.6875rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      background: var(--color-badge-bg);
+      color: var(--color-muted);
+    }
+
+    .inspector-desc {
+      font-size: 0.875rem;
+      color: var(--color-muted);
+      line-height: 1.5;
+      margin-top: 0.25rem;
+    }
+
+    .inspector-files {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-soft);
+    }
+
+    /* Architectural Editorial Cards */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    .card {
+      background: var(--color-paper-2);
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.25rem;
+      transition: background 0.25s ease, border-color 0.25s ease;
+    }
+
+    .card-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.625rem;
+      border-bottom: 1px solid var(--color-rule);
+    }
+
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .card-dot.coral { background: var(--color-accent); }
+    .card-dot.link  { background: var(--color-link); }
+    .card-dot.ink   { background: var(--color-ink); }
+    .card-dot.muted { background: var(--color-muted); }
+
+    .card h3 {
+      font-family: var(--font-sans);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--color-ink);
+      letter-spacing: -0.01em;
+    }
+
+    .card ul {
+      list-style: none;
+      color: var(--color-muted);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+    }
+
+    .card li {
+      margin-bottom: 0.35rem;
+      padding-left: 0.875rem;
+      position: relative;
+    }
+
+    .card li::before {
+      content: '—';
+      position: absolute;
+      left: 0;
+      color: var(--color-soft);
+      font-size: 0.75rem;
+    }
+
+    .footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--color-rule);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--color-soft);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer a {
+      color: var(--color-link);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <!-- Header Section -->
+    <header class="header">
+      <div class="header-content">
+        <p class="eyebrow">Krypton Autonomous OS &bull; System Architecture Specification</p>
+        <h1>Full Codebase Architecture &amp; Execution Topology</h1>
+        <p class="subtitle">
+          End-to-end topological blueprint illustrating desktop presentation, native Tauri Rust supervision, multi-transport IPC streaming, the autonomous Actor loop, AST sandboxing, Git worktrees, and persistent memory vault.
+        </p>
+      </div>
+      <div class="controls">
+        <button class="btn" id="theme-toggle" onclick="toggleTheme()">
+          <span id="theme-icon">&#9789;</span>
+          <span id="theme-text">Dark Theme</span>
+        </button>
+        <button class="btn" onclick="resetInspector()">
+          <span>&#8634;</span>
+          <span>Reset Inspector</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Interactive Component Inspector -->
+    <div class="inspector" id="inspector-panel">
+      <div>
+        <div class="inspector-title">
+          <span id="inspector-name">Hierarchical Actor Engine</span>
+          <span class="inspector-badge" id="inspector-tier">DAEMON CORE</span>
+        </div>
+        <p class="inspector-desc" id="inspector-desc">
+          Universal Actor step loop (Observe &rarr; Reason &rarr; AST Validate &rarr; Execute &rarr; Verify &rarr; Checkpoint). Enforces max_depth &le; 3, max_concurrency &le; 5, and token budgeting.
+        </p>
+      </div>
+      <div class="inspector-files" id="inspector-files">
+        Source: packages/agent-runtime/src/actor/ (agent.ts, scheduler.ts)
+      </div>
+    </div>
+
+    <!-- Main SVG Diagram Frame -->
+    <div class="diagram-card">
+      <svg viewBox="0 0 1200 840" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="krypton-arch-title krypton-arch-desc">
+        <title id="krypton-arch-title">Krypton Autonomous Agent Operating System Architecture</title>
+        <desc id="krypton-arch-desc">Comprehensive system architecture diagram showing Krypton's desktop presentation shell, Rust supervisor, multi-transport IPC, autonomous daemon engine, sandboxing, and persistent storage layers.</desc>
+        
+        <defs>
+          <!-- Grid Dots Pattern (warm paper texture) -->
+          <pattern id="arch-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="0.8" fill="var(--color-ink)" opacity="0.08"/>
+          </pattern>
+
+          <!-- Arrow Marker: Muted Internal -->
+          <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="var(--color-muted)"/>
+          </marker>
+
+          <!-- Arrow Marker: Accent Coral (Focal Execution) -->
+          <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="var(--color-accent)"/>
+          </marker>
+
+          <!-- Arrow Marker: Link Blue (IPC / Network / External) -->
+          <marker id="arrow-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="var(--color-link)"/>
+          </marker>
+        </defs>
+
+        <!-- Canvas Background -->
+        <rect width="100%" height="100%" fill="var(--color-paper)"/>
+        <rect width="100%" height="100%" fill="url(#arch-dots)"/>
+
+        <!-- =========================================================================
+             ZONE 1: CLIENT & SHELL PRESENTATION TIER (y: 48 to 192, h: 144)
+             ========================================================================= -->
+        <rect x="48" y="48" width="1104" height="144" rx="8"
+              fill="var(--color-paper-zone)" stroke="var(--color-rule)" stroke-width="0.8"/>
+        <!-- Zone Mask & Label -->
+        <rect x="72" y="52" width="224" height="12" rx="2" fill="var(--color-paper)"/>
+        <text x="184" y="61" fill="var(--color-muted)" font-size="8" font-weight="600"
+              font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">
+          ZONE 1 &bull; CLIENT &amp; SHELL PRESENTATION TIER
+        </text>
+
+        <!-- =========================================================================
+             ZONE 2: NATIVE HOST SUPERVISOR & MULTI-TRANSPORT IPC (y: 224 to 344, h: 120)
+             ========================================================================= -->
+        <rect x="48" y="224" width="1104" height="120" rx="8"
+              fill="var(--color-paper-zone)" stroke="var(--color-rule)" stroke-width="0.8"/>
+        <rect x="72" y="228" width="272" height="12" rx="2" fill="var(--color-paper)"/>
+        <text x="208" y="237" fill="var(--color-muted)" font-size="8" font-weight="600"
+              font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">
+          ZONE 2 &bull; NATIVE SUPERVISOR &amp; MULTI-TRANSPORT IPC
+        </text>
+
+        <!-- =========================================================================
+             ZONE 3: AUTONOMOUS DAEMON ENGINE CORE (y: 376 to 632, h: 256)
+             ========================================================================= -->
+        <rect x="48" y="376" width="1104" height="256" rx="8"
+              fill="var(--color-paper-zone)" stroke="var(--color-rule)" stroke-width="0.8"/>
+        <rect x="72" y="380" width="272" height="12" rx="2" fill="var(--color-paper)"/>
+        <text x="208" y="389" fill="var(--color-muted)" font-size="8" font-weight="600"
+              font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">
+          ZONE 3 &bull; AUTONOMOUS DAEMON ENGINE CORE (HEADLESS)
+        </text>
+
+        <!-- =========================================================================
+             ZONE 4: LOCAL STORAGE, VAULT & STATE PERSISTENCE (y: 664 to 808, h: 144)
+             ========================================================================= -->
+        <rect x="48" y="664" width="1104" height="144" rx="8"
+              fill="var(--color-paper-zone)" stroke="var(--color-rule)" stroke-width="0.8"/>
+        <rect x="72" y="668" width="264" height="12" rx="2" fill="var(--color-paper)"/>
+        <text x="204" y="677" fill="var(--color-muted)" font-size="8" font-weight="600"
+              font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.14em">
+          ZONE 4 &bull; STORAGE, VAULT &amp; STATE PERSISTENCE
+        </text>
+
+        <!-- =========================================================================
+             CONNECTORS & DATA FLOW PATHS (Drawn before boxes for clean z-ordering)
+             ========================================================================= -->
+
+        <!-- 1. Desktop Shell to Rust Core (Native Tauri IPC) -->
+        <line x1="184" y1="168" x2="184" y2="248" stroke="var(--color-link)" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <rect x="144" y="200" width="80" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="184" y="211" fill="var(--color-link)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="500">Tauri IPC</text>
+
+        <!-- 2. Voice Micro-HUD to Rust Core (Global Hotkey & Overlay commands) -->
+        <path d="M 436,168 V 196 Q 436,204 428,204 H 260 Q 252,204 252,212 V 248"
+              fill="none" stroke="var(--color-link)" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+        <!-- 3. Desktop Shell to WebSocket Server (ws://127.0.0.1:18789 - Token stream & live DAG) -->
+        <path d="M 272,168 V 188 Q 272,196 280,196 H 920 Q 928,196 928,204 V 248"
+              fill="none" stroke="var(--color-link)" stroke-dasharray="4,3" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <rect x="548" y="188" width="136" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="616" y="199" fill="var(--color-link)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">ws://127.0.0.1:18789</text>
+
+        <!-- 4. CLI Companion to Local IPC (Named Pipe / Domain Socket) -->
+        <path d="M 680,168 V 248"
+              fill="none" stroke="var(--color-link)" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <rect x="620" y="200" width="120" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="680" y="211" fill="var(--color-link)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">\\.\pipe\krypton-ipc</text>
+
+        <!-- 5. Omni-Channel Gateway to Local IPC -->
+        <path d="M 980,168 V 216 Q 980,224 972,224 H 736 Q 728,224 728,232 V 248"
+              fill="none" stroke="var(--color-link)" stroke-dasharray="4,3" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+
+        <!-- 6. Rust Native Core to Actor Engine (Process Lifecycle: Spawns & Monitors) -->
+        <line x1="184" y1="328" x2="184" y2="408" stroke="var(--color-ink)" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="120" y="360" width="128" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="184" y="371" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Spawns &amp; Monitors</text>
+
+        <!-- 7. Local IPC & WebSocket to Daemon JSON-RPC Router (Actor Engine) -->
+        <path d="M 544,328 V 356 Q 544,364 536,364 H 280 Q 272,364 272,372 V 408"
+              fill="none" stroke="var(--color-link)" stroke-width="1.2" marker-end="url(#arrow-link)"/>
+        <rect x="368" y="356" width="104" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="420" y="367" fill="var(--color-link)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">JSON-RPC 2.0</text>
+
+        <!-- 8. Actor Engine to Task Planner DAG (Internal Loop, Focal Accent) -->
+        <line x1="312" y1="448" x2="336" y2="448" stroke="var(--color-accent)" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- 9. Dynamic Task Planner to AST Safety Linter & Sandbox -->
+        <line x1="592" y1="448" x2="616" y2="448" stroke="var(--color-accent)" stroke-width="1.4" marker-end="url(#arrow-accent)"/>
+
+        <!-- 10. AST Safety Linter to Krypton-VCS Worktrees -->
+        <line x1="872" y1="448" x2="896" y2="448" stroke="var(--color-ink)" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 11. Actor Engine to Sub-components (Browser, MCP, Optimizer, Terminal) -->
+        <!-- Actor to Browser -->
+        <line x1="184" y1="496" x2="184" y2="528" stroke="var(--color-muted)" stroke-width="1.2" marker-end="url(#arrow)"/>
+        
+        <!-- Actor to MCP Host -->
+        <path d="M 272,496 V 508 Q 272,516 280,516 H 464 Q 472,516 472,520 V 528"
+              fill="none" stroke="var(--color-muted)" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- Actor to Context Optimizer -->
+        <path d="M 288,496 V 504 Q 288,512 296,512 H 744 Q 752,512 752,520 V 528"
+              fill="none" stroke="var(--color-muted)" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+        <!-- 12. Actor Engine to Storage & Vault Tier (Downward flow) -->
+        <!-- Actor to Cryptographic Secret Vault -->
+        <line x1="184" y1="608" x2="184" y2="692" stroke="var(--color-ink)" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="136" y="644" width="96" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="184" y="655" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">API Key Vault</text>
+
+        <!-- Actor to Agent Workspace Config -->
+        <path d="M 240,608 V 636 Q 240,644 248,644 H 464 Q 472,644 472,652 V 692"
+              fill="none" stroke="var(--color-ink)" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="300" y="636" width="128" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="364" y="647" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">config.json &amp; *.md</text>
+
+        <!-- Actor to Event Sourcing Ledger -->
+        <path d="M 264,608 V 628 Q 264,636 272,636 H 768 Q 776,636 776,644 V 692"
+              fill="none" stroke="var(--color-ink)" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="608" y="628" width="104" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="660" y="639" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">events.jsonl</text>
+
+        <!-- AST Sandbox to Ephemeral Sandbox -->
+        <line x1="1024" y1="608" x2="1024" y2="692" stroke="var(--color-ink)" stroke-width="1.2" marker-end="url(#arrow)"/>
+        <rect x="968" y="644" width="112" height="16" rx="3" fill="var(--color-paper)"/>
+        <text x="1024" y="655" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">Isolated Sandbox</text>
+
+
+        <!-- =========================================================================
+             COMPONENT BOXES (NODES)
+             ========================================================================= -->
+
+        <!-- ZONE 1 NODES: PRESENTATION & SHELL -->
+        <!-- Node 1: Desktop Shell (Next.js 16 / React 19) -->
+        <g class="node-group" onclick="selectNode('desktop-shell')">
+          <rect class="node-box" x="64" y="80" width="240" height="88" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="80" y="104" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Desktop Workstation UI</text>
+          <text x="80" y="120" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Next.js 16 App Router &bull; React 19</text>
+          <text x="80" y="140" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">/dashboard &bull; Task DAG View &bull; DiffViewer</text>
+          <text x="80" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">apps/desktop/src/app</text>
+        </g>
+
+        <!-- Node 2: Voice Micro-HUD -->
+        <g class="node-group" onclick="selectNode('voice-hud')">
+          <rect class="node-box" x="328" y="80" width="216" height="88" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="344" y="104" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Voice Micro-HUD</text>
+          <text x="344" y="120" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Floating Translucent Overlay</text>
+          <text x="344" y="140" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Global Hotkey STT &bull; Ctrl+Shift+Space</text>
+          <text x="344" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">apps/desktop/src/app/overlay</text>
+        </g>
+
+        <!-- Node 3: Terminal CLI Companion -->
+        <g class="node-group" onclick="selectNode('cli-companion')">
+          <rect class="node-box" x="568" y="80" width="224" height="88" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="584" y="104" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Terminal CLI Companion</text>
+          <text x="584" y="120" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">krypton-cli &bull; React 18 + Ink</text>
+          <text x="584" y="140" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Interactive TUI &bull; Direct Pipe IPC Client</text>
+          <text x="584" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">packages/cli/src</text>
+        </g>
+
+        <!-- Node 4: Omni-Channel Gateway -->
+        <g class="node-group" onclick="selectNode('omni-gateway')">
+          <rect class="node-box" x="816" y="80" width="312" height="88" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="832" y="104" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Omni-Channel Gateway</text>
+          <text x="832" y="120" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">External Chat Messaging Adapters</text>
+          <text x="832" y="140" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Telegram &bull; Discord &bull; WhatsApp &bull; Slack &bull; Signal</text>
+          <text x="832" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">packages/agent-runtime/src/channels</text>
+        </g>
+
+
+        <!-- ZONE 2 NODES: NATIVE HOST SUPERVISOR & IPC -->
+        <!-- Node 5: Tauri Rust Native Core -->
+        <g class="node-group" onclick="selectNode('rust-core')">
+          <rect class="node-box" x="64" y="248" width="240" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="80" y="272" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Tauri v2 Rust Core</text>
+          <text x="80" y="288" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Sidecar Supervisor &amp; Windows Shell</text>
+          <text x="80" y="306" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Spawns krypton-daemon &bull; SIGTERM / Job kill</text>
+          <text x="80" y="318" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">apps/desktop/src-tauri/src</text>
+        </g>
+
+        <!-- Node 6: Platform Local Pipe & Sockets -->
+        <g class="node-group" onclick="selectNode('local-ipc')">
+          <rect class="node-box" x="328" y="248" width="432" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="344" y="272" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Local Platform IPC Endpoint</text>
+          <text x="344" y="288" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Windows Named Pipe &bull; POSIX Domain Socket</text>
+          <text x="344" y="306" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Win: \\.\pipe\krypton-ipc &bull; Unix: /tmp/krypton.sock</text>
+          <text x="344" y="318" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">JSON-RPC 2.0 Dispatcher (handleRpcCall)</text>
+        </g>
+
+        <!-- Node 7: RFC 6455 WebSocket Server -->
+        <g class="node-group" onclick="selectNode('websocket-server')">
+          <rect class="node-box" x="784" y="248" width="344" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="800" y="272" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">RFC 6455 WebSocket Server</text>
+          <text x="800" y="288" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Full-Duplex Real-Time Streaming</text>
+          <text x="800" y="306" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">token_stream &bull; task_tree_updated &bull; agent_log</text>
+          <text x="800" y="318" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">ws://127.0.0.1:18789</text>
+        </g>
+
+
+        <!-- ZONE 3 NODES: AUTONOMOUS DAEMON ENGINE CORE -->
+        <!-- Node 8: Hierarchical Actor Engine (FOCAL / CORAL ACCENT) -->
+        <g class="node-group focal" onclick="selectNode('actor-engine')">
+          <rect class="node-box" x="64" y="408" width="248" height="88" rx="6"
+                fill="var(--color-accent-tint)" stroke="var(--color-accent)" stroke-width="1.6"/>
+          <text x="80" y="432" fill="var(--color-accent)" font-size="12" font-weight="700" font-family="'Geist', sans-serif">&#9733; Hierarchical Actor Engine</text>
+          <text x="80" y="448" fill="var(--color-ink)" font-size="8" font-family="'Geist Mono', monospace">Universal Agent Actor Step Loop</text>
+          <text x="80" y="468" fill="var(--color-muted)" font-size="8" font-family="'Geist', sans-serif">Observe &rarr; Reason &rarr; AST Validate &rarr; Execute</text>
+          <text x="80" y="482" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">max_depth &le; 3 &bull; concurrency &le; 5 &bull; 60s cap</text>
+        </g>
+
+        <!-- Node 9: Dynamic Task Planner DAG (FOCAL / CORAL ACCENT) -->
+        <g class="node-group focal" onclick="selectNode('task-planner')">
+          <rect class="node-box" x="336" y="408" width="256" height="88" rx="6"
+                fill="var(--color-accent-tint)" stroke="var(--color-accent)" stroke-width="1.6"/>
+          <text x="352" y="432" fill="var(--color-accent)" font-size="12" font-weight="700" font-family="'Geist', sans-serif">&#9733; Dynamic Task Planner DAG</text>
+          <text x="352" y="448" fill="var(--color-ink)" font-size="8" font-family="'Geist Mono', monospace">TaskTree Directed Acyclic Graph</text>
+          <text x="352" y="468" fill="var(--color-muted)" font-size="8" font-family="'Geist', sans-serif">Topological Schedule &bull; Dynamic Replanner</text>
+          <text x="352" y="482" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Syncs with TODO.md &bull; Freezes Dependents</text>
+        </g>
+
+        <!-- Node 10: Dynamic Code Sandboxing & AST Linter -->
+        <g class="node-group" onclick="selectNode('ast-sandbox')">
+          <rect class="node-box" x="616" y="408" width="256" height="88" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="632" y="432" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">AST Safety Linter &amp; Sandbox</text>
+          <text x="632" y="448" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Static AST Check &bull; OS Process Jails</text>
+          <text x="632" y="468" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Blocks rm -rf, child_process, os.system, eval</text>
+          <text x="632" y="482" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Windows Job Object (512MB RAM cap) / rlimit</text>
+        </g>
+
+        <!-- Node 11: Krypton-VCS Worktree Engine -->
+        <g class="node-group" onclick="selectNode('vcs-worktrees')">
+          <rect class="node-box" x="896" y="408" width="232" height="88" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="912" y="432" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Krypton-VCS Worktrees</text>
+          <text x="912" y="448" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Isolated Git Worktree System</text>
+          <text x="912" y="468" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Zero branch pollution &bull; Atomic commits</text>
+          <text x="912" y="482" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Deterministic Rollback &bull; Visual Gateway</text>
+        </g>
+
+        <!-- Node 12: Stealth AXTree Browser Pool -->
+        <g class="node-group" onclick="selectNode('browser-engine')">
+          <rect class="node-box" x="64" y="528" width="248" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="80" y="552" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Stealth AXTree Browser</text>
+          <text x="80" y="568" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">CDP Accessibility Blind Navigation</text>
+          <text x="80" y="586" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Max 2 contexts &bull; Transient IDs [id=1]</text>
+          <text x="80" y="598" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Bézier humanizer &bull; 15m idle cleanup</text>
+        </g>
+
+        <!-- Node 13: Model Context Protocol (MCP) Host -->
+        <g class="node-group" onclick="selectNode('mcp-host')">
+          <rect class="node-box" x="336" y="528" width="256" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="352" y="552" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">MCP Host &amp; Tools</text>
+          <text x="352" y="568" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Model Context Protocol Host</text>
+          <text x="352" y="586" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Stdio &amp; SSE transports &bull; Tool registry</text>
+          <text x="352" y="598" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Dynamic Whitelisting &bull; packages/shared-types</text>
+        </g>
+
+        <!-- Node 14: Context Optimizer & HITL Bus -->
+        <g class="node-group" onclick="selectNode('context-optimizer')">
+          <rect class="node-box" x="616" y="528" width="256" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="632" y="552" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Context Optimizer &amp; HITL Bus</text>
+          <text x="632" y="568" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Observation Masking &amp; Compaction</text>
+          <text x="632" y="586" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Masks &gt;1.5k tokens &bull; Compaction at 90%</text>
+          <text x="632" y="598" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Dispatches clarification prompts &amp; approvals</text>
+        </g>
+
+        <!-- Node 15: Terminal PTY & Tree-sitter AST -->
+        <g class="node-group" onclick="selectNode('terminal-pty')">
+          <rect class="node-box" x="896" y="528" width="232" height="80" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="912" y="552" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Terminal PTY &amp; Code Intel</text>
+          <text x="912" y="568" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Persistent PTY Pool &amp; LSP</text>
+          <text x="912" y="586" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Tree-sitter AST queries &bull; ANSI scrubber</text>
+          <text x="912" y="598" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Language Server Protocol integration</text>
+        </g>
+
+
+        <!-- ZONE 4 NODES: STORAGE, VAULT & STATE PERSISTENCE -->
+        <!-- Node 16: Cryptographic Secret Vault -->
+        <g class="node-group" onclick="selectNode('secret-vault')">
+          <rect class="node-box" x="64" y="692" width="248" height="96" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="80" y="716" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Secret Vault &amp; Credentials</text>
+          <text x="80" y="732" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">OS Keyring &amp; AES-256-GCM</text>
+          <text x="80" y="752" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Win Credential Mgr &bull; macOS Keychain</text>
+          <text x="80" y="768" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">~/.krypton/vault.enc</text>
+        </g>
+
+        <!-- Node 17: Agent Workspace Directory -->
+        <g class="node-group" onclick="selectNode('agent-workspace')">
+          <rect class="node-box" x="336" y="692" width="256" height="96" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="352" y="716" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Agent Workspace Directory</text>
+          <text x="352" y="732" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Config vs Markdown Decoupling</text>
+          <text x="352" y="752" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">config.json (machine) &bull; IDENTITY.md</text>
+          <text x="352" y="768" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">SOUL.md &bull; MEMORY.md &bull; TODO.md</text>
+        </g>
+
+        <!-- Node 18: Event Sourcing & Trajectories Ledger -->
+        <g class="node-group" onclick="selectNode('event-sourcing')">
+          <rect class="node-box" x="616" y="692" width="256" height="96" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="632" y="716" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Event Sourcing Ledger</text>
+          <text x="632" y="732" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Append-Only Crash Durability</text>
+          <text x="632" y="752" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">events.jsonl &bull; trajectories/&lt;session&gt;.json</text>
+          <text x="632" y="768" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">Deterministic recovery on daemon boot</text>
+        </g>
+
+        <!-- Node 19: Ephemeral Sandboxes & Worktrees Storage -->
+        <g class="node-group" onclick="selectNode('ephemeral-storage')">
+          <rect class="node-box" x="896" y="692" width="232" height="96" rx="6"
+                fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
+          <text x="912" y="716" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Ephemeral Disk Storage</text>
+          <text x="912" y="732" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Isolated Execution Workspaces</text>
+          <text x="912" y="752" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">~/.krypton/sandbox_workspace/&lt;id&gt;</text>
+          <text x="912" y="768" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">~/.krypton/worktrees/&lt;task-id&gt;</text>
+        </g>
+
+      </svg>
+    </div>
+
+    <!-- Editorial Architectural Summary Cards -->
+    <div class="cards-grid">
+      <div class="card">
+        <p class="card-eyebrow">TIER 1 &bull; PRESENTATION &amp; CLIENTS</p>
+        <div class="card-header">
+          <span class="card-dot link"></span>
+          <h3>Desktop &amp; Multi-Channel Shells</h3>
+        </div>
+        <ul>
+          <li><strong>Tauri v2 Desktop Shell:</strong> Frameless Next.js 16 UI with primary dashboard, live token stream, and visual diff viewer.</li>
+          <li><strong>Voice Micro-HUD:</strong> Translucent floating HUD window accessible via global shortcut (<code>Ctrl+Shift+Space</code>) with local STT.</li>
+          <li><strong>Terminal Companion:</strong> Standalone compiled binary <code>krypton-cli</code> using React 18 + Ink for terminal users.</li>
+          <li><strong>Omni-Channel Gateway:</strong> Real-time bridge connecting external bots (Telegram, Discord, Slack, WhatsApp, Signal).</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">TIER 2 &bull; IPC &amp; SUPERVISION</p>
+        <div class="card-header">
+          <span class="card-dot ink"></span>
+          <h3>Host Supervision &amp; Multi-Transport</h3>
+        </div>
+        <ul>
+          <li><strong>Rust Native Supervisor:</strong> Discovers, spawns, and health-monitors the standalone <code>krypton-daemon</code> child process.</li>
+          <li><strong>Clean Teardown Cascade:</strong> Enforces graceful <code>SIGTERM</code> &rarr; 3,000ms grace &rarr; forced process tree kill.</li>
+          <li><strong>Platform IPC Endpoints:</strong> Windows Named Pipe (<code>\\.\pipe\krypton-ipc</code>) and POSIX Domain Socket for low latency.</li>
+          <li><strong>WebSocket Streaming:</strong> Full-duplex RFC 6455 socket on port 18789 broadcasting token deltas, logs, and task DAG events.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">TIER 3 &bull; AUTONOMOUS ENGINE</p>
+        <div class="card-header">
+          <span class="card-dot coral"></span>
+          <h3>Actor Runtime &amp; Dynamic Planning</h3>
+        </div>
+        <ul>
+          <li><strong>Autonomous Step Loop:</strong> Observe &rarr; Reason &rarr; AST Validate &rarr; Execute &rarr; Verify &rarr; Checkpoint.</li>
+          <li><strong>Recursion &amp; Budget Caps:</strong> Hard depth ceiling (&le;3), concurrency limit (&le;5), 50% child token budgeting, 60s timeout.</li>
+          <li><strong>Dynamic TaskTree DAG:</strong> Topological execution with automated replanning, downstream freezing, and <code>TODO.md</code> sync.</li>
+          <li><strong>Stealth AXTree Browser:</strong> CDP Accessibility Tree blind navigation with numeric IDs (<code>[id=1]</code>) &amp; Bézier humanizer.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <p class="card-eyebrow">TIER 4 &bull; SECURITY &amp; ISOLATION</p>
+        <div class="card-header">
+          <span class="card-dot muted"></span>
+          <h3>AST Jails, Worktrees &amp; Vault</h3>
+        </div>
+        <ul>
+          <li><strong>AST Safety Linter:</strong> Pre-execution static analysis blocking dangerous imports, shell escapes, and root drive writes.</li>
+          <li><strong>OS Subprocess Jails:</strong> Windows Job Objects (512MB RAM cap, CPU priority throttle) and POSIX rlimit.</li>
+          <li><strong>Krypton-VCS Worktrees:</strong> Zero user branch pollution; atomic conventional semantic commits; deterministic hard rollback.</li>
+          <li><strong>Secret Vault &amp; Event Sourcing:</strong> OS Keyring + AES-256-GCM encrypted vault with append-only <code>events.jsonl</code> ledger.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div>
+        <span>Krypton Operating System Architecture &bull; Monorepo Spec &bull; <a href="../INDEX.md">Docs Index</a></span>
+      </div>
+      <div>
+        <span>Zero-Drift Architecture &bull; Single-Artifact Standard (1 OS = 1 Package)</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // Node Inspector Catalog
+    const nodeDetails = {
+      'desktop-shell': {
+        title: 'Desktop Workstation UI',
+        tier: 'ZONE 1 • PRESENTATION',
+        desc: 'Frameless desktop workstation dashboard built with Next.js 16 App Router and React 19. Hosts the TaskTree DAG visualizer, live streaming Chatbar, and visual VcsDiffViewer merge gateway.',
+        files: 'apps/desktop/src/app/dashboard/, apps/desktop/src/hooks/useKryptonDaemon.ts'
+      },
+      'voice-hud': {
+        title: 'Voice Micro-HUD',
+        tier: 'ZONE 1 • PRESENTATION',
+        desc: 'Floating, translucent, frameless HUD window (640x130) toggled via global hotkey (Ctrl+Shift+Space). Captures audio, performs Speech-to-Text streaming, and triggers quick autonomous tasks.',
+        files: 'apps/desktop/src/app/overlay/, apps/desktop/src-tauri/src/overlay.rs'
+      },
+      'cli-companion': {
+        title: 'Terminal CLI Companion (krypton-cli)',
+        tier: 'ZONE 1 • PRESENTATION',
+        desc: 'Interactive terminal client companion compiled as a standalone binary. Built with React 18 + Ink and Commander, communicating directly with the daemon over platform named pipes or sockets.',
+        files: 'packages/cli/src/ (index.ts, ipc-client.ts, ui/App.tsx)'
+      },
+      'omni-gateway': {
+        title: 'Omni-Channel Gateway',
+        tier: 'ZONE 1 • PRESENTATION',
+        desc: 'Decentralized external messaging gateway enabling remote interaction with Krypton agents via Telegram, Discord, WhatsApp, Slack, and Signal bots.',
+        files: 'packages/agent-runtime/src/channels/ (gateway.ts, telegram.ts, discord.ts)'
+      },
+      'rust-core': {
+        title: 'Tauri v2 Rust Native Core',
+        tier: 'ZONE 2 • NATIVE SUPERVISION',
+        desc: 'Native Rust host managing desktop windows, OS system tray, global hotkeys, and daemon supervision. Discovers krypton-daemon binary, launches it as a child process, and enforces clean SIGTERM teardown.',
+        files: 'apps/desktop/src-tauri/src/ (lib.rs, commands/sidecar.rs, overlay.rs, paths.rs)'
+      },
+      'local-ipc': {
+        title: 'Local Platform IPC Endpoint',
+        tier: 'ZONE 2 • IPC PROTOCOLS',
+        desc: 'Low-latency platform-native Inter-Process Communication: Windows Named Pipe (\\\\.\\pipe\\krypton-ipc) and UNIX Domain Socket (/tmp/krypton.sock) dispatching JSON-RPC 2.0 requests.',
+        files: 'packages/agent-runtime/src/daemon.ts, packages/shared-types/src/ipc.ts'
+      },
+      'websocket-server': {
+        title: 'RFC 6455 WebSocket Server',
+        tier: 'ZONE 2 • IPC PROTOCOLS',
+        desc: 'Full-duplex WebSocket server running on 127.0.0.1:18789. Broadcasts real-time LLM token chunks (token_stream), execution logs (agent_log), DAG mutations (task_tree_updated), and HITL approval prompts.',
+        files: 'packages/agent-runtime/src/daemon.ts (broadcast, handleWebSocket)'
+      },
+      'actor-engine': {
+        title: 'Hierarchical Actor Engine (Focal)',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Universal Actor-Model execution loop: Observe -> Reason -> AST Validate -> Execute -> Verify -> Checkpoint. Enforces max_depth <= 3, max_concurrency <= 5, 50% token budgeting, and 60s task timeouts.',
+        files: 'packages/agent-runtime/src/actor/ (agent.ts, scheduler.ts, executor.ts)'
+      },
+      'task-planner': {
+        title: 'Dynamic Task Planner DAG (Focal)',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Hierarchical TaskTree Directed Acyclic Graph (DAG). Dynamically schedules tasks based on dependency unblocking, intercepts failures to freeze downstream nodes, injects PlanPatches, and syncs TODO.md.',
+        files: 'packages/agent-runtime/src/planner/ (task-tree.ts, replanner.ts, ledger.ts)'
+      },
+      'ast-sandbox': {
+        title: 'AST Safety Linter & Sandbox Runner',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Static AST analysis analyzing generated code prior to execution to block forbidden modules (child_process, os.system, eval, rm -rf). Runs safe scripts in Windows Job Objects (512MB RAM cap) or POSIX rlimit.',
+        files: 'packages/agent-runtime/src/sandbox/ (linter.ts, runner.ts, job-objects.ts)'
+      },
+      'vcs-worktrees': {
+        title: 'Krypton-VCS Worktrees',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Complete Git worktree isolation under ~/.krypton/worktrees/<task-id>/. Ensures zero branch pollution on user branches, creates atomic Conventional Commits, and performs deterministic rollback on test failure.',
+        files: 'packages/agent-runtime/src/vcs/ (worktree.ts, commit.ts, diff.ts)'
+      },
+      'browser-engine': {
+        title: 'Stealth AXTree Browser Pool',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Stealth Playwright & CDP browser automation pool. Uses Chrome DevTools Protocol Accessibility Tree (AXTree) blind navigation with transient numeric IDs ([id=1]), Bézier mouse curves, and 15m idle recycling.',
+        files: 'packages/agent-runtime/src/browser/ (browser.ts, axtree.ts, humanizer.ts)'
+      },
+      'mcp-host': {
+        title: 'MCP Host & Built-in Tools',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Model Context Protocol (MCP) host connecting to external tool servers over Stdio and SSE transports. Exposes verified tool registry to the Actor Engine with dynamic capability negotiation.',
+        files: 'packages/agent-runtime/src/mcp/ (client.ts, registry.ts), packages/shared-types/src/mcp.ts'
+      },
+      'context-optimizer': {
+        title: 'Context Optimizer & HITL Bus',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Monitors prompt context windows. Masks outputs exceeding 1,500 tokens to ~/.krypton/cache/outputs/, compacts conversation history past 90% budget, and dispatches Human-In-The-Loop clarification prompts.',
+        files: 'packages/agent-runtime/src/context/ (masker.ts, compactor.ts), src/interaction/bus.ts'
+      },
+      'terminal-pty': {
+        title: 'Terminal PTY & Code Intelligence',
+        tier: 'ZONE 3 • DAEMON CORE',
+        desc: 'Persistent pseudo-terminal (PTY) session pool with ANSI scrubbing, integrated Tree-sitter AST queries for semantic code analysis, and Language Server Protocol (LSP) client support.',
+        files: 'packages/agent-runtime/src/terminal/ (pty.ts, ansi.ts), src/intelligence/tree-sitter.ts'
+      },
+      'secret-vault': {
+        title: 'Cryptographic Secret Vault',
+        tier: 'ZONE 4 • STORAGE & PERSISTENCE',
+        desc: 'Secure credential storage leveraging native OS keyrings (Windows Credential Manager, macOS Keychain, Linux Secret Service) with AES-256-GCM encrypted file fallback in ~/.krypton/vault.enc.',
+        files: 'packages/agent-runtime/src/vault/ (keyring.ts, crypto.ts), docs/config/vault-and-credentials.md'
+      },
+      'agent-workspace': {
+        title: 'Agent Workspace Directory',
+        tier: 'ZONE 4 • STORAGE & PERSISTENCE',
+        desc: 'Strict decoupling of machine configuration (config.json) from pure markdown prompt contexts (IDENTITY.md, SOUL.md, AGENTS.md, USER.md, MEMORY.md, TODO.md) under ~/.krypton/agents/<name>/.',
+        files: 'docs/config/agent-workspace-specs.md, packages/shared-types/src/config.ts'
+      },
+      'event-sourcing': {
+        title: 'Event Sourcing Ledger',
+        tier: 'ZONE 4 • STORAGE & PERSISTENCE',
+        desc: 'Append-only event ledger (events.jsonl) and trajectory logs (trajectories/<sessionId>.json) recording every system action for deterministic crash recovery and rehydration on daemon startup.',
+        files: 'packages/agent-runtime/src/event-sourcing/ (ledger.ts, recovery.ts), src/trajectory/'
+      },
+      'ephemeral-storage': {
+        title: 'Ephemeral Disk Storage',
+        tier: 'ZONE 4 • STORAGE & PERSISTENCE',
+        desc: 'Platform directory layout for sandboxed execution workspaces (~/.krypton/sandbox_workspace/<id>), Git worktrees (~/.krypton/worktrees/<task-id>), browser profiles, and purgeable cached logs.',
+        files: 'docs/config/storage-and-paths.md, packages/agent-runtime/src/filesystem/paths.ts'
+      }
+    };
+
+    function selectNode(nodeKey) {
+      const info = nodeDetails[nodeKey];
+      if (!info) return;
+
+      document.getElementById('inspector-name').innerText = info.title;
+      document.getElementById('inspector-tier').innerText = info.tier;
+      document.getElementById('inspector-desc').innerText = info.desc;
+      document.getElementById('inspector-files').innerText = 'Files: ' + info.files;
+
+      // Pulse visual effect
+      const panel = document.getElementById('inspector-panel');
+      panel.style.borderColor = 'var(--color-accent)';
+      setTimeout(() => {
+        panel.style.borderColor = 'var(--color-rule)';
+      }, 400);
+    }
+
+    function resetInspector() {
+      selectNode('actor-engine');
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const current = html.getAttribute('data-theme');
+      const isDark = current === 'dark';
+      const nextTheme = isDark ? 'light' : 'dark';
+
+      html.setAttribute('data-theme', nextTheme);
+      document.getElementById('theme-icon').innerHTML = isDark ? '&#9789;' : '&#9788;';
+      document.getElementById('theme-text').innerText = isDark ? 'Dark Theme' : 'Light Theme';
+    }
+  </script>
+</body>
+</html>
