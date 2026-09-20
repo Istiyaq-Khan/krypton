@@ -191,6 +191,38 @@ describe("Krypton Model Discovery & Validation Engine", () => {
         })
       )
     })
+
+    it("successfully discovers models from NVIDIA NIM endpoint (OpenAI-compatible)", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { id: "meta/llama-3.3-70b-instruct", created: 1733443200 },
+            { id: "deepseek-ai/deepseek-r1", created: 1737331200 },
+          ],
+        }),
+      } as Response)
+
+      const res = await testAndFetchModels({
+        provider: "openai",
+        apiKey: "nvapi-testkey-12345",
+        baseUrl: "https://integrate.api.nvidia.com/v1",
+      })
+
+      expect(res.success).toBe(true)
+      expect(res.models.length).toBe(2)
+      expect(res.models[0].id).toBe("deepseek-ai/deepseek-r1")
+      expect(res.models[1].id).toBe("meta/llama-3.3-70b-instruct")
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "https://integrate.api.nvidia.com/v1/models",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer nvapi-testkey-12345",
+          }),
+        })
+      )
+    })
   })
 
   describe("3. Error Diagnosis and Handling", () => {
@@ -303,6 +335,23 @@ describe("Krypton Model Discovery & Validation Engine", () => {
       expect(res.success).toBe(false)
       expect(res.error).toContain("ollama pull <model>")
     })
+
+    it("returns descriptive server error banner on HTTP 500-504", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        text: async () => "Service Unavailable",
+      } as Response)
+
+      const res = await testAndFetchModels({
+        provider: "openai",
+        apiKey: "sk-test-key",
+        baseUrl: "https://api.my-cluster.com/v1",
+      })
+
+      expect(res.success).toBe(false)
+      expect(res.error).toContain("Upstream server error (503)")
+    })
   })
 
   describe("4. Provider Metadata & Defaults Validation", () => {
@@ -341,6 +390,44 @@ describe("Krypton Model Discovery & Validation Engine", () => {
       expect(cached?.provider).toBe("openrouter")
       expect(cached?.models.length).toBe(2)
       expect(cached?.models[0].id).toBe("gpt-4o")
+    })
+  })
+
+  describe("6. Backend Proxy IPC Channel", () => {
+    it("routes through daemon proxy when useProxy is specified", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          provider: "openai",
+          models: [{ id: "meta/llama-3.3-70b-instruct" }],
+        }),
+      } as Response)
+
+      const res = await testAndFetchModels({
+        provider: "openai",
+        apiKey: "nvapi-test",
+        baseUrl: "https://integrate.api.nvidia.com/v1",
+        useProxy: true,
+      })
+
+      expect(res.success).toBe(true)
+      expect(res.models[0].id).toBe("meta/llama-3.3-70b-instruct")
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:19840/api/fetch-models",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({
+            provider: "openai",
+            apiKey: "nvapi-test",
+            baseUrl: "https://integrate.api.nvidia.com/v1",
+          }),
+        })
+      )
     })
   })
 })

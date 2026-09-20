@@ -79,3 +79,6 @@ export * from "./channels/index.js";
 
 // Background Daemon Engine
 export * from "./daemon.js";
+
+// Model Discovery Proxy Engine
+export * from "./proxy/model-proxy.js";

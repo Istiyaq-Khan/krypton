@@ -58,32 +58,37 @@ The onboarding modal guides the user through four essential configuration stages
 | Step | Section | Configured Properties |
 | :--- | :--- | :--- |
 | **1** | **Agent Identity** | Supervisor Name (`Orchestrator`), Role description, Persona/Directive template, Reasoning Style (Analytical / Agile / Research). |
-| **2** | **Model & Providers** | Sequential Provider Selection (OpenAI, Anthropic, Ollama / Local Runtime, OpenRouter, Custom OpenAI-Compatible Base URL), Isolated Credential Inputs, Dynamic Model Discovery & Credential Validation, Primary Reasoning Model Selection, Local Cache Generation. |
+| **2** | **Model & Providers** | Simplified Two-Protocol Selection (OpenAI-Compatible & Anthropic-Compatible), Custom Base URL & API Key Inputs, Backend Daemon Server-Side Discovery Proxy (`/api/fetch-models`), Dynamic Model Discovery & Credential Validation, Primary Reasoning Model Selection, Local Cache Generation. |
 | **3** | **Workspace Path** | Root Project Directory (`%USERPROFILE%\Projects` or `$HOME/projects`), Initial Workspace Name (`krypton-workspace`). |
 | **4** | **Guardrails, Voice & Privacy**| HITL confirmation requirements, AST Safety Linter enforcement, Voice-To-Text (VTT) Engine Selection & Speech Configuration (Whisper Local, Whisper API, NVIDIA Parakeet v3, Custom Endpoint), Telemetry opt-in (disabled by default). |
 
 ---
 
-## 3. Sequential Provider Selection & Dynamic Model Discovery Protocol
+## 3. Two-Protocol Provider Architecture & Server-Side Discovery Proxy
 
-Step 2 implements a sequential, validated onboarding flow to prevent configuration errors:
+Step 2 implements a streamlined two-provider protocol architecture paired with a backend daemon proxy to eliminate renderer CORS limitations:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Step 2A: Provider Selection Cards                           │
-│ [ OpenAI ] [ Anthropic ] [ Ollama ] [ OpenRouter ] [ Custom]│
+│ Step 2A: Protocol Selection Cards                           │
+│ [ OpenAI-Compatible ]             [ Anthropic-Compatible ]   │
+│ (OpenAI, NVIDIA NIM, vLLM,        (Claude 3.7 Sonnet, Haiku,│
+│  Ollama, OpenRouter, Groq)         Anthropic gateways)      │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Step 2B: Provider-Specific Credential Inputs                │
-│ (Renders ONLY inputs required for the selected provider)    │
+│ Step 2B: Base URL & Credential Inputs                       │
+│ - Base URL (e.g. https://integrate.api.nvidia.com/v1)       │
+│ - API Key / Bearer Token (with show/hide visibility toggle) │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│ Step 2C: Dynamic Model Discovery ("Test & Fetch Models")     │
-│ Queries endpoint with 10s timeout & validates credentials   │
+│ Step 2C: Server-Side Model Discovery Proxy                  │
+│ Renderer dispatches to Node daemon (`POST /api/fetch-models`│
+│ or JSON-RPC `api:fetch-models`) to bypass browser CORS;     │
+│ Node runtime resolves TLS, DNS & upstream HTTP headers      │
 └──────────────┬──────────────────────────────┬───────────────┘
                │                              │
          [SUCCESS]                        [FAILURE]
@@ -91,21 +96,28 @@ Step 2 implements a sequential, validated onboarding flow to prevent configurati
                ▼                              ▼
 ┌──────────────────────────────┐┌─────────────────────────────┐
 │ Step 2D: Primary Model Select││ Descriptive Error Banner    │
-│ Populated dynamically from   ││ (401 Auth, 403 Forbidden,   │
-│ discovered endpoint roster   ││  404 Not Found, 429 Quota,  │
-│ Cached to models_cache.json  ││  ECONNREFUSED / Timeout)    │
+│ Dynamically populated from   ││ (401 Auth, 403 Forbidden,   │
+│ discovered endpoint roster   ││  404 Route, 429 Quota,      │
+│ Cached to models_cache.json  ││  500-504, ECONNREFUSED/Time)│
 └──────────────────────────────┘└─────────────────────────────┘
 ```
 
-### Provider Endpoint Contracts
+### Server-Side Proxy Architecture (`model-proxy.ts` & `daemon.ts`)
 
-| Provider | Endpoint | Required Inputs | Headers & Auth |
+Because desktop webviews and browser renderers enforce Cross-Origin Resource Sharing (CORS), client-side queries to external endpoints lacking browser CORS headers (such as NVIDIA NIM at `https://integrate.api.nvidia.com/v1`, vLLM instances, or self-hosted LLMs) fail with generic `Failed to fetch` errors.
+
+Krypton resolves this by proxying discovery through the background Node.js daemon sidecar (`krypton-daemon` on `http://127.0.0.1:19840`):
+1. **Renderer Dispatch**: Setup wizard sends discovery parameters to `POST /api/fetch-models` or JSON-RPC method `api:fetch-models`.
+2. **Node Native Fetch**: Daemon executes native `fetch` with 10-second `AbortSignal` timeout, system TLS trust stores, and protocol-specific authorization headers.
+3. **URL Normalization**: Normalizes base URLs (e.g. ensuring `https://integrate.api.nvidia.com/v1` correctly resolves to `/models` without path duplication).
+4. **Status Code Translation**: Maps upstream HTTP errors into structured, user-friendly diagnostic messages.
+
+### Provider Protocol Contracts
+
+| Protocol Option | Target Endpoint | Configurable Inputs | Default Base URL & Headers |
 | :--- | :--- | :--- | :--- |
-| **OpenAI** | `GET https://api.openai.com/v1/models` | `apiKey` | `Authorization: Bearer <key>` |
-| **Anthropic** | `GET https://api.anthropic.com/v1/models` | `apiKey` | `x-api-key`, `anthropic-version`, `anthropic-dangerous-direct-browser-access` |
-| **Ollama** | `GET <baseUrl>/v1/models` (fallback: `/api/tags`) | `baseUrl` (default: `http://localhost:11434`) | Optional Bearer token |
-| **OpenRouter**| `GET https://openrouter.ai/api/v1/models` | `apiKey`, `baseUrl` | `Authorization: Bearer <key>`, `HTTP-Referer`, `X-Title` |
-| **Custom** | `GET <baseUrl>/models` or `/v1/models` | `baseUrl`, optional `apiKey` | Optional Bearer token |
+| **OpenAI-Compatible** | `GET <baseUrl>/models` | Base URL, API Key / Bearer Token | Default: `https://api.openai.com/v1`<br/>Supports NVIDIA NIM (`https://integrate.api.nvidia.com/v1`), vLLM, Ollama (`http://localhost:11434/v1`), OpenRouter.<br/>`Authorization: Bearer <key>` |
+| **Anthropic-Compatible** | `GET <baseUrl>/models` | Base URL, API Key | Default: `https://api.anthropic.com/v1`<br/>`x-api-key: <key>`, `anthropic-version: 2023-06-01` |
 
 ---
 
