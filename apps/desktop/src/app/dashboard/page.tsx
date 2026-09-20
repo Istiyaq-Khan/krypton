@@ -246,7 +246,6 @@ export default function DashboardPage() {
               askForApproval={session.askForApproval}
               onToggleApproval={() => session.setAskForApproval(!session.askForApproval)}
               onSubmitPrompt={(p) => session.submitPrompt(p)}
-              onVoiceTrigger={toggleVoiceHud}
             />
           </main>
 

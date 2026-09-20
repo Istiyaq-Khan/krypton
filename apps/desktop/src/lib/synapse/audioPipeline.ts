@@ -6,10 +6,11 @@ export interface SynapseAudioPipelineOptions {
   onError?: (err: string) => void;
   sampleRate?: number;
   engine?: string;
+  broadcastToSynapse?: boolean;
 }
 
 /**
- * Offline Local Audio Streaming Capture Pipeline for Krypton Synapse.
+ * Offline Local Audio Streaming Capture Pipeline for Krypton Synapse and Inline Dictation.
  * Captures microphone PCM audio buffers directly via Web Audio API,
  * bypassing external web network APIs (offline local processing).
  */
@@ -29,6 +30,7 @@ export class SynapseAudioPipeline {
     this.options = {
       sampleRate: 16000,
       engine: "whisper_gguf",
+      broadcastToSynapse: true,
       ...options,
     };
   }
@@ -205,8 +207,13 @@ export class SynapseAudioPipeline {
       this.options.onTranscription(finalTranscript, true);
     }
 
-    // Broadcast transcription event via Tauri if inside Tauri
-    if (typeof window !== "undefined" && isTauri() && finalTranscript) {
+    // Broadcast transcription event via Tauri if inside Tauri and enabled
+    if (
+      typeof window !== "undefined" &&
+      isTauri() &&
+      finalTranscript &&
+      this.options.broadcastToSynapse !== false
+    ) {
       try {
         await invoke("broadcast_synapse_transcription", {
           transcript: finalTranscript,

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
+import { SynapseAudioPipeline } from "@/lib/synapse/audioPipeline"
 
 export interface StagedContextItem {
   id: string
@@ -137,6 +138,8 @@ export function useChatbarState(
   const audioContextRef = useRef<AudioContext | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
   const animFrameRef = useRef<number | null>(null)
+  const pipelineRef = useRef<SynapseAudioPipeline | null>(null)
+  const basePromptRef = useRef("")
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -321,62 +324,64 @@ export function useChatbarState(
     setStagedContext((prev) => prev.filter((item) => item.id !== id))
   }
 
-  // Audio recording toggle using Web Audio API
+  // Audio recording toggle using Web Audio API and offline STT pipeline
   const toggleRecording = async () => {
     if (isRecording) {
-      // Stop recording
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current)
-      }
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((t) => t.stop())
-        mediaStreamRef.current = null
-      }
-      if (audioContextRef.current) {
-        await audioContextRef.current.close()
-        audioContextRef.current = null
-      }
+      // Stop recording and finalize transcription
       setIsRecording(false)
       setAudioAmplitude(0)
+      if (pipelineRef.current) {
+        try {
+          await pipelineRef.current.stop()
+        } catch (err) {
+          console.warn("[Chatbar] Audio recording stop notice:", err)
+        } finally {
+          pipelineRef.current = null
+        }
+      }
     } else {
       // Start recording
       try {
-        if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          mediaStreamRef.current = stream
-
-          const AudioContextClass =
-            window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-          const ctx = new AudioContextClass()
-          audioContextRef.current = ctx
-
-          const analyser = ctx.createAnalyser()
-          analyser.fftSize = 32
-          const source = ctx.createMediaStreamSource(stream)
-          source.connect(analyser)
-
-          const dataArray = new Uint8Array(analyser.frequencyBinCount)
-
-          const updateVolume = () => {
-            analyser.getByteFrequencyData(dataArray)
-            let sum = 0
-            for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i]
+        basePromptRef.current = prompt
+        const pipeline = new SynapseAudioPipeline({
+          engine: "whisper_gguf",
+          broadcastToSynapse: false,
+          onAmplitude: (amp) => setAudioAmplitude(amp),
+          onTranscription: (text, isFinal) => {
+            const base = basePromptRef.current
+            setPrompt(base ? `${base.trimEnd()} ${text}` : text)
+            if (isFinal) {
+              basePromptRef.current = ""
+              adjustHeight()
             }
-            const avg = sum / dataArray.length
-            setAudioAmplitude(Math.min(1, avg / 128))
-            animFrameRef.current = requestAnimationFrame(updateVolume)
-          }
+          },
+          onError: (err) => {
+            console.warn("[Chatbar] Audio hardware error:", err)
+            setIsRecording(false)
+            setAudioAmplitude(0)
+          },
+        })
 
-          setIsRecording(true)
-          updateVolume()
-        }
+        pipelineRef.current = pipeline
+        await pipeline.start()
+        setIsRecording(true)
       } catch (err) {
-        console.warn("Audio hardware permission denied or unavailable:", err)
+        console.warn("[Chatbar] Audio hardware permission denied or unavailable:", err)
         setIsRecording(false)
+        setAudioAmplitude(0)
       }
     }
   }
+
+  // Teardown and cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pipelineRef.current) {
+        pipelineRef.current.stop().catch(() => {})
+        pipelineRef.current = null
+      }
+    }
+  }, [])
 
   // Submit turn & serialize payload
   const submitTurn = () => {

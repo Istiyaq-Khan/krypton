@@ -58,15 +58,17 @@ To eliminate unpainted black boxes and duplicate interfaces, Krypton enforces a 
 
 ```
 [ Window Header: Logo / View Menu ] ──┐
-[ Chatbar Microphone Button ] ────────┼──▶ toggle_synapse ──▶ [ Tauri Window: "synapse" ]
+                                       ├──▶ toggle_synapse ──▶ [ Tauri Window: "synapse" ]
 [ Hotkey: Ctrl+Shift+Space ] ─────────┘        (Tauri)                │
                                                                        ▼
                                                           [ Single Frameless Window ]
                                                           (transparent, alwaysOnTop)
+
+[ Chatbar Microphone Button ] ────────▶ Inline Dictation ───▶ Textarea Prompt Insertion
 ```
 
-- **Tauri Mode (`isTauri()`)**: Invoking Synapse (`Ctrl+Shift+Space`, chatbar mic, or WindowHeader menu) triggers the native Tauri command `toggle_synapse`. Only the dedicated `synapse` window is toggled.
-- **Web Preview Mode (`!isTauri()`)**: In browser preview environments where native Tauri windows do not exist, the dashboard conditionally mounts the in-DOM `<KryptonSynapse />` component as an interactive fallback.
+- **Tauri Mode (`isTauri()`)**: Invoking Synapse (`Ctrl+Shift+Space` or WindowHeader menu) triggers the native Tauri command `toggle_synapse`. Only the dedicated `synapse` window is toggled. The chat toolbar microphone button is dedicated strictly to **Inline Chat Dictation** and never triggers `toggle_synapse`.
+- **Web Preview Mode (`!isTauri()`)**: In browser preview environments where native Tauri windows do not exist, the dashboard conditionally mounts the in-DOM `<KryptonSynapse />` component as an interactive fallback when invoked from the header.
 - **Tauri Window Definition (`tauri.conf.json`)**:
   ```json
   {
@@ -162,3 +164,26 @@ The audio capture pipeline (`apps/desktop/src/lib/synapse/audioPipeline.ts`) ope
 
 ### Global Hotkeys:
 - `Ctrl+Shift+Space` (or `Cmd+Shift+Space` on macOS): Global operating system shortcut to summon or dismiss Krypton Synapse.
+
+---
+
+## 8. Inline Chat Dictation vs. Krypton Synapse (User Manual Specification)
+
+Krypton provides two distinct voice interaction modalities designed for different operational workflows:
+
+| Dimension | Inline Chat Dictation (`InlineVoiceRecorder`) | Krypton Synapse (`KryptonSynapse`) |
+| :--- | :--- | :--- |
+| **Primary Purpose** | Hands-free prompt composition and inline editing | Autonomous system steering and multi-agent orchestration |
+| **Invocation Surface** | Microphone icon located in the bottom chat toolbar (`CommandContextBar`) | Global OS hotkey (`Ctrl+Shift+Space`) or `WindowHeader` View menu |
+| **Visual Presentation** | Compact inline toolbar button; expands to pulsing equalizer bars and REC indicator | Floating transparent frameless OS overlay window (`label: "synapse"`) |
+| **State Machine** | `idle` ➔ `recording` ➔ `transcribing` ➔ `inserted` | `idle` ➔ `listening` ➔ `thinking` ➔ `speaking` ➔ `error` |
+| **Execution Behavior** | Pipes recognized text directly into the active prompt textarea for manual review before sending | Autonomously submits and dispatches recognized commands directly into the active agent runtime |
+| **Speech Output (TTS)** | Silent; text insertion only | Synthesizes spoken agent responses using browser SpeechSynthesis |
+| **IPC Isolation** | `broadcastToSynapse: false` prevents triggering overlay window or auto-dispatch | Broadcasts `synapse:transcription` across windows for unified overlay presence |
+| **STT Model Source** | Shared local model catalog (`~/.krypton/models/ggml-tiny-q8_0.bin`) | Shared local model catalog (`~/.krypton/models/ggml-tiny-q8_0.bin`) |
+| **Network Dependency** | 100% Offline; Web Audio PCM buffers processed locally | 100% Offline; Web Audio PCM buffers processed locally |
+
+### User Workflow Guide:
+- **When to use Inline Chat Dictation**: Click the chatbar microphone when you want to speak your prompt, inspect or edit the recognized text, attach additional files/context chips, and manually hit `Enter` or click the dispatch button.
+- **When to use Krypton Synapse**: Press `Ctrl+Shift+Space` when working across external applications (IDE, browser, terminal) and you need hands-free steering, agent switching (`@CoderBot`, `@TesterBot`), and immediate autonomous task execution.
+
