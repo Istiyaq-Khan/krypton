@@ -63,6 +63,8 @@ pub fn run() {
             save_app_settings,
             save_agent_config,
             list_agents_config,
+            delete_agent_config,
+            create_agent_workspace,
             create_backup_vault,
             select_backup_save_dialog,
             purge_app_data_and_reset,

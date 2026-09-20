@@ -10,6 +10,7 @@ pub struct DiscoveredModelItem {
     pub name: Option<String>,
     pub description: Option<String>,
     pub context_length: Option<u64>,
+    pub supports_temperature: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -815,6 +816,71 @@ pub fn list_agents_config() -> Result<Vec<serde_json::Value>, String> {
     }
 
     Ok(result)
+}
+
+/// Deletes an agent workspace directory from ~/.krypton/agents/<agent_name>
+#[tauri::command]
+pub fn delete_agent_config(agent_name: String) -> Result<bool, String> {
+    ensure_krypton_directories()?;
+    let home = get_krypton_home();
+    let sanitized_name = agent_name.trim();
+    if sanitized_name.is_empty() {
+        return Err("Agent name is required".to_string());
+    }
+
+    let lower = sanitized_name.to_lowercase();
+    if lower == "agent-root" || lower == "root" || lower == "orchestrator" {
+        return Err(format!("Cannot delete protected root agent workspace: {}", sanitized_name));
+    }
+
+    let agent_dir = home.join("agents").join(sanitized_name);
+    if agent_dir.exists() {
+        fs::remove_dir_all(&agent_dir)
+            .map_err(|e| format!("Failed to delete agent directory {:?}: {}", agent_dir, e))?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Provisions a new agent workspace with config.json and template IDENTITY.md
+#[tauri::command]
+pub fn create_agent_workspace(
+    agent_name: String,
+    config: serde_json::Value,
+    template_identity: Option<String>,
+) -> Result<serde_json::Value, String> {
+    ensure_krypton_directories()?;
+    let home = get_krypton_home();
+    let sanitized_name = agent_name.trim();
+    if sanitized_name.is_empty() {
+        return Err("Agent name is required".to_string());
+    }
+
+    let agent_dir = home.join("agents").join(sanitized_name);
+    if !agent_dir.exists() {
+        fs::create_dir_all(&agent_dir)
+            .map_err(|e| format!("Failed to create agent dir {:?}: {}", agent_dir, e))?;
+    }
+
+    let config_path = agent_dir.join("config.json");
+    let serialized = serde_json::to_string_pretty(&config)
+        .map_err(|e| format!("Serialization error: {}", e))?;
+    fs::write(&config_path, serialized)
+        .map_err(|e| format!("Failed to write agent config {:?}: {}", config_path, e))?;
+
+    let identity_path = agent_dir.join("IDENTITY.md");
+    let identity_content = template_identity.unwrap_or_else(|| {
+        format!(
+            "# IDENTITY.md - {}\n\nYou are {}, an autonomous agent configured in Krypton.\n\n- **Name:** {}\n- **Vibe:** Focused, autonomous, reliable\n",
+            sanitized_name, sanitized_name, sanitized_name
+        )
+    });
+
+    fs::write(&identity_path, identity_content)
+        .map_err(|e| format!("Failed to write agent IDENTITY.md {:?}: {}", identity_path, e))?;
+
+    Ok(config)
 }
 
 

@@ -50,7 +50,7 @@ Dedicated full-screen Krypton settings interface with URL query hydration and IP
 - **Top Navigation**: "Back to app" button returning directly to the active workstation.
 - **Left Navigation Sidebar**: 5 modular categories:
   - `General` (`settings:general`, `/settings?tab=general`): Default workspace directory, default terminal shell, approval mode ("Ask for approval" vs autonomous execution), AST safety enforcement, telemetry.
-  - `Agents & Identity` (`settings:agents`, `/settings?tab=agents`): Agent fleet roster, new agent workspace creation, and individual agent configuration saving strictly to `<agentDir>/config.json`.
+  - `Agents & Identity` (`settings:agents`, `/settings?tab=agents`): Live agent fleet roster loaded from `~/.krypton/agents/`, `CreateAgentModal` provisioning (`config.json` + `IDENTITY.md`), declarative `AGENTS.md` role referencing, capability-aware Temperature slider toggling, and disk workspace deletion.
   - `Model Providers` (`settings:providers`, `/settings?tab=providers`): Provider API keys (OpenAI, Anthropic, OpenRouter, Ollama, Custom), custom endpoints, and dynamic connection testing with discovered models caching.
   - `Appearance` (`settings:appearance`, `/settings?tab=appearance`): Theme selector (Dark Obsidian, Midnight Violet, Cyber Slate, OLED Black), font sizing (Compact, Standard, Comfortable), and UI density controls.
   - `Data & Maintenance` (`settings:data`, `/settings?tab=data`): Platform storage path inspection, Backup Vault archive creation, factory reset / data purge, and in-app application uninstallation.

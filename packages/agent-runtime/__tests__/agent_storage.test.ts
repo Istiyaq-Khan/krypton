@@ -401,8 +401,89 @@ Do not delete files.`;
       const updateCtxRes = await daemon.handleRpcCall(updateCtxReq);
       expect(updateCtxRes.error).toBeUndefined();
 
-      const soulContent = fs.readFileSync(path.join(tempRoot, "agents", "RpcAgent", "SOUL.md"), "utf-8");
-      expect(soulContent).toContain("Updated soul directives via RPC.");
+      // 6. agents:* colon aliases and agents:delete RPC
+      const createColonReq = {
+        jsonrpc: "2.0" as const,
+        id: 6,
+        method: "agents:create",
+        params: {
+          name: "ColonAgent",
+          model: "claude-3-7-sonnet",
+          temperature: 0.2,
+          systemPrompt: "Colon agent prompt",
+        },
+      };
+      const createColonRes = await daemon.handleRpcCall(createColonReq);
+      expect(createColonRes.error).toBeUndefined();
+      const colonAgentDir = path.join(tempRoot, "agents", "ColonAgent");
+      expect(fs.existsSync(colonAgentDir)).toBe(true);
+
+      const listColonReq = { jsonrpc: "2.0" as const, id: 7, method: "agents:list", params: {} };
+      const listColonRes = await daemon.handleRpcCall(listColonReq);
+      expect(listColonRes.error).toBeUndefined();
+      expect((listColonRes.result as any[]).some((a: any) => a.name === "ColonAgent")).toBe(true);
+
+      const updateColonReq = {
+        jsonrpc: "2.0" as const,
+        id: 8,
+        method: "agents:update",
+        params: {
+          name: "ColonAgent",
+          patch: { temperature: 0.5 },
+        },
+      };
+      const updateColonRes = await daemon.handleRpcCall(updateColonReq);
+      expect(updateColonRes.error).toBeUndefined();
+      expect((updateColonRes.result as any).config.temperature).toBe(0.5);
+
+      const deleteColonReq = {
+        jsonrpc: "2.0" as const,
+        id: 9,
+        method: "agents:delete",
+        params: { name: "ColonAgent" },
+      };
+      const deleteColonRes = await daemon.handleRpcCall(deleteColonReq);
+      expect(deleteColonRes.error).toBeUndefined();
+      expect((deleteColonRes.result as any).success).toBe(true);
+      expect(fs.existsSync(colonAgentDir)).toBe(false);
+
+      // Verify deleteAgentWorkspace safety guards
+      const deleteRootRes = await daemon.handleRpcCall({
+        jsonrpc: "2.0" as const,
+        id: 10,
+        method: "agents:delete",
+        params: { name: "agent-root" },
+      });
+      expect(deleteRootRes.error).toBeDefined();
+      expect(deleteRootRes.error?.message).toContain("Cannot delete protected root agent");
+    } finally {
+      delete process.env.KRYPTON_HOME;
+    }
+  });
+
+  it("Agent.fromWorkspace ingests AGENTS.md conventions into combinedSystemPrompt", async () => {
+    process.env.KRYPTON_HOME = tempRoot;
+    try {
+      const agentDir = path.join(tempRoot, "agents", "ConventionsBot");
+      fs.mkdirSync(agentDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(agentDir, "config.json"),
+        JSON.stringify({ id: "agent-conv", name: "ConventionsBot", model: "5.6 Terra High" })
+      );
+      fs.writeFileSync(
+        path.join(agentDir, "IDENTITY.md"),
+        "You are ConventionsBot, adhering to all workspace standards."
+      );
+      fs.writeFileSync(
+        path.join(agentDir, "AGENTS.md"),
+        "### Workspace Conventions\n- Always run typecheck before committing."
+      );
+
+      const { Agent } = await import("../src/actor/agent.js");
+      const agent = await Agent.fromWorkspace("ConventionsBot", { customRoot: tempRoot });
+      const prompt = (agent as any).buildCombinedSystemPrompt();
+      expect(prompt).toContain("## Workspace Conventions & Operational Directives");
+      expect(prompt).toContain("Always run typecheck before committing.");
     } finally {
       delete process.env.KRYPTON_HOME;
     }

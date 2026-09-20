@@ -418,3 +418,36 @@ export async function deleteBootstrapFile(
   return deleted;
 }
 
+/**
+ * Safely deletes an agent workspace directory under ~/.krypton/agents/<agentName>.
+ * Guards against root deletion and path traversal attacks.
+ */
+export async function deleteAgentWorkspace(
+  agentDirOrName: string,
+  options?: AgentStorageOptionsInput
+): Promise<boolean> {
+  const opts = normalizeAgentStorageOptions(options);
+  const { agentName, agentDir } = resolveAgentDir(agentDirOrName, opts);
+
+  const trimmed = agentName.trim().toLowerCase();
+  if (trimmed === "agent-root" || trimmed === "root" || trimmed === "orchestrator") {
+    throw new Error(`Cannot delete protected root agent workspace: ${agentName}`);
+  }
+
+  const kryptonHome = resolveKryptonHome(opts?.customRoot);
+  const agentsRoot = path.join(kryptonHome, "agents");
+  const normalizedTarget = path.resolve(agentDir);
+  const normalizedAgentsRoot = path.resolve(agentsRoot);
+
+  if (!normalizedTarget.startsWith(normalizedAgentsRoot + path.sep)) {
+    throw new Error(`Path traversal violation: ${agentDir} is outside agents directory`);
+  }
+
+  if (fs.existsSync(normalizedTarget)) {
+    await fs.promises.rm(normalizedTarget, { recursive: true, force: true });
+    return true;
+  }
+
+  return false;
+}
+

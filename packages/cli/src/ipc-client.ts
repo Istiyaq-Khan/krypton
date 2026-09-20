@@ -203,8 +203,10 @@ export class KryptonIpcClient {
         return "diff --git a/file.ts b/file.ts\n+ console.log('hello krypton');"
       case "mergeVcs":
         return { success: true, commitHash: "c0ffee1" }
+      case "agents:list":
       case "listAgents":
         return [{ name: "default", model: "claude-3-7-sonnet", tools: ["fs", "bash", "browser"] }]
+      case "agents:create":
       case "createAgent":
         return { agentDir: `~/.krypton/agents/${params.name}`, agentName: params.name }
       case "getAgent":
@@ -213,8 +215,12 @@ export class KryptonIpcClient {
           prompts: {},
           combinedSystemPrompt: "",
         }
+      case "agents:update":
       case "updateAgent":
         return { agentName: params.name, config: params.patch || {} }
+      case "agents:delete":
+      case "deleteAgent":
+        return { success: true, agentName: params.name || params.agentId }
       case "listTools":
         return [
           { name: "github", description: "GitHub MCP Server", type: "mcp" },
@@ -279,6 +285,13 @@ export class KryptonIpcClient {
     config: Record<string, unknown>
   }> {
     return this.call("updateAgent", { name, patch })
+  }
+
+  public async deleteAgent(name: string): Promise<{
+    success: boolean
+    agentName?: string
+  }> {
+    return this.call("deleteAgent", { name })
   }
 
   public async listTools(): Promise<Array<{ name: string; description: string; type: string }>> {
