@@ -58,6 +58,7 @@ import {
   UninstallResult,
   StoragePathsInfo,
 } from "@krypton/shared-types"
+import { listenToNavigation } from "@/lib/navigation"
 
 // type SettingsCategory = "general" | "agents" | "providers" | "appearance"
 export type SettingsCategory = "general" | "agents" | "providers" | "appearance" | "data"
@@ -65,7 +66,9 @@ export type SettingsCategory = "general" | "agents" | "providers" | "appearance"
 
 export interface KryptonSettingsProps {
   initialCategory?: SettingsCategory
+  activeCategory?: SettingsCategory
   onBack: () => void
+  onCategoryChange?: (category: SettingsCategory) => void
   onUpdateApproval?: (ask: boolean) => void
   onUpdateModel?: (model: string) => void
   onRefreshFleet?: () => void
@@ -73,13 +76,52 @@ export interface KryptonSettingsProps {
 
 export function KryptonSettings({
   initialCategory = "general",
+  activeCategory: controlledCategory,
   onBack,
+  onCategoryChange,
   onUpdateApproval,
   onUpdateModel,
   onRefreshFleet,
 }: KryptonSettingsProps) {
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(initialCategory)
+  const [internalCategory, setInternalCategory] = useState<SettingsCategory>(
+    controlledCategory || initialCategory
+  )
+  const activeCategory = controlledCategory || internalCategory
+
+  const setActiveCategory = useCallback(
+    (cat: SettingsCategory) => {
+      setInternalCategory(cat)
+      onCategoryChange?.(cat)
+      if (typeof window !== "undefined" && window.location.pathname.includes("/settings")) {
+        const url = new URL(window.location.href)
+        url.searchParams.set("tab", cat)
+        window.history.replaceState({}, "", url.toString())
+      }
+    },
+    [onCategoryChange]
+  )
+
   const [saveIndicator, setSaveIndicator] = useState<string | null>(null)
+
+  // Synchronize when initialCategory changes externally
+  useEffect(() => {
+    if (initialCategory) {
+      setInternalCategory(initialCategory)
+    }
+  }, [initialCategory])
+
+  // Listen to navigation:go-to-route events
+  useEffect(() => {
+    const unlisten = listenToNavigation((payload) => {
+      if (
+        payload.tab &&
+        ["general", "agents", "providers", "appearance", "data"].includes(payload.tab)
+      ) {
+        setActiveCategory(payload.tab as SettingsCategory)
+      }
+    })
+    return () => unlisten()
+  }, [setActiveCategory])
 
   // ----------------------------------------------------
   // Category 1: General Settings State
@@ -886,6 +928,7 @@ export function KryptonSettings({
           <div className="flex flex-col gap-1">
             <button
               type="button"
+              data-settings-tab="general"
               onClick={() => setActiveCategory("general")}
               className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all text-left cursor-pointer ${
                 activeCategory === "general"
@@ -902,6 +945,7 @@ export function KryptonSettings({
 
             <button
               type="button"
+              data-settings-tab="agents"
               onClick={() => setActiveCategory("agents")}
               className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all text-left cursor-pointer ${
                 activeCategory === "agents"
@@ -918,6 +962,7 @@ export function KryptonSettings({
 
             <button
               type="button"
+              data-settings-tab="providers"
               onClick={() => setActiveCategory("providers")}
               className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all text-left cursor-pointer ${
                 activeCategory === "providers"
@@ -934,6 +979,7 @@ export function KryptonSettings({
 
             <button
               type="button"
+              data-settings-tab="appearance"
               onClick={() => setActiveCategory("appearance")}
               className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all text-left cursor-pointer ${
                 activeCategory === "appearance"
@@ -950,6 +996,7 @@ export function KryptonSettings({
 
             <button
               type="button"
+              data-settings-tab="data"
               onClick={() => setActiveCategory("data")}
               className={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium transition-all text-left cursor-pointer ${
                 activeCategory === "data"

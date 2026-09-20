@@ -68,6 +68,7 @@ pub fn run() {
             purge_app_data_and_reset,
             trigger_app_uninstall,
             get_storage_paths_info,
+            navigate_to_route,
         ])
 
         .run(tauri::generate_context!())

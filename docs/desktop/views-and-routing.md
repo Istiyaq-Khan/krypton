@@ -46,13 +46,16 @@ The primary interactive workstation window:
 - Seamlessly triggers the top-level **Krypton Synapse** window (`toggle_synapse`) or mounts in-DOM `<KryptonSynapse />` in browser preview mode.
 
 ### C. Settings Route (`/settings`)
-Dedicated full-screen Krypton settings interface:
+Dedicated full-screen Krypton settings interface with URL query hydration and IPC routing:
 - **Top Navigation**: "Back to app" button returning directly to the active workstation.
-- **Left Navigation Sidebar**: 4 modular categories:
-  - `General`: Default workspace directory, default terminal shell, approval mode ("Ask for approval" vs autonomous execution), AST safety enforcement, telemetry.
-  - `Agents & Identity`: Agent fleet roster, new agent workspace creation, and individual agent configuration saving strictly to `<agentDir>/config.json`.
-  - `Model Providers`: Provider API keys (OpenAI, Anthropic, OpenRouter, Ollama, Custom), custom endpoints, and dynamic connection testing with discovered models caching.
-  - `Appearance`: Theme selector (Dark Obsidian, Midnight Violet, Cyber Slate, OLED Black), font sizing (Compact, Standard, Comfortable), and UI density controls.
+- **Left Navigation Sidebar**: 5 modular categories:
+  - `General` (`settings:general`, `/settings?tab=general`): Default workspace directory, default terminal shell, approval mode ("Ask for approval" vs autonomous execution), AST safety enforcement, telemetry.
+  - `Agents & Identity` (`settings:agents`, `/settings?tab=agents`): Agent fleet roster, new agent workspace creation, and individual agent configuration saving strictly to `<agentDir>/config.json`.
+  - `Model Providers` (`settings:providers`, `/settings?tab=providers`): Provider API keys (OpenAI, Anthropic, OpenRouter, Ollama, Custom), custom endpoints, and dynamic connection testing with discovered models caching.
+  - `Appearance` (`settings:appearance`, `/settings?tab=appearance`): Theme selector (Dark Obsidian, Midnight Violet, Cyber Slate, OLED Black), font sizing (Compact, Standard, Comfortable), and UI density controls.
+  - `Data & Maintenance` (`settings:data`, `/settings?tab=data`): Platform storage path inspection, Backup Vault archive creation, factory reset / data purge, and in-app application uninstallation.
+- **Deep-Link Identifiers & IPC Channel (`navigation:go-to-route`)**:
+  Incoming `navigation:go-to-route` events automatically navigate to `/settings` and activate the designated tab (`NavigationRoutePayload.tab`).
 
 ### D. Krypton Synapse Route (`/synapse` & `/overlay`)
 Dedicated route loaded inside the secondary frameless, transparent Tauri window:

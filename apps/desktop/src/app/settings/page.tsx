@@ -6,12 +6,51 @@ import { WindowHeader } from "@/components/layout/WindowHeader"
 import { KryptonSettings, SettingsCategory } from "@/components/settings/KryptonSettings"
 import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 import { useAgentSession } from "@/hooks/useAgentSession"
+import { listenToNavigation } from "@/lib/navigation"
+
+const VALID_CATEGORIES: SettingsCategory[] = [
+  "general",
+  "agents",
+  "providers",
+  "appearance",
+  "data",
+]
 
 export default function SettingsPage() {
   const router = useRouter()
   const session = useAgentSession()
   const [isVoiceAgentVisible, setIsVoiceAgentVisible] = useState(false)
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>("general")
+
+  // Hydrate active tab from URL search parameters or hash on initial mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search)
+      const tabParam = searchParams.get("tab")?.toLowerCase() as SettingsCategory | null
+      const hash = window.location.hash.replace(/^#/, "").toLowerCase() as SettingsCategory
+
+      if (tabParam && VALID_CATEGORIES.includes(tabParam)) {
+        setActiveCategory(tabParam)
+      } else if (hash && VALID_CATEGORIES.includes(hash)) {
+        setActiveCategory(hash)
+      }
+    }
+  }, [])
+
+  // Listen to navigation:go-to-route IPC events
+  useEffect(() => {
+    const unlisten = listenToNavigation((payload) => {
+      if (payload.route === "/dashboard" || payload.route === "dashboard") {
+        router.push("/dashboard")
+        return
+      }
+
+      if (payload.tab && VALID_CATEGORIES.includes(payload.tab as SettingsCategory)) {
+        setActiveCategory(payload.tab as SettingsCategory)
+      }
+    })
+    return () => unlisten()
+  }, [router])
 
   // Keyboard shortcut listener: Ctrl+, or Cmd+, toggles back to dashboard
   useEffect(() => {
@@ -59,6 +98,8 @@ export default function SettingsPage() {
       <div className="flex flex-1 overflow-hidden min-h-0 relative">
         <KryptonSettings
           initialCategory={activeCategory}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
           onBack={() => router.push("/dashboard")}
           onUpdateApproval={session.setAskForApproval}
           onUpdateModel={session.setSelectedModel}

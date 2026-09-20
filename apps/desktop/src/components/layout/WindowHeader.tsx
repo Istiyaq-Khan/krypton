@@ -28,6 +28,17 @@ import {
 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ProjectWorkspace } from "@/lib/persistence"
+import {
+  navigateToRoute,
+  NavigationRoutePayload,
+  NavigationSettingsTab,
+  DEEP_LINK_SETTINGS_GENERAL,
+  DEEP_LINK_SETTINGS_AGENTS,
+  DEEP_LINK_SETTINGS_PROVIDERS,
+  DEEP_LINK_SETTINGS_APPEARANCE,
+  DEEP_LINK_SETTINGS_DATA,
+  DEEP_LINK_SETTINGS_SETUP,
+} from "@/lib/navigation"
 
 interface WindowHeaderProps {
   projectName?: string
@@ -43,6 +54,7 @@ interface WindowHeaderProps {
   onSelectProject?: (projectId: string) => void
   onOpenSetupWizard?: () => void
   onOpenSettings?: (category?: string) => void
+  onNavigateRoute?: (payload: NavigationRoutePayload) => void
   onToggleVoiceHud?: () => void
   canGoBack?: boolean
   canGoForward?: boolean
@@ -66,6 +78,7 @@ export function WindowHeader({
   onSelectProject,
   onOpenSetupWizard,
   onOpenSettings,
+  onNavigateRoute,
   onToggleVoiceHud,
   canGoBack = false,
   canGoForward = false,
@@ -169,6 +182,13 @@ export function WindowHeader({
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === ",") {
         e.preventDefault()
+        const payload: NavigationRoutePayload = {
+          route: "/settings",
+          tab: "general",
+          timestamp: Date.now(),
+        }
+        navigateToRoute(payload)
+        onNavigateRoute?.(payload)
         onOpenSettings?.()
       }
     }
@@ -176,7 +196,7 @@ export function WindowHeader({
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [onOpenSettings])
+  }, [onOpenSettings, onNavigateRoute])
 
   // Window management handlers
   const handleMinimize = async (e: React.MouseEvent) => {
@@ -298,8 +318,17 @@ export function WindowHeader({
                 <button
                   type="button"
                   data-tauri-drag-region="false"
+                  data-testid="logo-menu-settings"
+                  data-deep-link={DEEP_LINK_SETTINGS_GENERAL}
                   style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                   onClick={() => {
+                    const payload: NavigationRoutePayload = {
+                      route: "/settings",
+                      tab: "general",
+                      timestamp: Date.now(),
+                    }
+                    navigateToRoute(payload)
+                    onNavigateRoute?.(payload)
                     onOpenSettings?.()
                     setIsLogoMenuOpen(false)
                   }}
@@ -459,8 +488,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="file-menu-settings"
+                    data-deep-link={DEEP_LINK_SETTINGS_GENERAL}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "general",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.()
                       setActiveMenu(null)
                     }}
@@ -522,8 +560,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="edit-menu-preferences"
+                    data-deep-link={DEEP_LINK_SETTINGS_GENERAL}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "general",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.()
                       setActiveMenu(null)
                     }}
@@ -626,8 +673,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-preferences"
+                    data-deep-link={DEEP_LINK_SETTINGS_GENERAL}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "general",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.()
                       setActiveMenu(null)
                     }}
@@ -640,8 +696,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-general"
+                    data-deep-link={DEEP_LINK_SETTINGS_GENERAL}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "general",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.("general")
                       setActiveMenu(null)
                     }}
@@ -652,8 +717,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-agents"
+                    data-deep-link={DEEP_LINK_SETTINGS_AGENTS}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "agents",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.("agents")
                       setActiveMenu(null)
                     }}
@@ -664,8 +738,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-providers"
+                    data-deep-link={DEEP_LINK_SETTINGS_PROVIDERS}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "providers",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.("providers")
                       setActiveMenu(null)
                     }}
@@ -676,8 +759,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-appearance"
+                    data-deep-link={DEEP_LINK_SETTINGS_APPEARANCE}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "appearance",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.("appearance")
                       setActiveMenu(null)
                     }}
@@ -688,8 +780,17 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-data"
+                    data-deep-link={DEEP_LINK_SETTINGS_DATA}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings",
+                        tab: "data",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSettings?.("data")
                       setActiveMenu(null)
                     }}
@@ -702,8 +803,16 @@ export function WindowHeader({
                   <button
                     type="button"
                     data-tauri-drag-region="false"
+                    data-testid="menu-settings-setup"
+                    data-deep-link={DEEP_LINK_SETTINGS_SETUP}
                     style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                     onClick={() => {
+                      const payload: NavigationRoutePayload = {
+                        route: "/settings/setup",
+                        timestamp: Date.now(),
+                      }
+                      navigateToRoute(payload)
+                      onNavigateRoute?.(payload)
                       onOpenSetupWizard?.()
                       setActiveMenu(null)
                     }}

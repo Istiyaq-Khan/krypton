@@ -105,7 +105,16 @@ const handleToggleMaximize = async () => {
 
 The header integrates classic application menu bars and browser-style navigation:
 - **Application Menus Order**: `File`, `Edit`, `View`, `Settings`, and `Help` (with `Settings` positioned directly before `Help`).
-- **Settings Menu**: Provides direct shortcuts to full-screen Krypton Settings (`Preferences... Ctrl+,` or `Cmd+,` on macOS) and specific category navigation (`General`, `Agents & Identity`, `Model Providers`, `Appearance`).
+- **Settings Menu**: Provides direct shortcuts to full-screen Krypton Settings (`Preferences... Ctrl+,` or `Cmd+,` on macOS) and specific category navigation (`General`, `Agents & Identity`, `Model Providers`, `Appearance`, `Data & Maintenance`).
+- **Deep-Link Identifiers**: Every Settings menu item maps to an explicit deep-link payload:
+  - `General`: `settings:general` -> `/settings?tab=general`
+  - `Agents & Identity`: `settings:agents` -> `/settings?tab=agents`
+  - `Model Providers`: `settings:providers` -> `/settings?tab=providers`
+  - `Appearance`: `settings:appearance` -> `/settings?tab=appearance`
+  - `Data & Maintenance`: `settings:data` -> `/settings?tab=data`
+  - `Setup Wizard...`: `settings:setup` -> `/settings/setup`
+- **IPC Navigation Channel (`navigation:go-to-route`)**: Main-process or titlebar menu item clicks broadcast over the `navigation:go-to-route` IPC channel (`navigateToRoute`), dynamically switching tabs in `KryptonSettings` and routing across views.
+- **Popover Auto-Closure**: All menu popovers and dropdown overlays automatically close upon item selection (`setActiveMenu(null)`).
 - **Preferences Access**: Direct menu shortcuts to open the Krypton Settings interface or First-Run Setup Wizard.
 - **Chronological History**: `Back` and `Forward` buttons allowing users to navigate between visited project workspaces, settings, and chat threads.
 

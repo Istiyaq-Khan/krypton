@@ -15,6 +15,7 @@ import { FloatingVoiceAgent } from "@/components/voice/FloatingVoiceAgent"
 import { FirstRunSetupWizard, SetupCompletedData } from "@/components/setup/FirstRunSetupWizard"
 import { KryptonSettings, SettingsCategory } from "@/components/settings/KryptonSettings"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { listenToNavigation } from "@/lib/navigation"
 
 export default function DashboardPage() {
   const session = useAgentSession()
@@ -22,6 +23,21 @@ export default function DashboardPage() {
   const [isVoiceAgentVisible, setIsVoiceAgentVisible] = useState(false)
   const [activeView, setActiveView] = useState<"workspace" | "settings">("workspace")
   const [activeSettingsCategory, setActiveSettingsCategory] = useState<SettingsCategory>("general")
+
+  // Listen to navigation:go-to-route IPC events to toggle views and tabs
+  useEffect(() => {
+    const unlisten = listenToNavigation((payload) => {
+      if (payload.route === "/settings" || payload.route.startsWith("settings:")) {
+        if (payload.tab) {
+          setActiveSettingsCategory(payload.tab as SettingsCategory)
+        }
+        setActiveView("settings")
+      } else if (payload.route === "/dashboard" || payload.route === "workspace") {
+        setActiveView("workspace")
+      }
+    })
+    return () => unlisten()
+  }, [])
 
   // First-run setup state
   const [isSetupChecked, setIsSetupChecked] = useState(false)
@@ -183,6 +199,8 @@ export default function DashboardPage() {
         <div className="flex flex-1 overflow-hidden min-h-0 relative">
           <KryptonSettings
             initialCategory={activeSettingsCategory}
+            activeCategory={activeSettingsCategory}
+            onCategoryChange={setActiveSettingsCategory}
             onBack={() => setActiveView("workspace")}
             onUpdateApproval={session.setAskForApproval}
             onUpdateModel={session.setSelectedModel}

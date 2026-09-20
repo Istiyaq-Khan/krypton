@@ -244,3 +244,32 @@ export const IpcConnectionConfigSchema = z.object({
   timeoutMs: z.number().int().positive().default(10_000),
 });
 export type IpcConnectionConfig = z.infer<typeof IpcConnectionConfigSchema>;
+
+/**
+ * Navigation and Deep-Link Routing IPC Channel & Contracts
+ */
+export const NAVIGATION_GO_TO_ROUTE_CHANNEL = "navigation:go-to-route";
+
+export const NavigationSettingsTabSchema = z.enum([
+  "general",
+  "agents",
+  "providers",
+  "appearance",
+  "data",
+]);
+export type NavigationSettingsTab = z.infer<typeof NavigationSettingsTabSchema>;
+
+export const NavigationRoutePayloadSchema = z.object({
+  route: z.string(),
+  tab: NavigationSettingsTabSchema.optional(),
+  params: z.record(z.string(), z.string()).optional(),
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type NavigationRoutePayload = z.infer<typeof NavigationRoutePayloadSchema>;
+
+export const NavigationGoToRouteEventSchema = z.object({
+  type: z.literal("navigation:go-to-route"),
+  payload: NavigationRoutePayloadSchema,
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type NavigationGoToRouteEvent = z.infer<typeof NavigationGoToRouteEventSchema>;
