@@ -17,7 +17,7 @@ Krypton strictly isolates **machine-readable operational configuration** from **
 ├── USER.md                    # Durable user directives & profile facts
 ├── MEMORY.md                  # Curated long-term distilled knowledge & facts
 ├── TODO.md                    # Live task DAG ledger & historical log
-├── BOOTSTRAP.md               # First-run onboarding ritual (cleared upon init)
+├── BOOTSTRAP.md               # First-run onboarding ritual (agent-governed lifecycle; deleted via file tools once verified)
 └── short_term/                # Append-only transcripts, event store & trajectories
     ├── events.jsonl
     └── trajectories/

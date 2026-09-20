@@ -385,3 +385,100 @@ export const SetupConfigPayloadSchema = z.object({
 });
 export type SetupConfigPayload = z.infer<typeof SetupConfigPayloadSchema>;
 
+/**
+ * Record representing a project workspace saved to disk at ~/.krypton/workspaces/<id>.json.
+ */
+export const WorkspaceRecordSchema = z.object({
+  id: z.string().min(1, "Workspace ID is required"),
+  name: z.string().min(1, "Workspace name is required"),
+  path: z.string().default(""),
+  branch: z.string().default("main"),
+  activeThreadId: z.string().default(""),
+  activeAgentId: z.string().optional(),
+  createdAt: z.number().int().nonnegative().default(() => Date.now()),
+  updatedAt: z.number().int().nonnegative().default(() => Date.now()),
+  settings: z.record(z.string(), z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+}).passthrough();
+export type WorkspaceRecord = z.infer<typeof WorkspaceRecordSchema>;
+
+/**
+ * Individual message entry within a persisted chat session thread.
+ */
+export const SessionMessageRecordSchema = z.object({
+  id: z.string().default(() => crypto.randomUUID()),
+  sender: z.enum(["user", "agent", "system"]).optional(),
+  role: z.string().optional(),
+  content: z.string().optional(),
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+  prompt: z.string().optional(),
+  codeSnippet: z.string().optional(),
+  configJson: z.string().optional(),
+  assistantText: z.string().optional(),
+  toolExecutions: z.array(z.record(z.string(), z.unknown())).optional(),
+  thoughtTrace: z.record(z.string(), z.unknown()).optional(),
+  tasks: z.array(z.record(z.string(), z.unknown())).optional(),
+  diffData: z.record(z.string(), z.unknown()).optional(),
+  approvalGate: z.record(z.string(), z.unknown()).optional(),
+}).passthrough().transform((data) => {
+  let sender: "user" | "agent" | "system" = data.sender || "user";
+  if (!data.sender && data.role) {
+    sender = data.role === "assistant" ? "agent" : data.role === "system" ? "system" : "user";
+  }
+  let prompt = data.prompt;
+  let assistantText = data.assistantText;
+  if (data.content) {
+    if (sender === "user") {
+      prompt = prompt || data.content;
+    } else {
+      assistantText = assistantText || data.content;
+    }
+  }
+  return {
+    ...data,
+    sender,
+    prompt,
+    assistantText,
+  };
+});
+export type SessionMessageRecord = z.infer<typeof SessionMessageRecordSchema>;
+
+/**
+ * Session thread record saved to disk at ~/.krypton/sessions/<id>.json.
+ */
+export const SessionThreadRecordSchema = z.object({
+  id: z.string().min(1, "Session thread ID is required"),
+  workspaceId: z.string().default(""),
+  projectId: z.string().optional(),
+  agentId: z.string().optional(),
+  model: z.string().optional(),
+  provider: z.string().optional(),
+  title: z.string().default("Initial Session"),
+  createdAt: z.number().int().nonnegative().default(() => Date.now()),
+  updatedAt: z.number().int().nonnegative().default(() => Date.now()),
+  status: z.enum(["idle", "running", "completed", "error"]).default("idle"),
+  messages: z.array(SessionMessageRecordSchema).default([]),
+  summary: z.string().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+}).passthrough();
+export type SessionThreadRecord = z.infer<typeof SessionThreadRecordSchema>;
+
+/**
+ * Complete persisted workstation state container for filesystem storage.
+ */
+export const PersistedWorkstationStateSchema = z.object({
+  version: z.number().default(2),
+  workspaces: z.array(WorkspaceRecordSchema).default([]),
+  activeWorkspaceId: z.string().default(""),
+  activeThreadId: z.string().default(""),
+  activeSessionId: z.string().optional(),
+  activeAgentId: z.string().optional(),
+  sidebarOpen: z.boolean().optional(),
+  activeTab: z.string().optional(),
+  recentWorkspaceIds: z.array(z.string()).optional(),
+  sessions: z.array(SessionThreadRecordSchema).default([]),
+  updatedAt: z.number().int().nonnegative().default(() => Date.now()),
+}).passthrough();
+export type PersistedWorkstationState = z.infer<typeof PersistedWorkstationStateSchema>;
+
+

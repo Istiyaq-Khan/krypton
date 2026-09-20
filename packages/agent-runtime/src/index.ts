@@ -8,6 +8,7 @@ export * from "./filesystem/agent-storage.js";
 export * from "./filesystem/template-loader.js";
 export * from "./filesystem/parser.js";
 export * from "./filesystem/watcher.js";
+export * from "./filesystem/workspace-storage.js";
 
 // Providers & Keyring secret vault
 export * from "./providers/index.js";

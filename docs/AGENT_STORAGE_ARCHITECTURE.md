@@ -111,13 +111,13 @@ Markdown files in the workspace serve strictly as context for reasoning and task
 | `USER.md` | User model | Durable directives with observation dates (`Always`, `Never`, `Prefer`). |
 | `MEMORY.md` | Long-term memory | Distilled non-profile facts, verified architectural decisions, lessons learned. |
 | `TODO.md` | Task ledger | Dynamic task tree DAG (active checklist) and append-only historical audit log. |
-| `BOOTSTRAP.md` | Onboarding ritual | First-run onboarding questionnaire and setup steps (cleared once configured). |
+| `BOOTSTRAP.md` | Onboarding ritual | First-run onboarding ritual (agent-governed lifecycle; deleted via file tools once verified). |
 
 ---
 
 ## 4. Runtime Synchronization & Self-Healing
 
-The agent runtime storage service (`packages/agent-runtime/src/filesystem/agent-storage.ts`) manages disk operations:
+The agent runtime storage service (`packages/agent-runtime/src/filesystem/agent-storage.ts` and `workspace-storage.ts`) manages disk operations:
 
 ### 1. Graceful Migration & Self-Healing
 If an older or uninitialized workspace directory lacks `config.json`:
@@ -126,11 +126,13 @@ If an older or uninitialized workspace directory lacks `config.json`:
 3. Automatically synthesizes a fully compliant `config.json` with safe defaults.
 4. Atomically writes `config.json` to disk, completing migration with zero manual intervention.
 
-### 2. Prompt Assembler
-When instantiating an agent via `Agent.fromWorkspace(agentName)`:
+### 2. Prompt Assembler & Bootstrap Injection
+When instantiating an agent via `Agent.fromWorkspace(agentName)` or `loadAgentContext(agentName)`:
 1. `config.json` is parsed into typed runtime parameters (boundary limits, model options, tool executor bindings).
-2. `readAgentContextMarkdown()` reads `IDENTITY.md` and `SOUL.md` with frontmatter-stripping enabled.
-3. The LLM receives pure instruction markdown without YAML metadata or configuration flags.
+2. `readAgentContextMarkdown()` reads `IDENTITY.md`, `SOUL.md`, `AGENTS.md`, and `USER.md` with frontmatter-stripping enabled.
+3. If `BOOTSTRAP.md` or `bootstrap.md` exists in the agent workspace or project workspace, the birth sequence is automatically ingested into the system prompt with explicit `CRITICAL ONBOARDING DIRECTIVE` rules.
+4. **Zero System Deletion Invariant**: The Krypton daemon and runtime NEVER automatically delete `BOOTSTRAP.md`.
+5. **Agent Governance**: The agent alone is responsible for executing onboarding beats and deleting `BOOTSTRAP.md` via file tools (`file_delete`, `delete_file`) once verified.
 
 ### 3. IPC / Daemon RPC Methods
 The background daemon exposes dedicated JSON-RPC 2.0 endpoints:
@@ -139,3 +141,13 @@ The background daemon exposes dedicated JSON-RPC 2.0 endpoints:
 - `getAgent`: Returns both structured `config.json` and pure markdown prompt contents.
 - `updateAgent`: Modifies `config.json` without altering markdown context files.
 - `updateAgentContext`: Updates a specific `*.md` file without modifying `config.json`.
+- `workspace:save` / `saveWorkspace`: Atomically saves workspace records to `~/.krypton/workspaces/<id>.json`.
+- `workspace:load` / `loadWorkspace`: Retrieves saved workspace definition from disk.
+- `workspace:list` / `listWorkspaces`: Lists all registered workspaces sorted by last access.
+- `workspace:delete` / `deleteWorkspace`: Removes workspace definition from disk.
+- `session:save` / `saveSession`: Atomically persists chat session threads to `~/.krypton/sessions/<id>.json`.
+- `session:load` / `loadSession`: Loads full session thread with complete message history.
+- `session:list` / `listSessions`: Lists stored session threads (optionally filtered by workspace).
+- `session:delete` / `deleteSession`: Removes session thread from disk.
+- `workstation:saveState` / `loadWorkstationState`: Persists and retrieves workstation layout state.
+- `agent:deleteBootstrap` / `deleteBootstrap`: Executes agent-governed deletion of `BOOTSTRAP.md`.
