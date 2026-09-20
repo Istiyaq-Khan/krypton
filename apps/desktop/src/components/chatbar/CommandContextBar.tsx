@@ -7,7 +7,6 @@ import {
   GitBranch,
   Plus,
   Clock,
-  Mic,
   ArrowUp,
   Check,
   RotateCw,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react"
 import { DiscoveredModel } from "@/lib/modelDiscovery"
 import { ModelSelectorPopover } from "./ModelSelectorPopover"
+import { InlineVoiceRecorder } from "./InlineVoiceRecorder"
 
 interface CommandContextBarProps {
   projectName: string
@@ -51,6 +51,34 @@ export function CommandContextBar({
   const [showRefreshConfirm, setShowRefreshConfirm] = useState(false)
   const [feedbackBanner, setFeedbackBanner] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const basePromptRef = useRef("")
+
+  const handleStartDictation = () => {
+    basePromptRef.current = prompt
+  }
+
+  const handleTranscriptionChange = (text: string, isFinal: boolean) => {
+    const base = basePromptRef.current
+    let nextPrompt = ""
+    if (base && base.trim().length > 0) {
+      nextPrompt = `${base.trimEnd()} ${text}`
+    } else {
+      nextPrompt = text
+    }
+    setPrompt(nextPrompt)
+
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto"
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`
+      if (isFinal) {
+        textareaRef.current.focus()
+      }
+    }
+
+    if (isFinal) {
+      basePromptRef.current = ""
+    }
+  }
 
   const handleConfirmRefresh = async () => {
     setShowRefreshConfirm(false)
@@ -183,15 +211,11 @@ export function CommandContextBar({
               activeProvider={activeProvider}
             />
 
-            {/* Microphone Button */}
-            <button
-              type="button"
-              onClick={onVoiceTrigger}
-              className="flex size-7 items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-              title="Voice Input (or open Krypton Synapse: Ctrl+Shift+Space)"
-            >
-              <Mic className="size-3.5" />
-            </button>
+            {/* Inline Voice Dictation */}
+            <InlineVoiceRecorder
+              onTranscriptionChange={handleTranscriptionChange}
+              onStartRecording={handleStartDictation}
+            />
 
             {/* Send / Dispatch Up-Arrow Button */}
             <button

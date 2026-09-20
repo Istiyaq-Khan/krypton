@@ -135,12 +135,12 @@ describe("Issue #6: Floating Interactive Pill Voice HUD & VTT Onboarding", () =>
     expect(voiceSource).toContain("ArrowUp")
   })
 
-  it("9. Synchronization: chatbar mic button, WindowHeader menu, and hotkey invoke the unified toggleVoiceHud handler", () => {
+  it("9. Synchronization: WindowHeader menu and hotkey invoke toggleVoiceHud, while chatbar mic is decoupled to Inline Dictation", () => {
     const dashboardSource = fs.readFileSync(dashboardPagePath, "utf-8")
 
     expect(dashboardSource).toContain("toggleVoiceHud = useCallback")
     expect(dashboardSource).toContain("onToggleVoiceHud={toggleVoiceHud}")
-    expect(dashboardSource).toContain("onVoiceTrigger={toggleVoiceHud}")
+    expect(dashboardSource).not.toContain("onVoiceTrigger={toggleVoiceHud}")
     expect(dashboardSource).toContain("toggleVoiceHud()")
 
     // Agent context synchronization

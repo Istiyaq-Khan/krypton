@@ -54,6 +54,7 @@ describe("Phase 5: Desktop App Shell & Krypton Synapse Smoke Tests", () => {
       "src/components/chatbar/HoverPreviewCard.tsx",
       "src/components/chatbar/CommandMenu.tsx",
       "src/components/chatbar/AudioWaveform.tsx",
+      "src/components/chatbar/InlineVoiceRecorder.tsx",
       "src/components/chatbar/useChatbarState.ts",
       "src/components/TodoTree.tsx",
       "src/components/QuestionModal.tsx",

@@ -21,6 +21,7 @@ apps/desktop/src/components/
 │   ├── Chatbar.tsx           # Multi-line input bar with quick action buttons
 │   ├── CommandMenu.tsx       # Autocomplete slash commands (/run, /vcs, /test)
 │   ├── CommandContextBar.tsx # Context attachment chips (@agent, #worktree, !file)
+│   ├── InlineVoiceRecorder.tsx # 4-stage inline dictation state machine & animated indicator
 │   ├── ModelSelectorPopover.tsx # Accessible dark model picker with search & family groups
 │   └── AudioWaveform.tsx     # Real-time microphone audio amplitude visualizer
 ├── ui/
@@ -72,3 +73,11 @@ Human-in-the-Loop (HITL) prompt resolution modal:
 Visual inspection interface for agent code modifications:
 - Side-by-side syntax-highlighted diffs comparing the worktree branch (`krypton/<task-id>`) against the base branch.
 - Action triggers: "Approve & Merge", "Rollback Step", or "Reject & Abort".
+
+### G. InlineVoiceRecorder (`InlineVoiceRecorder.tsx`)
+Real-time chat toolbar speech dictation engine:
+- **4-Stage State Machine**: `idle` ➔ `recording` ➔ `transcribing` ➔ `inserted`.
+- **Animated Recording Indicator**: Renders reactive 4-bar amplitude visualizer, pulsating red REC badge, and square stop button.
+- **Offline Parity**: Transcribes audio locally via Web Audio API and the active offline STT engine (`whisper-tiny-q8_0` GGUF), sharing the exact model cache as Krypton Synapse without triggering the Synapse HUD overlay window.
+- **Direct Text Piping**: Streams partial and final recognized text directly into the chat input textarea.
+
