@@ -20,6 +20,7 @@ export interface KryptonChatPayload {
   context: StagedContextItem[]
   runtimeConfig: {
     model: string
+    agentName?: string
     enableWebSearch: boolean
   }
   dispatchedAt: number
@@ -113,10 +114,14 @@ export const AVAILABLE_CONTEXT: CommandItem[] = [
   },
 ]
 
-export function useChatbarState(onSubmit?: (payload: KryptonChatPayload) => void) {
+export function useChatbarState(
+  onSubmit?: (payload: KryptonChatPayload) => void,
+  initialAgentName = "Orchestrator"
+) {
   const [prompt, setPrompt] = useState("")
   const [stagedContext, setStagedContext] = useState<StagedContextItem[]>([])
   const [model, setModel] = useState("claude-3-7-sonnet")
+  const [agentName, setAgentName] = useState(initialAgentName)
   const [enableWebSearch, setEnableWebSearch] = useState(false)
   const [textareaHeight, setTextareaHeight] = useState(24)
   const [isOverflowing, setIsOverflowing] = useState(false)
@@ -383,6 +388,7 @@ export function useChatbarState(onSubmit?: (payload: KryptonChatPayload) => void
       context: [...stagedContext],
       runtimeConfig: {
         model,
+        agentName,
         enableWebSearch,
       },
       dispatchedAt: Date.now(),
@@ -406,6 +412,8 @@ export function useChatbarState(onSubmit?: (payload: KryptonChatPayload) => void
     setStagedContext,
     model,
     setModel,
+    agentName,
+    setAgentName,
     enableWebSearch,
     setEnableWebSearch,
     textareaHeight,

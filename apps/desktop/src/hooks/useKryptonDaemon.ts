@@ -167,11 +167,12 @@ export function useKryptonDaemon() {
   // Submit chat turn
   const submitChatTurn = useCallback(
     async (payload: KryptonChatPayload) => {
+      const agentName = payload.runtimeConfig?.agentName || "Orchestrator"
       const newLog: TrajectoryLogItem = {
         id: `log-${Date.now()}`,
         timestamp: Date.now(),
         agentId: "agent-root",
-        agentName: "Orchestrator",
+        agentName,
         type: "action",
         content: `Instruction dispatched: "${payload.prompt.slice(0, 60)}"`,
       }
@@ -184,7 +185,11 @@ export function useKryptonDaemon() {
             jsonrpc: "2.0",
             id: Date.now(),
             method: "startTask",
-            params: { prompt: payload.prompt, agentName: "Orchestrator" },
+            params: {
+              prompt: payload.prompt,
+              agentName,
+              model: payload.runtimeConfig?.model,
+            },
           })
         )
       }

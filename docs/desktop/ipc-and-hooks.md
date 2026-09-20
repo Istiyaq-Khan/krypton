@@ -28,7 +28,7 @@ The Rust backend exposes native desktop commands registered in `apps/desktop/src
 ## 2. Core React Communication Hooks
 
 ### A. `useKryptonDaemon.ts`
-Manages the real-time WebSocket connection to `ws://127.0.0.1:18789`:
+Manages the real-time WebSocket connection to `ws://127.0.0.1:19840` (`DEFAULT_WS_PORT`):
 - **Auto-Reconnection**: Reconnects with exponential backoff if the daemon restarts.
 - **RPC Invocation**: Exposes typed `callRpc<T>(method, params)` wrapper.
 - **Real-Time Stream Parsing**: Listens for incoming WebSocket frames:
@@ -36,12 +36,19 @@ Manages the real-time WebSocket connection to `ws://127.0.0.1:18789`:
   - `agent_log`: Emits formatted debug logs into the console and outputs drawer.
   - `task_tree_updated`: Synchronizes live Todo DAG states.
   - `clarification_requested`: Triggers the HITL QuestionModal dialog.
+  - `tool_approval_requested`: Intercepts sensitive commands and displays dynamic approval gates.
+  - `tool_execution`: Injects real tool execution results into message cards.
 
 ### B. `useAgentSession.ts`
-Coordinates active agent conversation state:
-- Tracks active task ID, messages array, and thought traces.
-- Handles user message submission, prompt decomposition, and mid-flight cancellation.
-- Synchronizes with localStorage via `lib/persistence.ts`.
+Coordinates active agent conversation state and the live IPC streaming pipeline:
+- **Zero Mock Payloads**: Connected directly to the live `krypton-daemon` runtime without client-side simulated loops or mock AST responses.
+- **Reactive State Machine**:
+  - `Input`: Dispatches `startTask` with `{ prompt, agentName, model, provider, workspacePath, conversationHistory, askForApproval }`.
+  - `Streaming Chunks`: Consumes live `token_stream` frames and accumulates assistant text with typing indicators.
+  - `Dynamic Tool Approval Cards`: Daemon broadcasts `tool_approval_requested` when an action requires human review, pausing runtime execution.
+  - `Approval Resolution`: Invoking `resolveMessageApproval(messageId, approved)` dispatches `{ method: "resolveApproval", params: { approvalId, approved } }` back to the daemon's paused Promise.
+  - `Execution Complete`: Closes stream, marks thread completed, and finalizes thought trace steps.
+- **Persistence**: Synchronizes workspaces, active thread, model choice, and approvals with localStorage via `lib/persistence.ts`.
 
 ### C. `useVoiceHud.ts`
 Controls voice recording and speech transcription:

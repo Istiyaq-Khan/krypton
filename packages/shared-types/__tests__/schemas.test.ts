@@ -439,6 +439,36 @@ describe("Phase 1: Shared Core & Type Contracts Verification Suite", () => {
         isFinal: true,
       });
       expect(voice.type).toBe("voice_transcribed");
+
+      const approval = WebSocketPacketSchema.parse({
+        type: "tool_approval_requested",
+        approval: {
+          id: "approval-123",
+          agentId,
+          agentName: "CoderBot",
+          type: "terminal_command",
+          title: "Command Execution Approval",
+          description: "Execute compiler check",
+          command: "pnpm test",
+          status: "pending",
+          timestamp: Date.now(),
+        },
+      });
+      expect(approval.type).toBe("tool_approval_requested");
+
+      const toolExec = WebSocketPacketSchema.parse({
+        type: "tool_execution",
+        agentId,
+        tool: {
+          id: "tool-456",
+          type: "terminal_command",
+          title: "Run unit test suite",
+          command: "pnpm test",
+          durationMs: 250,
+          status: "success",
+        },
+      });
+      expect(toolExec.type).toBe("tool_execution");
     });
 
     it("exports standard platform pipe endpoints", () => {
