@@ -437,7 +437,7 @@
         <rect x="144" y="200" width="80" height="16" rx="3" fill="var(--color-paper)"/>
         <text x="184" y="211" fill="var(--color-link)" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="500">Tauri IPC</text>
 
-        <!-- 2. Voice Micro-HUD to Rust Core (Global Hotkey & Overlay commands) -->
+        <!-- 2. Krypton Synapse to Rust Core (Global Hotkey & Synapse commands) -->
         <path d="M 436,168 V 196 Q 436,204 428,204 H 260 Q 252,204 252,212 V 248"
               fill="none" stroke="var(--color-link)" stroke-width="1.2" marker-end="url(#arrow-link)"/>
 
@@ -528,14 +528,14 @@
           <text x="80" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">apps/desktop/src/app</text>
         </g>
 
-        <!-- Node 2: Voice Micro-HUD -->
-        <g class="node-group" onclick="selectNode('voice-hud')">
+        <!-- Node 2: Krypton Synapse -->
+        <g class="node-group" onclick="selectNode('synapse')">
           <rect class="node-box" x="328" y="80" width="216" height="88" rx="6"
                 fill="var(--color-paper-2)" stroke="var(--color-rule-solid)" stroke-width="1"/>
-          <text x="344" y="104" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Voice Micro-HUD</text>
-          <text x="344" y="120" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Floating Translucent Overlay</text>
-          <text x="344" y="140" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Global Hotkey STT &bull; Ctrl+Shift+Space</text>
-          <text x="344" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">apps/desktop/src/app/overlay</text>
+          <text x="344" y="104" fill="var(--color-ink)" font-size="12" font-weight="600" font-family="'Geist', sans-serif">Krypton Synapse</text>
+          <text x="344" y="120" fill="var(--color-muted)" font-size="8" font-family="'Geist Mono', monospace">Floating Transparent Window</text>
+          <text x="344" y="140" fill="var(--color-soft)" font-size="8" font-family="'Geist', sans-serif">Offline STT &bull; Ctrl+Shift+Space</text>
+          <text x="344" y="154" fill="var(--color-soft)" font-size="8" font-family="'Geist Mono', monospace">apps/desktop/src/app/synapse</text>
         </g>
 
         <!-- Node 3: Terminal CLI Companion -->
@@ -727,7 +727,7 @@
         </div>
         <ul>
           <li><strong>Tauri v2 Desktop Shell:</strong> Frameless Next.js 16 UI with primary dashboard, live token stream, and visual diff viewer.</li>
-          <li><strong>Voice Micro-HUD:</strong> Translucent floating HUD window accessible via global shortcut (<code>Ctrl+Shift+Space</code>) with local STT.</li>
+          <li><strong>Krypton Synapse:</strong> Frameless, transparent floating window accessible via global shortcut (<code>Ctrl+Shift+Space</code>) with pluggable offline STT.</li>
           <li><strong>Terminal Companion:</strong> Standalone compiled binary <code>krypton-cli</code> using React 18 + Ink for terminal users.</li>
           <li><strong>Omni-Channel Gateway:</strong> Real-time bridge connecting external bots (Telegram, Discord, Slack, WhatsApp, Signal).</li>
         </ul>
@@ -797,11 +797,11 @@
         desc: 'Frameless desktop workstation dashboard built with Next.js 16 App Router and React 19. Hosts the TaskTree DAG visualizer, live streaming Chatbar, and visual VcsDiffViewer merge gateway.',
         files: 'apps/desktop/src/app/dashboard/, apps/desktop/src/hooks/useKryptonDaemon.ts'
       },
-      'voice-hud': {
-        title: 'Voice Micro-HUD',
+      'synapse': {
+        title: 'Krypton Synapse',
         tier: 'ZONE 1 • PRESENTATION',
-        desc: 'Floating, translucent, frameless HUD window (640x130) toggled via global hotkey (Ctrl+Shift+Space). Captures audio, performs Speech-to-Text streaming, and triggers quick autonomous tasks.',
-        files: 'apps/desktop/src/app/overlay/, apps/desktop/src-tauri/src/overlay.rs'
+        desc: 'Floating, transparent, frameless window (640x130) toggled via global hotkey (Ctrl+Shift+Space). Captures offline audio, performs local Speech-to-Text streaming, and triggers quick autonomous steering.',
+        files: 'apps/desktop/src/app/synapse/, apps/desktop/src-tauri/src/overlay.rs'
       },
       'cli-companion': {
         title: 'Terminal CLI Companion (krypton-cli)',

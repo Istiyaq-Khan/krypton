@@ -188,7 +188,7 @@ export function CommandContextBar({
               type="button"
               onClick={onVoiceTrigger}
               className="flex size-7 items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-              title="Voice Input (or open Voice HUD)"
+              title="Voice Input (or open Krypton Synapse: Ctrl+Shift+Space)"
             >
               <Mic className="size-3.5" />
             </button>

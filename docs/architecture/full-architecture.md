@@ -16,8 +16,8 @@ Krypton operates as a decentralized, local-first operating system designed to ex
 │                    TIER 1: PRESENTATION & CLIENT SHELLS                      │
 │                                                                              │
 │  ┌───────────────────────────────┐     ┌──────────────────────────────────┐  │
-│  │ Primary Desktop Workstation   │     │ Floating Voice Micro-HUD         │  │
-│  │ (Next.js 16 / React 19)       │     │ (Translucent / Ctrl+Shift+Space) │  │
+│  │ Primary Desktop Workstation   │     │ Floating Krypton Synapse         │  │
+│  │ (Next.js 16 / React 19)       │     │ (Transparent / Ctrl+Shift+Space) │  │
 │  └──────────────┬────────────────┘     └─────────────────┬────────────────┘  │
 │                 │                                        │                   │
 │                 └───────────────────┬────────────────────┘                   │
@@ -92,7 +92,7 @@ Krypton is architected as a high-performance **pnpm** monorepo with strict packa
 krypton/
 ├── apps/
 │   └── desktop/                  # Tauri v2 native desktop application & React 19 frontend
-│       ├── src/                  # Next.js 16 App Router UI (/dashboard, /overlay, /setup)
+│       ├── src/                  # Next.js 16 App Router UI (/dashboard, /synapse, /setup)
 │       └── src-tauri/            # Rust native backend (Windowing, Tray, Sidecar supervisor)
 ├── packages/
 │   ├── shared-types/             # Single source of truth: TypeScript types, Zod schemas, IPC
@@ -110,7 +110,7 @@ krypton/
 | `packages/shared-types` | `@krypton/shared-types` | Unified contract library, Zod validation schemas, IPC interfaces | TypeScript, Zod |
 | `packages/agent-runtime` | `@krypton/agent-runtime` | Autonomous actor scheduler, daemon server, MCP host, AST sandbox, VCS | TypeScript, Bun / Node.js |
 | `packages/cli` | `@krypton/cli` | Terminal user interface companion with interactive task viewer | React 18, Ink, Commander |
-| `apps/desktop` | `desktop` | Cross-platform frameless desktop workstation & floating voice HUD | Tauri v2, Rust, Next.js 16, Tailwind CSS |
+| `apps/desktop` | `desktop` | Cross-platform frameless desktop workstation & floating Krypton Synapse | Tauri v2, Rust, Next.js 16, Tailwind CSS |
 | `scripts/` | — | Cross-platform single-artifact sidecar bundlers | Node.js, Bun |
 
 ---
@@ -120,7 +120,7 @@ krypton/
 ### A. Boot & Discovery Cascade
 1. **Desktop Shell Launch (`krypton.exe` / `Krypton.app`)**:
    - Rust native core (`apps/desktop/src-tauri/src/lib.rs`) initializes logger plugins and verifies the `~/.krypton/` directory tree (`ensure_krypton_directories()`).
-   - Native windows (`main` and `overlay`) are instantiated in frameless mode.
+   - Native windows (`main` and `synapse`) are instantiated in frameless mode.
 2. **First-Run Inspection**:
    - `check_setup_status` audits `~/.krypton/config.json`.
    - If uninitialized, the UI displays `FirstRunSetupWizard`.

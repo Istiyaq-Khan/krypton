@@ -211,7 +211,7 @@ export function WindowHeader({
     if (onToggleVoiceHud) {
       onToggleVoiceHud()
     } else if (isTauri()) {
-      await invoke("toggle_overlay").catch(console.error)
+      await invoke("toggle_synapse").catch(() => invoke("toggle_overlay").catch(console.error))
     }
     setActiveMenu(null)
     setIsLogoMenuOpen(false)
@@ -318,7 +318,7 @@ export function WindowHeader({
                   }}
                   className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                 >
-                  <span>Toggle Voice Micro-HUD</span>
+                  <span>Toggle Krypton Synapse</span>
                   <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+Space</span>
                 </button>
                 <div className="h-px bg-zinc-800 my-1" />
@@ -593,7 +593,7 @@ export function WindowHeader({
                     onClick={handleToggleVoiceHud}
                     className="flex items-center justify-between rounded-lg px-2.5 py-1.5 hover:bg-zinc-800 text-zinc-200 text-left transition-colors pointer-events-auto cursor-pointer"
                   >
-                    <span>Toggle Voice Micro-HUD</span>
+                    <span>Toggle Krypton Synapse</span>
                     <span className="text-[10px] text-zinc-500 font-mono">Ctrl+Shift+Space</span>
                   </button>
                 </div>
@@ -1057,7 +1057,7 @@ export function WindowHeader({
               { key: "Ctrl+Shift+N", action: "Create new workspace project" },
               { key: "Ctrl+B", action: "Toggle workspaces sidebar" },
               { key: "Ctrl+J", action: "Toggle task DAG & trajectory drawer" },
-              { key: "Ctrl+Shift+Space", action: "Toggle floating Voice Micro-HUD" },
+              { key: "Ctrl+Shift+Space", action: "Toggle Krypton Synapse" },
               { key: "Ctrl+,", action: "Open Settings / Preferences (Krypton View)" },
             ].map((sc) => (
               <div key={sc.key} className="flex items-center justify-between rounded-lg bg-zinc-900/60 px-3 py-1.5 border border-zinc-800/80">

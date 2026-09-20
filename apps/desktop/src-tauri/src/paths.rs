@@ -11,6 +11,7 @@ pub struct KryptonPathsInfo {
     pub agents: String,
     pub tools: String,
     pub browser_profiles: String,
+    pub models: String,
     pub exists: bool,
     pub writable: bool,
 }
@@ -41,6 +42,7 @@ pub fn ensure_krypton_directories() -> Result<KryptonPathsInfo, String> {
         "telemetry",
         "agents",
         "worktrees",
+        "models",
         "tools/python",
         "tools/typescript",
         "browser_profiles/default",
@@ -78,6 +80,7 @@ pub fn ensure_krypton_directories() -> Result<KryptonPathsInfo, String> {
         agents: home.join("agents").to_string_lossy().to_string(),
         tools: home.join("tools").to_string_lossy().to_string(),
         browser_profiles: home.join("browser_profiles").to_string_lossy().to_string(),
+        models: home.join("models").to_string_lossy().to_string(),
         exists: home.exists(),
         writable,
     })

@@ -20,6 +20,8 @@ export type ModelRoute = z.infer<typeof ModelRouteSchema>;
  */
 export const VttEngineIdSchema = z.enum([
   "whisper_local",
+  "whisper_gguf",
+  "moonshine_onnx",
   "whisper_api",
   "nvidia/parakeet-tdt-0.6b-v3",
   "custom",
@@ -29,7 +31,14 @@ export type VttEngineId = z.infer<typeof VttEngineIdSchema>;
 export const VttConfigSchema = z.object({
   engine: z.string().default("whisper_local"),
   architecture: z
-    .enum(["encoder_decoder_autoregressive", "conformer_rnnt_tdt", "cloud_api", "custom"])
+    .enum([
+      "encoder_decoder_autoregressive",
+      "whisper_gguf",
+      "moonshine_onnx",
+      "conformer_rnnt_tdt",
+      "cloud_api",
+      "custom",
+    ])
     .default("encoder_decoder_autoregressive"),
   customEndpoint: z.string().optional(),
   apiKey: z.string().optional(),
@@ -81,6 +90,7 @@ export const GlobalConfigSchema = z.object({
   hotkeys: z
     .object({
       toggleVoiceHud: z.string().default("CommandOrControl+Shift+Space"),
+      toggleSynapse: z.string().default("CommandOrControl+Shift+Space"),
       abortExecution: z.string().default("CommandOrControl+Escape"),
     })
     .default({}),

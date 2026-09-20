@@ -63,13 +63,13 @@ The desktop shell manages two dedicated native windows declared in `tauri.conf.j
 | Window Label | Initial State | Dimensions | Properties | Role |
 | :--- | :--- | :--- | :--- | :--- |
 | `main` | Visible | 1280 × 840 (min 960 × 640) | Frameless, resizable | Primary interactive workspace & dashboard |
-| `overlay` | Hidden | 640 × 130 | Frameless, transparent, always-on-top, skip-taskbar | Floating Voice Micro-HUD |
+| `synapse` (or `overlay`) | Hidden | 640 × 130 | Frameless, transparent, always-on-top, skip-taskbar | Floating Krypton Synapse |
 
 ### Window Lifecycle Control Commands:
 - `window_minimize`: Minimizes the main window to the OS taskbar/dock.
 - `window_toggle_maximize`: Toggles between maximized screen estate and restored geometry.
 - `window_close`: Initiates graceful application teardown.
-- `toggle_overlay`: Toggles the visibility of the floating voice HUD overlay via global hotkey (`Ctrl+Shift+Space`).
+- `toggle_synapse`: Toggles the visibility of the floating Krypton Synapse overlay via global hotkey (`Ctrl+Shift+Space`). `toggle_overlay` is preserved as an alias.
 
 ---
 

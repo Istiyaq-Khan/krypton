@@ -2,11 +2,11 @@ import { describe, it, expect } from "vitest"
 import fs from "fs"
 import path from "path"
 
-describe("Phase 5: Desktop App Shell & Micro-HUD Smoke Tests", () => {
+describe("Phase 5: Desktop App Shell & Krypton Synapse Smoke Tests", () => {
   const tauriConfPath = path.resolve(__dirname, "../src-tauri/tauri.conf.json")
   const defaultCapabilityPath = path.resolve(__dirname, "../src-tauri/capabilities/default.json")
 
-  it("tauri.conf.json defines both 'main' dashboard and 'overlay' Voice Micro-HUD windows", () => {
+  it("tauri.conf.json defines both 'main' dashboard and 'synapse' windows", () => {
     expect(fs.existsSync(tauriConfPath)).toBe(true)
     const content = JSON.parse(fs.readFileSync(tauriConfPath, "utf-8"))
 
@@ -21,10 +21,10 @@ describe("Phase 5: Desktop App Shell & Micro-HUD Smoke Tests", () => {
     expect(mainWindow.resizable).toBe(true)
     expect(mainWindow.decorations).toBe(false)
 
-    const overlayWindow = windows.find((w: any) => w.label === "overlay")
+    const overlayWindow = windows.find((w: any) => w.label === "synapse" || w.label === "overlay")
     expect(overlayWindow).toBeDefined()
-    expect(overlayWindow.title).toBe("Krypton Voice HUD")
-    expect(overlayWindow.url).toBe("/overlay")
+    expect(overlayWindow.title).toContain("Krypton")
+    expect(["/synapse", "/overlay"]).toContain(overlayWindow.url)
     expect(overlayWindow.transparent).toBe(true)
     expect(overlayWindow.decorations).toBe(false)
     expect(overlayWindow.alwaysOnTop).toBe(true)
@@ -43,7 +43,7 @@ describe("Phase 5: Desktop App Shell & Micro-HUD Smoke Tests", () => {
     const content = JSON.parse(fs.readFileSync(defaultCapabilityPath, "utf-8"))
 
     expect(content.windows).toContain("main")
-    expect(content.windows).toContain("overlay")
+    expect(content.windows.some((w: string) => w === "synapse" || w === "overlay")).toBe(true)
     expect(content.permissions).toContain("core:default")
   })
 

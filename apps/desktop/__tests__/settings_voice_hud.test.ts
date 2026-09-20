@@ -5,7 +5,9 @@ import path from "path"
 describe("Issue #4: Krypton Settings System & Floating Voice HUD Overlay", () => {
   const windowHeaderPath = path.resolve(__dirname, "../src/components/layout/WindowHeader.tsx")
   const kryptonSettingsPath = path.resolve(__dirname, "../src/components/settings/KryptonSettings.tsx")
-  const floatingVoiceAgentPath = path.resolve(__dirname, "../src/components/voice/FloatingVoiceAgent.tsx")
+  const floatingVoiceAgentPath = fs.existsSync(path.resolve(__dirname, "../src/components/voice/KryptonSynapse.tsx"))
+    ? path.resolve(__dirname, "../src/components/voice/KryptonSynapse.tsx")
+    : path.resolve(__dirname, "../src/components/voice/FloatingVoiceAgent.tsx")
   const dashboardPagePath = path.resolve(__dirname, "../src/app/dashboard/page.tsx")
   const settingsPagePath = path.resolve(__dirname, "../src/app/settings/page.tsx")
   const setupRustPath = path.resolve(__dirname, "../src-tauri/src/commands/setup.rs")

@@ -46,6 +46,19 @@ export function resolveKryptonHome(customRoot?: string): string {
 }
 
 /**
+ * Resolves the standardized local models directory under ~/.krypton/models.
+ * Automatically ensures the directory exists cross-platform.
+ */
+export function resolveModelsDir(customRoot?: string): string {
+  const kryptonHome = resolveKryptonHome(customRoot);
+  const modelsDir = path.join(kryptonHome, "models");
+  if (!fs.existsSync(modelsDir)) {
+    fs.mkdirSync(modelsDir, { recursive: true });
+  }
+  return modelsDir;
+}
+
+/**
  * Dynamically provisions an isolated workspace directory for a named agent
  * using the universal agent archetype templates.
  * Enforces strict separation of concerns:
@@ -123,6 +136,7 @@ export async function bootstrapKryptonHome(
     "browser_profiles/default",
     "browser_profiles/whatsapp",
     "browser_binaries",
+    "models",
     "logs",
     "sandbox_workspace",
   ];

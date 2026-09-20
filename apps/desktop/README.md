@@ -10,7 +10,7 @@ The native desktop workstation shell for **Krypton — Autonomous Desktop AI Age
 - **Native Window IPC**: In-app Minimize, Maximize/Restore, and Close controls wired to Rust Tauri commands (`window_minimize`, `window_toggle_maximize`, `window_close`, `window_is_maximized`).
 - **First-Run Onboarding Engine**: Automatic host state detection on startup; routes unconfigured systems through `FirstRunSetupWizard` to configure custom agent identities, model routes, encrypted API credentials, workspace paths, and security preferences.
 - **Pure Clean State**: Zero mock artifacts. Workspaces boot unpopulated with clean project prompts and functional task templates.
-- **Always-on-top Voice Micro-HUD**: Translucent overlay window accessible via global hotkey (`CommandOrControl+Shift+Space`).
+- **Always-on-top Krypton Synapse**: Frameless transparent window accessible via global hotkey (`CommandOrControl+Shift+Space`) with pluggable offline STT.
 - **Interactive Navigation & Menus**: Working File, Edit, View, and Help menus with keyboard shortcuts and chronological back/forward session history.
 
 ---

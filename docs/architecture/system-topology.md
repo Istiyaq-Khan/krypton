@@ -13,8 +13,8 @@ Krypton operates as a decentralized, local-first runtime with zero external serv
 │                           DESKTOP SHELL (Tauri v2)                      │
 │                                                                         │
 │  ┌───────────────────────────────┐     ┌─────────────────────────────┐  │
-│  │   Primary Dashboard Window    │     │   Voice Micro-HUD Window    │  │
-│  │   (React 19 / Next.js 16)     │     │   (Translucent / Frameless) │  │
+│  │   Primary Dashboard Window    │     │   Krypton Synapse Window    │  │
+│  │   (React 19 / Next.js 16)     │     │   (Transparent / Frameless) │  │
 │  └──────────────┬────────────────┘     └──────────────┬──────────────┘  │
 │                 │                                     │                 │
 │                 └─────────────────┬───────────────────┘                 │

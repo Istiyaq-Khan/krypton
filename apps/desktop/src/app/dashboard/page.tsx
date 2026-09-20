@@ -46,11 +46,13 @@ export default function DashboardPage() {
     setIsNewProjectModalOpen(false)
   }
 
-  // Synchronized Voice HUD Toggle Handler
+  // Synchronized Voice HUD / Krypton Synapse Toggle Handler
   const toggleVoiceHud = useCallback(async () => {
-    setIsVoiceAgentVisible((prev) => !prev)
     if (typeof window !== "undefined" && isTauri()) {
-      await invoke("toggle_overlay").catch(console.error)
+      await invoke("toggle_synapse").catch(() => invoke("toggle_overlay").catch(console.error))
+    } else {
+      // In web browser preview mode without Tauri, fallback to in-DOM pill
+      setIsVoiceAgentVisible((prev) => !prev)
     }
   }, [])
 
@@ -269,8 +271,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Floating Voice Presence (Toggled via header or mic button, visible across all pages) */}
-      {isVoiceAgentVisible && (
+      {/* Floating Voice Presence (Toggled via header or mic button, visible in web preview fallback mode) */}
+      {!isTauri() && isVoiceAgentVisible && (
         <FloatingVoiceAgent
           activeAgentName={session.activeAgentName || session.activeProject?.name || "Orchestrator"}
           availableAgents={

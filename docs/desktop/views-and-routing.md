@@ -17,8 +17,10 @@ apps/desktop/src/app/
 │   └── page.tsx              # Main Workstation Shell (Sidebar, Stream, Chatbar, Drawers) & Settings view switcher
 ├── settings/
 │   └── page.tsx              # Standalone Krypton Settings view route
+├── synapse/
+│   └── page.tsx              # Standalone Krypton Synapse window route
 └── overlay/
-    └── page.tsx              # Standalone Voice Micro-HUD window route
+    └── page.tsx              # Backward-compatible redirect to /synapse
 ```
 
 ---
@@ -41,7 +43,7 @@ The primary interactive workstation window:
 - Hosts the interactive **Chatbar** with command menus (`/run`, `/test`, `@agent`).
 - Toggles the side and bottom drawers: **TodoTree** (`Ctrl+J`), **VcsDiffViewer**, and **OutputsDrawer**.
 - Supports seamless in-shell switching between the active project workspace and the **KryptonSettings** view (`Ctrl+,` or `Cmd+,`).
-- Persistently mounts the top-level **FloatingVoiceAgent** overlay (`z-[9999]`), ensuring it remains visible, draggable, and interactive across all workspace and settings views.
+- Seamlessly triggers the top-level **Krypton Synapse** window (`toggle_synapse`) or mounts in-DOM `<KryptonSynapse />` in browser preview mode.
 
 ### C. Settings Route (`/settings`)
 Dedicated full-screen Krypton settings interface:
@@ -52,11 +54,13 @@ Dedicated full-screen Krypton settings interface:
   - `Model Providers`: Provider API keys (OpenAI, Anthropic, OpenRouter, Ollama, Custom), custom endpoints, and dynamic connection testing with discovered models caching.
   - `Appearance`: Theme selector (Dark Obsidian, Midnight Violet, Cyber Slate, OLED Black), font sizing (Compact, Standard, Comfortable), and UI density controls.
 
-### D. Voice Micro-HUD Route (`/overlay`)
-Dedicated route loaded inside the secondary transparent Tauri window:
-- Self-contained, lightweight UI displaying a live microphone waveform visualizer.
+### D. Krypton Synapse Route (`/synapse` & `/overlay`)
+Dedicated route loaded inside the secondary frameless, transparent Tauri window:
+- Self-contained, lightweight UI displaying the interactive Krypton Synapse pill (`data-synapse-window="true"`).
+- Live microphone waveform visualizer driven by offline Web Audio API PCM streaming.
 - Target agent selector chip (`[Orchestrator]`, `[CoderBot]`).
-- Real-time transcription preview text with instant submission trigger.
+- Real-time offline speech transcription preview text with instant submission trigger.
+- `/overlay` is preserved as a transparent backward-compatible alias route.
 
 ---
 

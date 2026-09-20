@@ -24,7 +24,7 @@ docs/
 │   ├── [Views & Routing](desktop/views-and-routing.md)                 # Next.js 16 app router, dashboard, overlay, CSS tokens
 │   ├── [First-Run Setup](desktop/first-run-setup.md)                   # Setup wizard lifecycle, configuration persistence
 │   ├── [Desktop IPC & Hooks](desktop/ipc-and-hooks.md)                 # Tauri Rust command handlers, useKryptonDaemon hook
-│   ├── [Voice Micro-HUD](desktop/voice-micro-hud.md)                   # Translucent floating overlay, global hotkeys, STT
+│   ├── [Krypton Synapse (Voice & STT)](desktop/krypton-synapse.md)     # Frameless transparent window, offline STT, model caching
 │   ├── [Components Catalog](desktop/components-guide.md)               # Core UI component catalog & visual state machines
 │   └── [Lifecycle & Uninstallation](desktop/lifecycle-and-uninstallation.md) # OS packaging, backup vault, factory reset & uninstall
 │
@@ -80,7 +80,7 @@ docs/
 | **Edit desktop dashboard, routing, or CSS design tokens**| [`desktop/views-and-routing.md`](desktop/views-and-routing.md) |
 | **Modify onboarding wizard or initial configuration** | [`desktop/first-run-setup.md`](desktop/first-run-setup.md) |
 | **Inspect Tauri IPC commands or React hooks** | [`desktop/ipc-and-hooks.md`](desktop/ipc-and-hooks.md) |
-| **Work on the floating Voice Micro-HUD overlay** | [`desktop/voice-micro-hud.md`](desktop/voice-micro-hud.md) |
+| **Krypton Synapse floating window, STT engines, & offline audio** | [`desktop/krypton-synapse.md`](desktop/krypton-synapse.md) |
 | **Review UI components (Chatbar, Stream, DiffViewer)** | [`desktop/components-guide.md`](desktop/components-guide.md) |
 | **Export backup vault, factory reset, or uninstall app** | [`desktop/lifecycle-and-uninstallation.md`](desktop/lifecycle-and-uninstallation.md) |
 | **Add or update JSON-RPC methods or WebSocket events** | [`runtime/daemon-architecture.md`](runtime/daemon-architecture.md) |

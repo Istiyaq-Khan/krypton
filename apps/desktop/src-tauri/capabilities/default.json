@@ -4,6 +4,7 @@
   "description": "enables default permissions for main and overlay windows",
   "windows": [
     "main",
+    "synapse",
     "overlay"
   ],
   "permissions": [

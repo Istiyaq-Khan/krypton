@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Krypton — Autonomous Desktop AI Agent Runtime",
   description:
-    "Local-first, cross-platform autonomous desktop AI agent runtime with recursive sub-agents, dynamic AST code sandboxing, stealth browser automation, and voice HUD.",
+    "Local-first, cross-platform autonomous desktop AI agent runtime with recursive sub-agents, dynamic AST code sandboxing, stealth browser automation, and Krypton Synapse offline voice interface.",
 };
 
 export default function RootLayout({

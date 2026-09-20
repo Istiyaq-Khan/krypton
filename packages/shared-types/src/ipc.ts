@@ -132,6 +132,32 @@ export const VoiceTranscribedEventSchema = z.object({
 export type VoiceTranscribedEvent = z.infer<typeof VoiceTranscribedEventSchema>;
 
 /**
+ * Krypton Synapse window toggle event.
+ */
+export const SynapseToggleEventSchema = z.object({
+  type: z.literal("synapse:toggle"),
+  visible: z.boolean().optional(),
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type SynapseToggleEvent = z.infer<typeof SynapseToggleEventSchema>;
+
+/**
+ * Streaming speech transcription event for Krypton Synapse interface.
+ */
+export const SynapseTranscriptionEventSchema = z.object({
+  type: z.literal("synapse:transcription"),
+  transcript: z.string(),
+  isFinal: z.boolean().default(false),
+  engine: z.string().default("whisper_gguf"),
+  targetAgent: z.string().optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type SynapseTranscriptionEvent = z.infer<
+  typeof SynapseTranscriptionEventSchema
+>;
+
+/**
  * Interactive Human-in-the-Loop tool/command approval request.
  */
 export const ToolApprovalRequestSchema = z.object({
@@ -193,6 +219,8 @@ export const WebSocketPacketSchema = z.discriminatedUnion("type", [
   ClarificationRequestedEventSchema,
   SteeringInputEventSchema,
   VoiceTranscribedEventSchema,
+  SynapseToggleEventSchema,
+  SynapseTranscriptionEventSchema,
   ToolApprovalRequestedEventSchema,
   ToolExecutionEventSchema,
 ]);

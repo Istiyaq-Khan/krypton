@@ -210,3 +210,13 @@
 @utility app-region-no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* Krypton Synapse Frameless Transparent Window Rules */
+html:has([data-synapse-window="true"]),
+body:has([data-synapse-window="true"]),
+html.synapse-transparent,
+body.synapse-transparent {
+  background: transparent !important;
+  background-color: transparent !important;
+  overflow: hidden !important;
+}

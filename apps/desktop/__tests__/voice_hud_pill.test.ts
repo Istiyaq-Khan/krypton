@@ -3,7 +3,9 @@ import fs from "fs"
 import path from "path"
 
 describe("Issue #6: Floating Interactive Pill Voice HUD & VTT Onboarding", () => {
-  const floatingVoiceAgentPath = path.resolve(__dirname, "../src/components/voice/FloatingVoiceAgent.tsx")
+  const floatingVoiceAgentPath = fs.existsSync(path.resolve(__dirname, "../src/components/voice/KryptonSynapse.tsx"))
+    ? path.resolve(__dirname, "../src/components/voice/KryptonSynapse.tsx")
+    : path.resolve(__dirname, "../src/components/voice/FloatingVoiceAgent.tsx")
   const firstRunWizardPath = path.resolve(__dirname, "../src/components/setup/FirstRunSetupWizard.tsx")
   const kryptonSettingsPath = path.resolve(__dirname, "../src/components/settings/KryptonSettings.tsx")
   const dashboardPagePath = path.resolve(__dirname, "../src/app/dashboard/page.tsx")

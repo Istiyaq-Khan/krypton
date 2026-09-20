@@ -19,7 +19,7 @@ describe("Issue #1: Window Chrome Suppression, Drag Regions & Window IPC Control
     expect(mainWindow).toBeDefined()
     expect(mainWindow.decorations).toBe(false)
 
-    const overlayWindow = windows.find((w: any) => w.label === "overlay")
+    const overlayWindow = windows.find((w: any) => w.label === "synapse" || w.label === "overlay")
     expect(overlayWindow).toBeDefined()
     expect(overlayWindow.decorations).toBe(false)
   })

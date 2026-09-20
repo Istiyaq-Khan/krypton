@@ -82,3 +82,7 @@ export * from "./daemon.js";
 
 // Model Discovery Proxy Engine
 export * from "./proxy/model-proxy.js";
+
+// Speech-to-Text (STT) Runtime Loader & Offline Models
+export * from "./stt/index.js";
+

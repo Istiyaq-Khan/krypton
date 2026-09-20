@@ -66,7 +66,7 @@ Krypton is organized as a pnpm workspace with strict dependency boundaries:
 krypton/
 ├── apps/
 │   └── desktop/                 # Tauri v2 native shell + Next.js 16 React UI
-│       ├── src/                 # Desktop frontend (Chatbar, Voice Micro-HUD, DiffViewer)
+│       ├── src/                 # Desktop frontend (Chatbar, Krypton Synapse, DiffViewer)
 │       └── src-tauri/           # Rust native core (IPC commands, window management)
 │
 ├── packages/
@@ -121,7 +121,7 @@ pnpm run dev:cli
 ### Branch Naming
 
 Use descriptive branch names with conventional prefixes:
-- `feat/voice-hud-waveform` (new features)
+- `feat/synapse-waveform` (new features)
 - `fix/browser-context-leak` (bug fixes)
 - `docs/storage-schema-update` (documentation updates)
 - `refactor/task-dag-planner` (refactoring code)
@@ -142,7 +142,7 @@ All commits must adhere to the [Conventional Commits](https://www.conventionalco
 Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`.
 
 Examples:
-- `feat(desktop): add audio reactive waveform to voice micro-hud`
+- `feat(desktop): add audio reactive waveform to synapse`
 - `fix(runtime): prevent browser context leak on task abort`
 - `docs(index): register storage schema reference`
 

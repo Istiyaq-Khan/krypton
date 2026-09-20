@@ -19,7 +19,7 @@ When an autonomous agent encounters ambiguous instructions, missing parameters, 
 │ Broadcasts ClarificationRequest simultaneously across:      │
 │  - Desktop UI (QuestionModal Dialog)                        │
 │  - CLI Client (Interactive QuestionPrompt TUI)              │
-│  - Voice Micro-HUD (Speech Transcription preview)           │
+│  - Krypton Synapse (Speech Transcription preview)           │
 │  - External Messaging Channels (Telegram, Discord, Slack)   │
 └──────────────────────────────┬──────────────────────────────┘
                                │

@@ -90,6 +90,8 @@ fn get_audio_state() -> &'static Arc<Mutex<AudioState>> {
 pub fn resolve_vtt_architecture(provider: &str) -> &'static str {
     match provider {
         "nvidia/parakeet-tdt-0.6b-v3" | "parakeet_v3" => "conformer_rnnt_tdt",
+        "moonshine_onnx" | "moonshine" => "moonshine_onnx",
+        "whisper_gguf" => "encoder_decoder_autoregressive",
         "whisper_api" => "cloud_api",
         "custom" => "custom",
         _ => "encoder_decoder_autoregressive", // whisper_local default
@@ -113,7 +115,7 @@ pub fn get_audio_status() -> Result<AudioCaptureStatus, String> {
     })
 }
 
-/// Starts audio capture stream with the selected STT engine (Parakeet v3 / Whisper).
+/// Starts audio capture stream with the selected STT engine (Parakeet v3 / Whisper / Moonshine).
 #[tauri::command]
 pub fn start_audio_capture(provider: Option<String>) -> Result<AudioCaptureStatus, String> {
     let state = get_audio_state();
@@ -153,6 +155,10 @@ pub fn stop_audio_capture() -> Result<TranscriptionResult, String> {
         "conformer_rnnt_tdt" => (
             "Autonomous task executed via NVIDIA Parakeet TDT 0.6B streaming transducer.",
             0.99,
+        ),
+        "moonshine_onnx" => (
+            "Autonomous task transcribed via local Moonshine ONNX conformer runtime.",
+            0.98,
         ),
         "cloud_api" => (
             "Autonomous task transcribed via Whisper Cloud API.",
@@ -216,3 +222,39 @@ pub fn submit_chat_turn(payload: KryptonChatPayload) -> Result<SubmitChatRespons
         message: "Chat turn dispatched to Krypton daemon runtime.".to_string(),
     })
 }
+
+/// Broadcasts streaming speech-to-text transcriptions to the Krypton Synapse interface and main dashboard.
+#[tauri::command]
+pub fn broadcast_synapse_transcription(
+    app: tauri::AppHandle,
+    transcript: String,
+    is_final: bool,
+    engine: Option<String>,
+) -> Result<bool, String> {
+    use tauri::Emitter;
+
+    #[derive(serde::Serialize, Clone)]
+    struct SynapseTranscriptionPayload {
+        transcript: String,
+        #[serde(rename = "isFinal")]
+        is_final: bool,
+        engine: String,
+        timestamp: u64,
+    }
+
+    let payload = SynapseTranscriptionPayload {
+        transcript,
+        is_final,
+        engine: engine.unwrap_or_else(|| "whisper_gguf".to_string()),
+        timestamp: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64,
+    };
+
+    app.emit("synapse:transcription", payload)
+        .map_err(|e| e.to_string())?;
+
+    Ok(true)
+}
+

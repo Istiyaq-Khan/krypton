@@ -13,7 +13,7 @@ The Rust backend exposes native desktop commands registered in `apps/desktop/src
 | `get_krypton_paths` | `paths.rs` | Resolves canonical paths (`home`, `worktrees`, `cache`, `bin`). |
 | `spawn_daemon` / `stop_daemon` | `sidecar.rs` | Controls the background sidecar daemon child process. |
 | `ping_daemon` / `get_daemon_status` | `sidecar.rs` | Returns daemon running state, uptime, and socket path. |
-| `toggle_overlay` / `show_overlay` | `overlay.rs` | Manipulates floating voice HUD window visibility. |
+| `toggle_synapse` / `show_synapse` / `toggle_overlay` | `overlay.rs` | Manipulates floating Krypton Synapse window visibility. |
 | `window_minimize` / `window_toggle_maximize` / `window_close` | `window.rs` | Native window geometry management. |
 | `start_audio_capture` / `stop_audio_capture` | `audio.rs` | Captures microphone input for local speech-to-text. |
 | `check_setup_status` / `save_setup_configuration` | `setup.rs` | Inspects and writes initial onboarding configuration. |
@@ -50,11 +50,12 @@ Coordinates active agent conversation state and the live IPC streaming pipeline:
   - `Execution Complete`: Closes stream, marks thread completed, and finalizes thought trace steps.
 - **Persistence**: Synchronizes workspaces, active thread, model choice, and approvals with localStorage via `lib/persistence.ts`.
 
-### C. `useVoiceHud.ts`
+### C. `useSynapse.ts` (and `useVoiceHud.ts` compatibility alias)
 Controls voice recording and speech transcription:
-- Manages push-to-talk microphone state.
-- Receives streaming partial and final transcription strings.
+- Manages offline PCM audio stream acquisition and Web Audio analyzer.
+- Listens for `synapse:transcription` events broadcast across windows.
 - Dispatches transcribed instructions to the selected target agent.
+- `useVoiceHud.ts` is maintained as a transparent backward-compatible alias.
 
 ---
 

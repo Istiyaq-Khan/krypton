@@ -29,7 +29,7 @@ Everything Krypton does is stored locally on your machine inside `~/.krypton` (`
 │     Native Desktop Shell      │        Background Daemon Engine        │
 │  • Tauri v2 (Rust) core       │  • Recursive Actor Engine (depth <= 3) │
 │  • React 19 / Next.js UI      │  • Task DAG Planner & Dynamic Replanner│
-│  • Floating Voice Micro-HUD   │  • Git Worktree Isolation (Krypton-VCS)│
+│  • Krypton Synapse (Voice/STT)│  • Git Worktree Isolation (Krypton-VCS)│
 │  • Context-staging Chatbar    │  • Sandboxed Subprocess Runner         │
 ├───────────────────────────────┼────────────────────────────────────────┤
 │     Terminal CLI Companion    │          Omni-Channel Gateway          │
@@ -73,9 +73,9 @@ krypton --help
 
 ## 🚀 Key Features
 
-### 1. 🎙️ Floating Voice Micro-HUD & Desktop Chatbar
-- **Global Hotkey** (`Ctrl+Shift+Space` or `Cmd+Shift+Space`) summons an always-on-top, translucent, borderless Voice HUD.
-- **Zero-Latency Audio**: Stream audio directly to local Whisper.cpp / Parakeet v3 speech-to-text with reactive audio waveform visualization.
+### 1. 🎙️ Krypton Synapse & Desktop Chatbar
+- **Global Hotkey** (`Ctrl+Shift+Space` or `Cmd+Shift+Space`) summons an always-on-top, frameless, transparent Krypton Synapse companion.
+- **Zero-Latency Audio**: Stream audio directly to local Whisper.cpp / Moonshine ONNX speech-to-text with reactive audio waveform visualization.
 - **Desktop Chatbar Console**: Floating bottom console featuring lexical triggers (`/` for dynamic tools, `@` for codebase context), smart paste chip staging ($\ge 10$ lines or $\ge 300$ chars), and full keyboard navigation.
 
 ### 2. 🌿 Krypton-VCS: Git Worktree Isolation
@@ -129,7 +129,7 @@ krypton/
 ├── apps/
 │   └── desktop/                  # Tauri v2 (Rust) shell + Next.js 16 / React 19 frontend
 │       ├── src-tauri/            # Rust native backend, audio capture, global hotkey & sidecar
-│       └── src/                  # Next.js workspace dashboard & Voice Micro-HUD
+│       └── src/                  # Next.js workspace dashboard & Krypton Synapse
 ├── packages/
 │   ├── shared-types/             # Universal TypeScript types, Zod schemas, and IPC contracts
 │   ├── agent-runtime/            # Core actor engine, MCP host, sandbox, browser, VCS, and channels

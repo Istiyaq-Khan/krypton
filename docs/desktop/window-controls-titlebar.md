@@ -45,7 +45,7 @@ Every interactive element in the header is explicitly isolated from window drag 
 ```
 
 The isolated interactive controls include:
-1. **App Logo & Dropdown**: Krypton brand emblem button with quick menu for new sessions, new workspaces, settings, voice HUD, shortcuts, and exit.
+1. **App Logo & Dropdown**: Krypton brand emblem button with quick menu for new sessions, new workspaces, settings, Krypton Synapse, shortcuts, and exit.
 2. **Navigation History Buttons**: `Back` (`<`) and `Forward` (`>`) buttons for chronological navigation between projects and sessions.
 3. **Application Menus**: `File`, `Edit`, `View`, `Settings`, and `Help` dropdown menus with native-style keyboard shortcuts (`Ctrl+N`, `Ctrl+Shift+N`, `Ctrl+B`, `Ctrl+J`, `Ctrl+,`).
 4. **Breadcrumbs & Workspace Switcher Popover**: Active workspace folder and conversation thread breadcrumb pill with chevron toggle. Clicking the breadcrumb exclusively toggles the drag-isolated Workspace Switcher popover, allowing instant workspace activation with active checkmark indication and "+ New Workspace..." creation without mutating the workspace list.
