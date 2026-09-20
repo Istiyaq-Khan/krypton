@@ -65,15 +65,12 @@ export function FirstRunSetupWizard({
   const [agentRole, setAgentRole] = useState("Autonomous Desktop AI Agent & System Orchestrator")
   const [reasoningTone, setReasoningTone] = useState("strict")
 
-  // Step 2: Sequential Provider Selection & Model Discovery
+  // Step 2: Simplified Two-Provider Selection & Model Discovery
   const [selectedProvider, setSelectedProvider] = useState<ModelProviderId>("openai")
+  const [openaiBaseUrl, setOpenaiBaseUrl] = useState("https://api.openai.com/v1")
   const [openaiKey, setOpenaiKey] = useState("")
+  const [anthropicBaseUrl, setAnthropicBaseUrl] = useState("https://api.anthropic.com/v1")
   const [anthropicKey, setAnthropicKey] = useState("")
-  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434")
-  const [openrouterKey, setOpenrouterKey] = useState("")
-  const [openrouterBaseUrl, setOpenrouterBaseUrl] = useState("https://openrouter.ai/api/v1")
-  const [customBaseUrl, setCustomBaseUrl] = useState("")
-  const [customApiKey, setCustomApiKey] = useState("")
   const [showKey, setShowKey] = useState<Record<string, boolean>>({})
 
   // Dynamic Model Discovery State
@@ -122,27 +119,14 @@ export function FirstRunSetupWizard({
     setFetchError(null)
     setFetchSuccess(false)
 
-    let apiKey: string | undefined
-    let baseUrl: string | undefined
-
-    if (selectedProvider === "openai") {
-      apiKey = openaiKey
-    } else if (selectedProvider === "anthropic") {
-      apiKey = anthropicKey
-    } else if (selectedProvider === "ollama") {
-      baseUrl = ollamaBaseUrl
-    } else if (selectedProvider === "openrouter") {
-      apiKey = openrouterKey
-      baseUrl = openrouterBaseUrl
-    } else if (selectedProvider === "custom") {
-      baseUrl = customBaseUrl
-      apiKey = customApiKey
-    }
+    const apiKey = selectedProvider === "openai" ? openaiKey.trim() : anthropicKey.trim()
+    const baseUrl = selectedProvider === "openai" ? openaiBaseUrl.trim() : anthropicBaseUrl.trim()
 
     const res = await testAndFetchModels({
       provider: selectedProvider,
-      apiKey,
-      baseUrl,
+      apiKey: apiKey || undefined,
+      baseUrl: baseUrl || undefined,
+      useProxy: true,
     })
 
     setIsFetchingModels(false)
@@ -157,11 +141,14 @@ export function FirstRunSetupWizard({
           m.id.includes("claude-3-7-sonnet") ||
           m.id.includes("claude-3-5-sonnet") ||
           m.id.includes("llama3") ||
-          m.id.includes("deepseek")
+          m.id.includes("deepseek") ||
+          m.id.includes("meta/")
         )?.id || res.models[0].id
 
       setPrimaryModel(preferred)
     } else {
+      setDiscoveredModels([])
+      setFetchSuccess(false)
       setFetchError(res.error || "Failed to discover models from provider.")
     }
   }
@@ -198,25 +185,8 @@ export function FirstRunSetupWizard({
     setIsSaving(true)
     setErrorMsg(null)
 
-    const apiKey =
-      selectedProvider === "openai"
-        ? openaiKey.trim()
-        : selectedProvider === "anthropic"
-        ? anthropicKey.trim()
-        : selectedProvider === "openrouter"
-        ? openrouterKey.trim()
-        : selectedProvider === "custom"
-        ? customApiKey.trim()
-        : undefined
-
-    const baseUrl =
-      selectedProvider === "ollama"
-        ? ollamaBaseUrl.trim()
-        : selectedProvider === "openrouter"
-        ? openrouterBaseUrl.trim()
-        : selectedProvider === "custom"
-        ? customBaseUrl.trim()
-        : undefined
+    const apiKey = selectedProvider === "openai" ? openaiKey.trim() : anthropicKey.trim()
+    const baseUrl = selectedProvider === "openai" ? openaiBaseUrl.trim() : anthropicBaseUrl.trim()
 
     const payload = {
       agentName: agentName.trim() || "Orchestrator",
@@ -225,9 +195,8 @@ export function FirstRunSetupWizard({
       primaryModel: primaryModel.trim(),
       apiKeys: {
         provider: selectedProvider,
-        anthropic: selectedProvider === "anthropic" ? anthropicKey.trim() : undefined,
-        openai: selectedProvider === "openai" ? openaiKey.trim() : undefined,
-        openrouter: selectedProvider === "openrouter" ? openrouterKey.trim() : undefined,
+        anthropic: selectedProvider === "anthropic" ? apiKey : undefined,
+        openai: selectedProvider === "openai" ? apiKey : undefined,
         customEndpoint: baseUrl,
         customModel: primaryModel.trim(),
         baseUrl,
@@ -306,11 +275,18 @@ export function FirstRunSetupWizard({
     tagline: string
     icon: React.ComponentType<{ className?: string }>
   }> = [
-    { id: "openai", name: "OpenAI", tagline: "GPT-4o, o3-mini", icon: Sparkles },
-    { id: "anthropic", name: "Anthropic", tagline: "Claude 3.7 / 3.5", icon: Cpu },
-    { id: "ollama", name: "Ollama / Local", tagline: "Offline runtime", icon: Server },
-    { id: "openrouter", name: "OpenRouter", tagline: "Unified multi-gateway", icon: Globe },
-    { id: "custom", name: "Custom", tagline: "OpenAI-compatible", icon: Sliders },
+    {
+      id: "openai",
+      name: "OpenAI-Compatible",
+      tagline: "OpenAI, NVIDIA NIM, vLLM, Ollama, OpenRouter, Groq",
+      icon: Sparkles,
+    },
+    {
+      id: "anthropic",
+      name: "Anthropic-Compatible",
+      tagline: "Claude 3.7 Sonnet, Claude 3.5 Haiku & Compatible Proxies",
+      icon: Cpu,
+    },
   ]
 
   return (
@@ -448,9 +424,9 @@ export function FirstRunSetupWizard({
             {/* 2A: Provider Selection Cards */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-zinc-300">
-                1. Select AI Model Provider
+                1. Select AI Model Protocol
               </label>
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 {providerCards.map((prov) => {
                   const isSelected = selectedProvider === prov.id
                   const Icon = prov.icon
@@ -459,164 +435,94 @@ export function FirstRunSetupWizard({
                       key={prov.id}
                       type="button"
                       onClick={() => handleProviderSelect(prov.id)}
-                      className={`flex flex-col items-center justify-center rounded-xl border p-2.5 text-center transition-all cursor-pointer ${
+                      className={`flex flex-col items-center justify-center rounded-xl border p-3.5 text-center transition-all cursor-pointer ${
                         isSelected
                           ? "border-violet-500 bg-violet-950/40 text-violet-100 shadow-md shadow-violet-900/20 ring-1 ring-violet-500"
                           : "border-zinc-800 bg-zinc-950 hover:border-zinc-700 text-zinc-400"
                       }`}
                     >
-                      <Icon className={`size-4 mb-1.5 ${isSelected ? "text-violet-400" : "text-zinc-400"}`} />
+                      <Icon className={`size-5 mb-2 ${isSelected ? "text-violet-400" : "text-zinc-400"}`} />
                       <span className="text-xs font-semibold leading-none">{prov.name}</span>
-                      <span className="text-[9px] text-zinc-500 mt-1 truncate max-w-full">{prov.tagline}</span>
+                      <span className="text-[10px] text-zinc-500 mt-1 max-w-full text-center">{prov.tagline}</span>
                     </button>
                   )
                 })}
               </div>
             </div>
 
-            {/* 2B: Isolated Provider Inputs */}
+            {/* 2B: Provider Configuration Inputs */}
             <div className="flex flex-col gap-3 rounded-xl border border-zinc-800/80 bg-zinc-950/40 p-3.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-zinc-200">
-                  2. Configure {PROVIDER_METADATA[selectedProvider].name} Credentials
+                  2. Configure {selectedProvider === "openai" ? "OpenAI-Compatible" : "Anthropic-Compatible"} Endpoint & Credentials
                 </span>
                 <span className="text-[10px] text-zinc-500">AES-256 encrypted in ~/.krypton/</span>
               </div>
 
-              {/* OpenAI: API Key */}
-              {selectedProvider === "openai" && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">OpenAI API Key</label>
-                  <div className="relative">
-                    <input
-                      type={showKey["openai"] ? "text" : "password"}
-                      value={openaiKey}
-                      onChange={(e) => setOpenaiKey(e.target.value)}
-                      placeholder="sk-proj-..."
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 pr-10 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => toggleShowKey("openai")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                    >
-                      {showKey["openai"] ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Anthropic: API Key */}
-              {selectedProvider === "anthropic" && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Anthropic API Key</label>
-                  <div className="relative">
-                    <input
-                      type={showKey["anthropic"] ? "text" : "password"}
-                      value={anthropicKey}
-                      onChange={(e) => setAnthropicKey(e.target.value)}
-                      placeholder="sk-ant-api03-..."
-                      className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 pr-10 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => toggleShowKey("anthropic")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                    >
-                      {showKey["anthropic"] ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Ollama: Base URL */}
-              {selectedProvider === "ollama" && (
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-zinc-400">Ollama Local Server URL</label>
-                  <input
-                    type="text"
-                    value={ollamaBaseUrl}
-                    onChange={(e) => setOllamaBaseUrl(e.target.value)}
-                    placeholder="http://localhost:11434"
-                    className="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                  />
+              {/* Base URL input */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-zinc-400">Endpoint Base URL</label>
                   <span className="text-[10px] text-zinc-500">
-                    Connects to local Ollama daemon. No external API key required.
+                    {selectedProvider === "openai"
+                      ? "e.g. OpenAI, NVIDIA NIM, vLLM, Ollama"
+                      : "e.g. Anthropic API or custom proxy"}
                   </span>
                 </div>
-              )}
+                <input
+                  type="text"
+                  value={selectedProvider === "openai" ? openaiBaseUrl : anthropicBaseUrl}
+                  onChange={(e) => {
+                    if (selectedProvider === "openai") {
+                      setOpenaiBaseUrl(e.target.value)
+                    } else {
+                      setAnthropicBaseUrl(e.target.value)
+                    }
+                  }}
+                  placeholder={
+                    selectedProvider === "openai"
+                      ? "https://api.openai.com/v1 or https://integrate.api.nvidia.com/v1"
+                      : "https://api.anthropic.com/v1"
+                  }
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
+                />
+              </div>
 
-              {/* OpenRouter: API Key + Base URL */}
-              {selectedProvider === "openrouter" && (
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-400">OpenRouter API Key</label>
-                    <div className="relative">
-                      <input
-                        type={showKey["openrouter"] ? "text" : "password"}
-                        value={openrouterKey}
-                        onChange={(e) => setOpenrouterKey(e.target.value)}
-                        placeholder="sk-or-v1-..."
-                        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 pr-10 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => toggleShowKey("openrouter")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                      >
-                        {showKey["openrouter"] ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-400">Base URL</label>
-                    <input
-                      type="text"
-                      value={openrouterBaseUrl}
-                      onChange={(e) => setOpenrouterBaseUrl(e.target.value)}
-                      placeholder="https://openrouter.ai/api/v1"
-                      className="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                    />
-                  </div>
+              {/* API Key input */}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-zinc-400">API Key / Bearer Token</label>
+                  <span className="text-[10px] text-zinc-500">
+                    {selectedProvider === "openai" ? "Optional for local endpoints (Ollama/vLLM)" : "Required for Anthropic API"}
+                  </span>
                 </div>
-              )}
-
-              {/* Custom: Base URL + Optional API Key */}
-              {selectedProvider === "custom" && (
-                <div className="flex flex-col gap-2.5">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-400">OpenAI-Compatible Base URL</label>
-                    <input
-                      type="text"
-                      value={customBaseUrl}
-                      onChange={(e) => setCustomBaseUrl(e.target.value)}
-                      placeholder="http://localhost:8000/v1 or https://api.my-llm.com/v1"
-                      className="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs text-zinc-400">Optional API Key / Bearer Token</label>
-                    <div className="relative">
-                      <input
-                        type={showKey["custom"] ? "text" : "password"}
-                        value={customApiKey}
-                        onChange={(e) => setCustomApiKey(e.target.value)}
-                        placeholder="Optional API Key"
-                        className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 pr-10 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => toggleShowKey("custom")}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
-                      >
-                        {showKey["custom"] ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                      </button>
-                    </div>
-                  </div>
+                <div className="relative">
+                  <input
+                    type={showKey[selectedProvider] ? "text" : "password"}
+                    value={selectedProvider === "openai" ? openaiKey : anthropicKey}
+                    onChange={(e) => {
+                      if (selectedProvider === "openai") {
+                        setOpenaiKey(e.target.value)
+                      } else {
+                        setAnthropicKey(e.target.value)
+                      }
+                    }}
+                    placeholder={
+                      selectedProvider === "openai"
+                        ? "sk-... / nvapi-... / bearer token"
+                        : "sk-ant-api03-..."
+                    }
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 pr-10 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => toggleShowKey(selectedProvider)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                  >
+                    {showKey[selectedProvider] ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                  </button>
                 </div>
-              )}
+              </div>
 
               {/* 2C: Test & Fetch Models Action */}
               <div className="pt-1 flex items-center justify-between">

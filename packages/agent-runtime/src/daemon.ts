@@ -34,6 +34,7 @@ import { TaskTree } from "./planner/task-tree.js"
 import { VcsDiffAndRollbackEngine } from "./vcs/diff.js"
 import { lintTypeScript } from "./sandbox/linter.js"
 import { killProcessTree, SandboxRunner } from "./sandbox/runner.js"
+import { proxyFetchModels } from "./proxy/model-proxy.js"
 
 export interface ActiveTaskState {
   taskId: string
@@ -142,6 +143,23 @@ export class KryptonDaemonServer {
           } catch (e: any) {
             res.writeHead(400, { "Content-Type": "application/json" })
             res.end(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: e.message } }))
+          }
+        })
+        return
+      }
+
+      if ((req.url === "/api/fetch-models" || req.url === "/api/validate-endpoint") && req.method === "POST") {
+        let body = ""
+        req.on("data", (chunk) => (body += chunk))
+        req.on("end", async () => {
+          try {
+            const payload = JSON.parse(body || "{}")
+            const proxyRes = await proxyFetchModels(payload)
+            res.writeHead(200, { "Content-Type": "application/json" })
+            res.end(JSON.stringify(proxyRes))
+          } catch (e: any) {
+            res.writeHead(500, { "Content-Type": "application/json" })
+            res.end(JSON.stringify({ success: false, error: e.message, models: [] }))
           }
         })
         return
@@ -615,6 +633,14 @@ export class KryptonDaemonServer {
 
         case "mergeVcs": {
           result = { success: true, commitHash: `feat-${Date.now().toString(16)}` }
+          break
+        }
+
+        case "api:validate-endpoint":
+        case "api:fetch-models":
+        case "validateEndpoint":
+        case "fetchModels": {
+          result = await proxyFetchModels(p as any)
           break
         }
 

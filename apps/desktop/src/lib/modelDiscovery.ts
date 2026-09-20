@@ -8,14 +8,15 @@ import {
 export { type ModelProviderId, type DiscoveredModel, type CachedModelsData }
 
 export interface ModelDiscoveryOptions {
-  provider: ModelProviderId
+  provider: ModelProviderId | string
   apiKey?: string
   baseUrl?: string
+  useProxy?: boolean
 }
 
 export interface ModelDiscoveryResult {
   success: boolean
-  provider: ModelProviderId
+  provider: ModelProviderId | string
   models: DiscoveredModel[]
   error?: string
 }
@@ -26,6 +27,8 @@ export interface ActiveProviderConfig {
   baseUrl?: string
   apiKey?: string
 }
+
+export const DAEMON_PROXY_URL = "http://127.0.0.1:19840/api/fetch-models"
 
 export const DEFAULT_PROVIDER_URLS: Record<ModelProviderId, string> = {
   openai: "https://api.openai.com/v1",
@@ -48,19 +51,19 @@ export const PROVIDER_METADATA: Record<
   }
 > = {
   openai: {
-    name: "OpenAI",
-    tagline: "Direct Cloud API (GPT-4o, o3-mini)",
+    name: "OpenAI-Compatible",
+    tagline: "OpenAI, NVIDIA NIM, vLLM, Ollama, OpenRouter, Groq",
     requiresApiKey: true,
-    requiresBaseUrl: false,
+    requiresBaseUrl: true,
     defaultBaseUrl: "https://api.openai.com/v1",
-    keyPlaceholder: "sk-proj-...",
-    urlPlaceholder: "https://api.openai.com/v1",
+    keyPlaceholder: "sk-... or API Key",
+    urlPlaceholder: "https://api.openai.com/v1 or https://integrate.api.nvidia.com/v1",
   },
   anthropic: {
-    name: "Anthropic",
-    tagline: "Direct Cloud API (Claude 3.7 Sonnet, 3.5 Haiku)",
+    name: "Anthropic-Compatible",
+    tagline: "Claude 3.7 Sonnet, Claude 3.5 Haiku & Compatible Proxies",
     requiresApiKey: true,
-    requiresBaseUrl: false,
+    requiresBaseUrl: true,
     defaultBaseUrl: "https://api.anthropic.com/v1",
     keyPlaceholder: "sk-ant-api03-...",
     urlPlaceholder: "https://api.anthropic.com/v1",
@@ -97,16 +100,17 @@ export const PROVIDER_METADATA: Record<
 /**
  * Executes dynamic model discovery against the provider's standard endpoint,
  * validating credentials and returning detailed error diagnostics on failure.
+ * When useProxy is enabled, queries the backend daemon to bypass renderer CORS restrictions.
  */
 export async function testAndFetchModels(
   options: ModelDiscoveryOptions
 ): Promise<ModelDiscoveryResult> {
-  const provider = options.provider
+  const provider = options.provider as ModelProviderId
   const apiKey = (options.apiKey || "").trim()
   const rawBaseUrl = (options.baseUrl || "").trim()
 
   // 1. Validate required inputs
-  if (provider === "openai" && !apiKey) {
+  if (provider === "openai" && !apiKey && (!rawBaseUrl || rawBaseUrl.includes("api.openai.com"))) {
     return {
       success: false,
       provider,
@@ -138,24 +142,67 @@ export async function testAndFetchModels(
       success: false,
       provider,
       models: [],
-      error: `Please provide a valid Base URL for ${PROVIDER_METADATA[provider].name}.`,
+      error: `Please provide a valid Base URL for ${PROVIDER_METADATA[provider]?.name || provider}.`,
     }
   }
 
-  const effectiveBaseUrl = (rawBaseUrl || DEFAULT_PROVIDER_URLS[provider]).replace(/\/+$/, "")
+  // 2. If proxy requested, dispatch to backend daemon to bypass renderer CORS
+  if (options.useProxy) {
+    try {
+      const proxyRes = await fetch(DAEMON_PROXY_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          provider,
+          apiKey,
+          baseUrl: rawBaseUrl,
+        }),
+      })
 
-  // 2. Build target request configuration
+      if (proxyRes.ok) {
+        const parsed = (await proxyRes.json()) as ModelDiscoveryResult
+        return parsed
+      } else {
+        const errJson = await proxyRes.json().catch(() => null)
+        if (errJson && errJson.error) {
+          return {
+            success: false,
+            provider,
+            models: [],
+            error: errJson.error,
+          }
+        }
+      }
+    } catch {
+      // If daemon is not yet running (e.g. offline unit test), fall back to direct fetch
+    }
+  }
+
+  const effectiveBaseUrl = (rawBaseUrl || DEFAULT_PROVIDER_URLS[provider] || "https://api.openai.com/v1").replace(/\/+$/, "")
+
+  // 3. Build target request configuration
   let targetUrl = ""
   const headers: Record<string, string> = {
     Accept: "application/json",
   }
 
   if (provider === "openai") {
-    targetUrl = `${effectiveBaseUrl}/models`
-    headers["Authorization"] = `Bearer ${apiKey}`
+    targetUrl = effectiveBaseUrl.endsWith("/models")
+      ? effectiveBaseUrl
+      : `${effectiveBaseUrl}/models`
+    if (apiKey) {
+      headers["Authorization"] = `Bearer ${apiKey}`
+    }
   } else if (provider === "anthropic") {
-    targetUrl = `${effectiveBaseUrl}/models`
-    headers["x-api-key"] = apiKey
+    targetUrl = effectiveBaseUrl.endsWith("/models")
+      ? effectiveBaseUrl
+      : `${effectiveBaseUrl}/models`
+    if (apiKey) {
+      headers["x-api-key"] = apiKey
+    }
     headers["anthropic-version"] = "2023-06-01"
     headers["anthropic-dangerous-direct-browser-access"] = "true"
   } else if (provider === "openrouter") {
@@ -182,7 +229,7 @@ export async function testAndFetchModels(
     }
   }
 
-  // 3. Dispatch fetch with 10-second timeout
+  // 4. Dispatch fetch with 10-second timeout
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 10000)
 
@@ -258,6 +305,15 @@ export async function testAndFetchModels(
           provider,
           models: [],
           error: `Rate limit / Quota exceeded (429): Account has exceeded quota or hit rate limits. ${errorDetail}`.trim(),
+        }
+      }
+
+      if (status >= 500 && status <= 504) {
+        return {
+          success: false,
+          provider,
+          models: [],
+          error: `Upstream server error (${status}): Service at ${effectiveBaseUrl} returned a server error. ${errorDetail}`.trim(),
         }
       }
 
