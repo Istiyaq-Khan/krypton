@@ -85,7 +85,11 @@ Krypton uses a dark-first aesthetic with curated CSS custom properties defined i
 ### Key UI Features:
 - **Glassmorphism**: Translucent panels with `backdrop-filter: blur(16px)` and subtle glowing borders.
 - **Micro-Animations**: Smooth transitions on drawer toggles, agent thought accordions, and live streaming tokens.
-- **Scroll Optimization**: Clean, styled scrollbars adhering to system color schemes.
+- **Scroll Optimization & Global Dark Scrollbars**:
+  - **Standard CSS**: Global `scrollbar-width: thin` and `scrollbar-color: rgba(255, 255, 255, 0.16) transparent` applied across all elements in `globals.css`.
+  - **WebKit Rules**: Consistent 7px width/height, transparent tracks, rounded thumbs (`border-radius: 9999px`) with `rgba(255, 255, 255, 0.16)` base, `0.28` hover, and `0.38` active drag feedback.
+  - **Container Utilities**: `.custom-scrollbar` for designated scroll areas (e.g. popovers, drawers, code blocks) and `.no-scrollbar` for deliberate suppression.
+  - **Dual Scrollbar Prevention**: Strict `overflow-x-hidden` on vertical streams and popovers to prevent layout thrashing or horizontal artifacts.
 
 ---
 

@@ -21,7 +21,10 @@ apps/desktop/src/components/
 │   ├── Chatbar.tsx           # Multi-line input bar with quick action buttons
 │   ├── CommandMenu.tsx       # Autocomplete slash commands (/run, /vcs, /test)
 │   ├── CommandContextBar.tsx # Context attachment chips (@agent, #worktree, !file)
+│   ├── ModelSelectorPopover.tsx # Accessible dark model picker with search & family groups
 │   └── AudioWaveform.tsx     # Real-time microphone audio amplitude visualizer
+├── ui/
+│   └── popover.tsx           # Base UI accessible popover primitives
 ├── TodoTree.tsx              # Interactive task DAG tree with real-time status badges
 ├── QuestionModal.tsx         # Multi-channel HITL clarification dialog
 └── VcsDiffViewer.tsx         # Side-by-side Git worktree diff reviewer
@@ -37,25 +40,35 @@ The centerpiece of the workstation interface:
 - Renders **AgentThoughtTrace** collapsible accordions showing the model's intermediate reflection before taking action.
 - Renders **ToolExecutionCard** displaying tool name, arguments, execution duration, and truncated output preview with a button to view full offloaded logs.
 
-### B. Chatbar (`Chatbar.tsx`)
+### B. Chatbar (`Chatbar.tsx`) & CommandContextBar (`CommandContextBar.tsx`)
 High-performance prompt input engine:
 - **Slash Commands (`/`)**: Triggers command menu (`/run`, `/test`, `/diff`, `/rollback`, `/commit`).
 - **Context Mentions (`@`)**: Selects target agent (`@Orchestrator`, `@CoderBot`, `@TesterBot`).
 - **Pills & Attachments**: Visual chips for attached files, active Git worktree branches, or image screenshots.
+- **Model Selector**: Powered by `ModelSelectorPopover` for frictionless reasoning engine switching.
 
-### C. TodoTree (`TodoTree.tsx`)
+### C. ModelSelectorPopover (`ModelSelectorPopover.tsx`)
+Accessible dark popover reasoning model switcher:
+- **Live Search Filtering**: Real-time multi-field query matching across model IDs, names, descriptions, and provider owners.
+- **Family Grouping**: Automatically categorizes models into visual clusters: Anthropic / Claude, OpenAI / Reasoning, DeepSeek, Google / Gemini, Meta / Llama, Local / Ollama, and Custom.
+- **Rich Metadata Badges**: Displays context window limits (e.g. `200k`, `128k`, `1M`), provider status, and active selection checkmarks.
+- **Custom Dark Scroll Styling**: Integrated 7px neutral scrollbar with overflow isolation.
+- **Keyboard Navigation**: Full `Escape`, auto-focus search, and accessible focus outlines.
+- **In-App Discovery Refresh**: One-click dynamic model synchronization from provider endpoints.
+
+### D. TodoTree (`TodoTree.tsx`)
 Dynamic Task DAG visualizer:
 - Displays topological dependencies between tasks.
 - Visual status indicators: `pending` (gray), `in_progress` (animated blue pulse), `completed` (green check), `failed` (red alert).
 - Animates real-time DAG re-structuring when the dynamic replanner inserts recovery sub-tasks.
 
-### D. QuestionModal (`QuestionModal.tsx`)
+### E. QuestionModal (`QuestionModal.tsx`)
 Human-in-the-Loop (HITL) prompt resolution modal:
 - Renders structured choices as selectable pills with keyboard shortcuts (`1`, `2`, `3` or Arrow keys).
 - Includes an optional freeform text field for detailed instructions.
 - Submitting unblocks the waiting agent execution promise across all connected clients.
 
-### E. VcsDiffViewer (`VcsDiffViewer.tsx`)
+### F. VcsDiffViewer (`VcsDiffViewer.tsx`)
 Visual inspection interface for agent code modifications:
 - Side-by-side syntax-highlighted diffs comparing the worktree branch (`krypton/<task-id>`) against the base branch.
 - Action triggers: "Approve & Merge", "Rollback Step", or "Reject & Abort".
