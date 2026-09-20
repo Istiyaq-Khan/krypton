@@ -66,10 +66,61 @@ Validates against `AgentConfigFileSchema` in `@krypton/shared-types`:
 
 ---
 
-## 3. Self-Healing & Migration Protocol
+## 3. Multi-Agent Directory Structures & Prompt Ingestion
+
+Multiple agent instances exist in parallel under `~/.krypton/agents/`:
+
+```
+~/.krypton/agents/
+├── Orchestrator/              # Root supervisor agent (protected from deletion)
+│   ├── config.json
+│   ├── IDENTITY.md
+│   ├── SOUL.md
+│   └── AGENTS.md
+├── CoderBot/                  # Full-stack developer sub-agent
+│   ├── config.json
+│   ├── IDENTITY.md
+│   └── AGENTS.md
+└── ScraperBot/                # Custom provisioned agent
+    ├── config.json
+    ├── IDENTITY.md
+    └── AGENTS.md
+```
+
+### Prompt Assembly Pipeline (`combinedSystemPrompt`)
+
+When an agent executes (`loadAgentContext()` / `Agent.fromWorkspace()`):
+1. **Persona (`IDENTITY.md`)**: Stripped of YAML frontmatter, positioned at the top of the prompt as the agent's identity.
+2. **Behavioral Guardrails (`SOUL.md`)**: Injected under `## Core Directives & Behavioral Guardrails`.
+3. **Workspace Conventions & Role (`AGENTS.md`)**: Injected under `## Workspace Conventions & Operational Directives`. Role directives are governed here, eliminating manual "Agent Role" textareas in the UI.
+4. **User Directives (`USER.md`)**: Injected under `## User Preferences & Directives`.
+5. **Birth Ritual (`BOOTSTRAP.md`)**: If present, appended as an explicit high-priority onboarding directive until deleted by the agent via file tools.
+
+---
+
+## 4. Model Capabilities & Temperature Support Manifest
+
+Discovered models declare capability flags via `DiscoveredModelSchema`:
+- `supportsTemperature: boolean` (default: `true`).
+- **Reasoning Models**: Models such as `o1`, `o1-mini`, `o1-preview`, `o3`, `o3-mini`, `o4` do not accept variable temperature parameters. Krypton flags them with `supportsTemperature: false` and automatically hides/disables the Temperature slider in the UI to prevent execution errors.
+
+---
+
+## 5. Agent Lifecycle IPC Handlers
+
+Agent workspace directories are managed directly through bidirectional IPC:
+- **`agents:list`** (`list_agents_config`): Queries live workspaces under `~/.krypton/agents/`.
+- **`agents:create`** (`create_agent_workspace`): Scaffolds new agent directory with `config.json` and template `IDENTITY.md`.
+- **`agents:update`** (`save_agent_config`): Atomically persists configuration edits directly to `<agentDir>/config.json`.
+- **`agents:delete`** (`delete_agent_config`): Safely unlinks `<agentDir>`, protecting root orchestrators from deletion.
+
+---
+
+## 6. Self-Healing & Migration Protocol
 
 If an uninitialized or legacy workspace lacking `config.json` is loaded:
 1. `readAgentConfig()` inspects legacy files (`IDENTITY.md`, `AGENTS.md`) for legacy YAML frontmatter.
 2. Extracts model, role, temperature, and permissions.
 3. Synthesizes a fully compliant `config.json` with safe defaults.
 4. Atomically writes `config.json` to disk, completing migration with zero downtime.
+

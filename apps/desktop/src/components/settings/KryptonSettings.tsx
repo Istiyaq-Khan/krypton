@@ -46,12 +46,20 @@ import {
   DEFAULT_PROVIDER_URLS,
   testAndFetchModels,
   persistCachedModels,
+  isTemperatureSupported,
 } from "@/lib/modelDiscovery"
 import {
   AgentFleetItem,
   loadWorkstationState,
   saveWorkstationState,
 } from "@/lib/persistence"
+import {
+  listAgentsIpc,
+  createAgentIpc,
+  updateAgentIpc,
+  deleteAgentIpc,
+} from "@/lib/agentIpc"
+import { CreateAgentModal } from "./CreateAgentModal"
 import {
   BackupVaultResult,
   PurgeDataResult,
@@ -232,6 +240,19 @@ export function KryptonSettings({
         if (!selectedAgentId) setSelectedAgentId(wsState.fleet[0].id)
       }
       setAskForApproval(wsState.askForApproval ?? true)
+
+      // 1b. Hydrate directly from live filesystem via IPC (~/.krypton/agents/)
+      try {
+        const liveAgents = await listAgentsIpc()
+        if (liveAgents && liveAgents.length > 0) {
+          setAgents(liveAgents)
+          if (!selectedAgentId || !liveAgents.some((a) => a.id === selectedAgentId)) {
+            setSelectedAgentId(liveAgents[0].id)
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load live agents from IPC:", err)
+      }
 
       // 2. Hydrate from Host / Tauri IPC
       if (typeof window !== "undefined" && isTauri()) {
@@ -590,6 +611,7 @@ export function KryptonSettings({
       }
 
       // Persist strictly to ~/.krypton/agents/<agent_name>/config.json
+      await updateAgentIpc(targetAgent.name, agentConfigJson)
       if (typeof window !== "undefined" && isTauri()) {
         try {
           await invoke("save_agent_config", {
@@ -607,118 +629,38 @@ export function KryptonSettings({
     [agents, flashSavedNotice, onRefreshFleet]
   )
 
+  const handleAgentCreated = useCallback(
+    (newAgent: AgentFleetItem) => {
+      setAgents((prev) => {
+        const updated = [...prev.filter((a) => a.id !== newAgent.id && a.name !== newAgent.name), newAgent]
+        const ws = loadWorkstationState()
+        ws.fleet = updated
+        saveWorkstationState(ws)
+        return updated
+      })
+      setSelectedAgentId(newAgent.id)
+      setIsCreatingAgent(false)
+      flashSavedNotice(`Created agent ${newAgent.name} with config.json`)
+      onRefreshFleet?.()
+    },
+    [flashSavedNotice, onRefreshFleet]
+  )
+
   const handleCreateNewAgent = useCallback(async () => {
-    const trimmedName = newAgentName.trim()
-    if (!trimmedName) return
-
-    const newAgent: AgentFleetItem = {
-      id: `agent-${Date.now()}`,
-      name: trimmedName,
-      role: newAgentRole.trim() || "Autonomous Assistant",
-      state: "idle",
-      depth: 1,
-      budgetUsed: 0,
-      budgetTotal: 50000,
-      parentAgentId: "agent-root",
-      model: newAgentModel,
-      temperature: newAgentTemp,
-      systemPrompt: newAgentPrompt,
-      permissions: {
-        terminal: newAgentTools.terminal,
-        filesystem: newAgentTools.filesystem,
-        astLinter: newAgentTools.astLinter,
-        web: newAgentTools.web,
-      },
-    }
-
-    const updated = [...agents, newAgent]
-    setAgents(updated)
-    setSelectedAgentId(newAgent.id)
-    setIsCreatingAgent(false)
-
-    // Save to Workstation persistence
-    const ws = loadWorkstationState()
-    ws.fleet = updated
-    saveWorkstationState(ws)
-
-    // Construct machine config.json
-    const configJson = {
-      id: newAgent.id,
-      name: newAgent.name,
-      role: newAgent.role,
-      model: newAgent.model,
-      provider: newAgentProvider,
-      temperature: newAgent.temperature,
-      contextWindowLimit: 128_000,
-      tools: [
-        ...(newAgent.permissions.terminal ? ["terminal"] : []),
-        ...(newAgent.permissions.filesystem ? ["filesystem"] : []),
-        ...(newAgent.permissions.astLinter ? ["astLinter"] : []),
-        ...(newAgent.permissions.web ? ["web"] : []),
-      ],
-      permissions: {
-        allowedSubAgents: [],
-        allowedTools: [
-          ...(newAgent.permissions.terminal ? ["terminal"] : []),
-          ...(newAgent.permissions.filesystem ? ["filesystem"] : []),
-          ...(newAgent.permissions.astLinter ? ["astLinter"] : []),
-          ...(newAgent.permissions.web ? ["web"] : []),
-        ],
-        maxDepth: 3,
-        maxConcurrentChildren: 5,
-        budgetShare: 0.5,
-        canSynthesizeTools: true,
-        canAccessNetwork: newAgent.permissions.web,
-        canModifyWorkspace: newAgent.permissions.filesystem,
-        terminal: newAgent.permissions.terminal,
-        filesystem: newAgent.permissions.filesystem,
-        web: newAgent.permissions.web,
-        astLinter: newAgent.permissions.astLinter,
-      },
-      budget: {
-        total: 50000,
-        used: 0,
-      },
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }
-
-    // Persist to host ~/.krypton/agents/<name>/config.json
-    if (typeof window !== "undefined" && isTauri()) {
-      try {
-        await invoke("save_agent_config", {
-          agentName: newAgent.name,
-          config: configJson,
-        })
-      } catch (err) {
-        console.warn("save_agent_config create error:", err)
-      }
-    }
-
-    // Reset create form
-    setNewAgentName("")
-    setNewAgentRole("Autonomous Assistant")
-    setNewAgentPrompt("")
-
-    flashSavedNotice(`Created agent ${trimmedName} with config.json`)
-    onRefreshFleet?.()
-  }, [
-    newAgentName,
-    newAgentRole,
-    newAgentModel,
-    newAgentProvider,
-    newAgentTemp,
-    newAgentPrompt,
-    newAgentTools,
-    agents,
-    flashSavedNotice,
-    onRefreshFleet,
-  ])
+    // Open the creation modal
+    setIsCreatingAgent(true)
+  }, [])
 
   const handleDeleteAgent = useCallback(
-    (agentId: string) => {
+    async (agentId: string) => {
       const target = agents.find((a) => a.id === agentId)
-      if (!target || target.id === "agent-root") return
+      if (!target || target.id === "agent-root" || target.name.toLowerCase() === "orchestrator") return
+
+      try {
+        await deleteAgentIpc(target.name)
+      } catch (err) {
+        console.warn("deleteAgentIpc error:", err)
+      }
 
       const updated = agents.filter((a) => a.id !== agentId)
       setAgents(updated)
@@ -1324,123 +1266,21 @@ export function KryptonSettings({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setIsCreatingAgent(!isCreatingAgent)}
+                    onClick={handleCreateNewAgent}
                     className="flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-1.5 text-xs font-medium text-white shadow-md shadow-violet-600/30 hover:bg-violet-500 transition-colors cursor-pointer"
                   >
                     <Plus className="size-3.5" />
-                    <span>{isCreatingAgent ? "Cancel" : "Create Agent"}</span>
+                    <span>Create Agent</span>
                   </button>
                 </div>
 
-                {/* Create Agent Inline Form */}
-                {isCreatingAgent && (
-                  <div className="rounded-2xl border border-violet-500/30 bg-violet-950/20 p-4 space-y-4 animate-in fade-in-0 duration-150">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-violet-200 flex items-center gap-1.5">
-                        <Sparkles className="size-3.5 text-violet-400" />
-                        Scaffold New Autonomous Agent
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] font-medium text-zinc-400">Agent Name *</label>
-                        <input
-                          type="text"
-                          value={newAgentName}
-                          onChange={(e) => setNewAgentName(e.target.value)}
-                          placeholder="e.g. ScraperBot, DocsWriter"
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-zinc-400">Role / Designation</label>
-                        <input
-                          type="text"
-                          value={newAgentRole}
-                          onChange={(e) => setNewAgentRole(e.target.value)}
-                          placeholder="e.g. Web Intelligence & Scraping"
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] font-medium text-zinc-400">Target Model</label>
-                        <input
-                          type="text"
-                          value={newAgentModel}
-                          onChange={(e) => setNewAgentModel(e.target.value)}
-                          placeholder="e.g. 5.6 Terra High, Claude 3.7 Sonnet"
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-zinc-400">Temperature ({newAgentTemp})</label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={newAgentTemp}
-                          onChange={(e) => setNewAgentTemp(parseFloat(e.target.value))}
-                          className="mt-2 w-full accent-violet-500 cursor-pointer"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Tools Selection */}
-                    <div>
-                      <label className="text-[11px] font-medium text-zinc-400">Allowed Tool Manifest</label>
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        {[
-                          { id: "terminal", label: "Terminal Execution" },
-                          { id: "filesystem", label: "Filesystem Edits" },
-                          { id: "astLinter", label: "AST Safety Linter" },
-                          { id: "web", label: "Stealth Web Browser" },
-                        ].map((t) => (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() =>
-                              setNewAgentTools((prev) => ({
-                                ...prev,
-                                [t.id]: !(prev as any)[t.id],
-                              }))
-                            }
-                            className={`rounded-lg px-2.5 py-1 text-xs font-medium border transition-colors cursor-pointer ${
-                              (newAgentTools as any)[t.id]
-                                ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                                : "bg-zinc-900 text-zinc-500 border-zinc-800"
-                            }`}
-                          >
-                            {(newAgentTools as any)[t.id] ? "✓ " : "+ "}
-                            {t.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsCreatingAgent(false)}
-                        className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCreateNewAgent}
-                        disabled={!newAgentName.trim()}
-                        className="rounded-xl bg-violet-600 px-4 py-1.5 text-xs font-medium text-white shadow-md hover:bg-violet-500 disabled:opacity-50 cursor-pointer"
-                      >
-                        Initialize Agent Workspace
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {/* Create Agent Scaffolding Modal */}
+                <CreateAgentModal
+                  isOpen={isCreatingAgent}
+                  onClose={() => setIsCreatingAgent(false)}
+                  onAgentCreated={handleAgentCreated}
+                  availableModels={cachedModels}
+                />
 
                 {/* Agents Roster Cards */}
                 <div className="grid grid-cols-3 gap-3">
@@ -1494,44 +1334,54 @@ export function KryptonSettings({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[11px] font-medium text-zinc-400">Agent Role</label>
-                        <input
-                          type="text"
-                          value={selectedAgent.role}
-                          onChange={(e) => handleUpdateAgentField(selectedAgent.id, { role: e.target.value })}
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-medium text-zinc-400">Primary Model</label>
-                        <input
-                          type="text"
-                          value={selectedAgent.model}
-                          onChange={(e) => handleUpdateAgentField(selectedAgent.id, { model: e.target.value })}
-                          className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500"
-                        />
+                    {/* AGENTS.md Workspace Conventions & Directives Reference */}
+                    <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/30 p-3 flex items-start gap-2.5 text-zinc-400">
+                      <ShieldCheck className="size-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed">
+                        <span className="font-semibold text-zinc-200">Role & Directives: </span>
+                        Governed by <code className="text-zinc-300 font-mono">~/.krypton/agents/{selectedAgent.name}/AGENTS.md</code>. Agent role definitions and operational constraints are derived directly from workspace markdown context.
                       </div>
                     </div>
 
                     <div>
-                      <div className="flex items-center justify-between text-[11px] font-medium text-zinc-400">
-                        <span>Temperature</span>
-                        <span className="font-mono text-zinc-300">{selectedAgent.temperature}</span>
-                      </div>
+                      <label className="text-[11px] font-medium text-zinc-400">Primary Model</label>
                       <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={selectedAgent.temperature}
-                        onChange={(e) =>
-                          handleUpdateAgentField(selectedAgent.id, { temperature: parseFloat(e.target.value) })
-                        }
-                        className="mt-2 w-full accent-violet-500 cursor-pointer"
+                        type="text"
+                        value={selectedAgent.model}
+                        onChange={(e) => handleUpdateAgentField(selectedAgent.id, { model: e.target.value })}
+                        className="mt-1 w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-200 outline-none focus:border-violet-500"
                       />
                     </div>
+
+                    {/* Dynamically toggle Temperature slider based on model capabilities */}
+                    {isTemperatureSupported(selectedAgent.model) ? (
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-medium text-zinc-400">
+                          <span>Temperature</span>
+                          <span className="font-mono text-zinc-300">{selectedAgent.temperature}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={selectedAgent.temperature}
+                          onChange={(e) =>
+                            handleUpdateAgentField(selectedAgent.id, { temperature: parseFloat(e.target.value) })
+                          }
+                          className="mt-2 w-full accent-violet-500 cursor-pointer"
+                        />
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-950/20 p-2.5 text-xs text-amber-300/80 flex items-center justify-between">
+                        <span className="text-[11px]">
+                          Temperature control disabled for reasoning model <span className="font-mono text-amber-200">{selectedAgent.model}</span>
+                        </span>
+                        <span className="text-[10px] font-mono uppercase bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">
+                          Fixed
+                        </span>
+                      </div>
+                    )}
 
                     {/* Permissions & Tool Boundaries */}
                     <div className="space-y-2 pt-2 border-t border-zinc-800/60">

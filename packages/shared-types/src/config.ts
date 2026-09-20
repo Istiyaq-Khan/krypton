@@ -320,6 +320,7 @@ export const DiscoveredModelSchema = z.object({
   contextLength: z.number().int().positive().optional(),
   created: z.number().int().nonnegative().optional(),
   ownedBy: z.string().optional(),
+  supportsTemperature: z.boolean().default(true).optional(),
 });
 export type DiscoveredModel = z.infer<typeof DiscoveredModelSchema>;
 

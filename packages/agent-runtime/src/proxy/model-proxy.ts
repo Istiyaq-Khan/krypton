@@ -211,6 +211,27 @@ export async function proxyFetchModels(
       }
     }
 
+function isModelTemperatureSupported(modelId: string, itemMeta?: any): boolean {
+  if (itemMeta && typeof itemMeta.supports_temperature === "boolean") {
+    return itemMeta.supports_temperature
+  }
+  if (itemMeta && typeof itemMeta.supportsTemperature === "boolean") {
+    return itemMeta.supportsTemperature
+  }
+  const lower = modelId.toLowerCase().trim()
+  if (
+    lower === "o1" ||
+    lower.startsWith("o1-") ||
+    lower === "o3" ||
+    lower.startsWith("o3-") ||
+    lower.startsWith("o4-") ||
+    lower.includes("reasoning")
+  ) {
+    return false
+  }
+  return true
+}
+
     // 5. Parse discovered models roster
     const data: any = await res.json()
     const parsedModels: DiscoveredModel[] = []
@@ -219,13 +240,15 @@ export async function proxyFetchModels(
       // Standard OpenAI / OpenRouter / Anthropic format
       for (const item of data.data) {
         if (item && item.id) {
+          const modelId = String(item.id)
           parsedModels.push({
-            id: String(item.id),
-            name: item.display_name || item.name || String(item.id),
+            id: modelId,
+            name: item.display_name || item.name || modelId,
             description: item.description,
             contextLength: item.context_length || item.max_tokens,
             created: typeof item.created === "number" ? item.created : undefined,
             ownedBy: item.owned_by ? String(item.owned_by) : undefined,
+            supportsTemperature: isModelTemperatureSupported(modelId, item),
           })
         }
       }
@@ -234,10 +257,12 @@ export async function proxyFetchModels(
       for (const item of data.models) {
         const modelId = item.name || item.model
         if (modelId) {
+          const mId = String(modelId)
           parsedModels.push({
-            id: String(modelId),
-            name: String(modelId),
+            id: mId,
+            name: mId,
             description: item.details?.family ? `Family: ${item.details.family}` : undefined,
+            supportsTemperature: isModelTemperatureSupported(mId, item),
           })
         }
       }
@@ -245,12 +270,18 @@ export async function proxyFetchModels(
       // Top-level array format
       for (const item of data) {
         if (typeof item === "string") {
-          parsedModels.push({ id: item, name: item })
-        } else if (item && typeof item === "object" && item.id) {
           parsedModels.push({
-            id: String(item.id),
-            name: item.name || String(item.id),
+            id: item,
+            name: item,
+            supportsTemperature: isModelTemperatureSupported(item),
+          })
+        } else if (item && typeof item === "object" && item.id) {
+          const mId = String(item.id)
+          parsedModels.push({
+            id: mId,
+            name: item.name || mId,
             description: item.description,
+            supportsTemperature: isModelTemperatureSupported(mId, item),
           })
         }
       }

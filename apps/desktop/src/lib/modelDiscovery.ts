@@ -28,6 +28,43 @@ export interface ActiveProviderConfig {
   apiKey?: string
 }
 
+/**
+ * Evaluates whether a given model supports temperature parameterization.
+ * Reasoning models (o1, o1-mini, o1-preview, o3, o3-mini, o4, or models explicitly flagged supportsTemperature: false)
+ * do not support variable temperature tuning.
+ */
+export function isTemperatureSupported(
+  modelId?: string,
+  modelMeta?: Partial<DiscoveredModel> & { supports_temperature?: boolean }
+): boolean {
+  if (modelMeta) {
+    if (typeof modelMeta.supportsTemperature === "boolean") {
+      return modelMeta.supportsTemperature
+    }
+    if (typeof modelMeta.supports_temperature === "boolean") {
+      return modelMeta.supports_temperature
+    }
+  }
+
+  if (!modelId) return true
+
+  const lower = modelId.toLowerCase().trim()
+  if (
+    lower === "o1" ||
+    lower.startsWith("o1-") ||
+    lower.startsWith("o1_") ||
+    lower === "o3" ||
+    lower.startsWith("o3-") ||
+    lower.startsWith("o3_") ||
+    lower.startsWith("o4-") ||
+    lower.includes("reasoning")
+  ) {
+    return false
+  }
+
+  return true
+}
+
 export const DAEMON_PROXY_URL = "http://127.0.0.1:19840/api/fetch-models"
 
 export const DEFAULT_PROVIDER_URLS: Record<ModelProviderId, string> = {
@@ -332,13 +369,15 @@ export async function testAndFetchModels(
       // Standard OpenAI / OpenRouter / Anthropic format
       for (const item of data.data) {
         if (item && item.id) {
+          const modelId = String(item.id)
           parsedModels.push({
-            id: String(item.id),
-            name: item.display_name || item.name || String(item.id),
+            id: modelId,
+            name: item.display_name || item.name || modelId,
             description: item.description,
             contextLength: item.context_length,
             created: item.created,
             ownedBy: item.owned_by,
+            supportsTemperature: isTemperatureSupported(modelId, item),
           })
         }
       }
@@ -347,10 +386,12 @@ export async function testAndFetchModels(
       for (const item of data.models) {
         const modelId = item.name || item.model
         if (modelId) {
+          const mId = String(modelId)
           parsedModels.push({
-            id: String(modelId),
-            name: String(modelId),
+            id: mId,
+            name: mId,
             description: item.details?.family ? `Family: ${item.details.family}` : undefined,
+            supportsTemperature: isTemperatureSupported(mId, item),
           })
         }
       }

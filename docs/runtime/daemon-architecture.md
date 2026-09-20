@@ -38,10 +38,11 @@ The daemon implements standard JSON-RPC 2.0 message dispatching (`handleRpcCall`
 | :--- | :--- | :--- | :--- |
 | `ping` | `{}` | `{ pong: true, uptime, activeTasks, connectedClients }` | Health check & diagnostics |
 | `getSystemMetrics` | `{}` | `{ memoryUsageMb, memoryRssMb, activeSubAgents, uptime }` | Memory and resource telemetry |
-| `listAgents` | `{}` | `AgentSummary[]` | Returns all available agent configurations |
-| `createAgent` | `{ name, role, model, provider, temperature, permissions, systemPrompt }` | `{ agentName, agentDir, config, success }` | Provisions new agent workspace |
+| `agents:list` / `listAgents` | `{}` | `AgentSummary[]` | Returns all live agent workspaces under `~/.krypton/agents/` |
+| `agents:create` / `createAgent` | `{ name, model, provider, temperature, permissions, systemPrompt }` | `{ agentName, agentDir, config, success }` | Provisions new agent workspace with `config.json` and template `IDENTITY.md` |
+| `agents:update` / `updateAgent` | `{ name, patch }` | `{ agentName, config, success }` | Modifies machine-readable `config.json` strictly on disk |
+| `agents:delete` / `deleteAgent` | `{ name }` | `{ agentName, success }` | Safely unlinks agent workspace directory from disk |
 | `getAgent` | `{ name }` | `{ config, prompts, combinedSystemPrompt }` | Reads `config.json` and pure markdown prompts |
-| `updateAgent` | `{ name, patch }` | `{ agentName, config, success }` | Modifies machine-readable `config.json` |
 | `updateAgentContext`| `{ name, fileName, content }` | `{ agentName, fileName, success }` | Modifies pure markdown prompt (`*.md`) |
 | `startTask` | `{ prompt, agentName, model, provider, workspacePath, conversationHistory, askForApproval }` | `{ taskId, status, initialDag }` | Initiates autonomous execution DAG |
 | `controlProcess` | `{ agentId, action }` | `{ success, agentId, action, status }` | Aborts, pauses, or resumes active tasks |

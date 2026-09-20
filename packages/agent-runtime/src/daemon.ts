@@ -32,6 +32,7 @@ import {
   writeAgentContextMarkdown,
   loadAgentContext,
   deleteBootstrapFile,
+  deleteAgentWorkspace,
 } from "./filesystem/agent-storage.js"
 import {
   saveWorkspaceRecord,
@@ -487,6 +488,7 @@ export class KryptonDaemonServer {
           break
         }
 
+        case "agents:list":
         case "listAgents": {
           const home = resolveKryptonHome()
           const agentsDir = path.join(home, "agents")
@@ -535,6 +537,7 @@ export class KryptonDaemonServer {
           break
         }
 
+        case "agents:create":
         case "createAgent": {
           const name = p.name?.trim()
           if (!name) throw new Error("Agent name is required")
@@ -601,6 +604,7 @@ export class KryptonDaemonServer {
           break
         }
 
+        case "agents:update":
         case "updateAgent": {
           const name = p.name?.trim() || p.agentId?.trim()
           if (!name) throw new Error("Agent name or ID is required")
@@ -610,6 +614,18 @@ export class KryptonDaemonServer {
             agentName: updated.name,
             config: updated,
             success: true,
+          }
+          break
+        }
+
+        case "agents:delete":
+        case "deleteAgent": {
+          const name = p.name?.trim() || p.agentId?.trim() || p.id?.trim()
+          if (!name) throw new Error("Agent name or ID is required")
+          const success = await deleteAgentWorkspace(name)
+          result = {
+            agentName: name,
+            success,
           }
           break
         }

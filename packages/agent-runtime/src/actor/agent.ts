@@ -46,6 +46,7 @@ export interface AgentConfig {
   recursionBoundary?: Partial<RecursionBoundary>;
   systemPrompt?: string;
   soulDirectives?: string;
+  agentsDirectives?: string;
   bootstrapDirectives?: string;
   provider?: LLMProvider;
   scheduler?: ActorScheduler;
@@ -92,6 +93,7 @@ export class Agent extends EventEmitter {
   private customRoot?: string;
   private systemPrompt: string;
   private soulDirectives: string;
+  private agentsDirectives: string;
   private bootstrapDirectives: string;
   private activeAbortController?: AbortController;
   private cleanupAbort?: () => void;
@@ -105,6 +107,7 @@ export class Agent extends EventEmitter {
     this.toolExecutor = config.toolExecutor;
     this.systemPrompt = config.systemPrompt ?? "";
     this.soulDirectives = config.soulDirectives ?? "";
+    this.agentsDirectives = config.agentsDirectives ?? "";
     this.bootstrapDirectives = config.bootstrapDirectives ?? "";
 
     const parsedBudget = TokenBudgetSchema.parse({
@@ -180,6 +183,9 @@ export class Agent extends EventEmitter {
     if (this.soulDirectives.trim()) {
       parts.push(`\n## Core Directives & Behavioral Guardrails\n${this.soulDirectives.trim()}`);
     }
+    if (this.agentsDirectives.trim()) {
+      parts.push(`\n## Workspace Conventions & Operational Directives\n${this.agentsDirectives.trim()}`);
+    }
     if (this.bootstrapDirectives.trim()) {
       parts.push(
         [
@@ -224,11 +230,14 @@ export class Agent extends EventEmitter {
     });
 
     // Load pure markdown context without config keys or frontmatter leakage
-    const [systemPrompt, soulDirectives, bootstrapDirectives] = await Promise.all([
+    const [systemPrompt, soulDirectives, agentsDirectives, bootstrapDirectives] = await Promise.all([
       readAgentContextMarkdown(agentDir, "IDENTITY.md", {
         customRoot: effectiveCustomRoot,
       }),
       readAgentContextMarkdown(agentDir, "SOUL.md", {
+        customRoot: effectiveCustomRoot,
+      }),
+      readAgentContextMarkdown(agentDir, "AGENTS.md", {
         customRoot: effectiveCustomRoot,
       }),
       readAgentContextMarkdown(agentDir, "BOOTSTRAP.md", {
@@ -245,6 +254,7 @@ export class Agent extends EventEmitter {
       role: config.role,
       systemPrompt,
       soulDirectives,
+      agentsDirectives,
       bootstrapDirectives,
       tokenBudget: {
         hardLimit: config.budget?.total ?? 100_000,
