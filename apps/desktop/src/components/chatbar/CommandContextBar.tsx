@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef } from "react"
 import {
   Folder,
   Monitor,
@@ -9,13 +9,12 @@ import {
   Clock,
   Mic,
   ArrowUp,
-  ChevronDown,
-  Paperclip,
   Check,
   RotateCw,
   AlertCircle,
 } from "lucide-react"
 import { DiscoveredModel } from "@/lib/modelDiscovery"
+import { ModelSelectorPopover } from "./ModelSelectorPopover"
 
 interface CommandContextBarProps {
   projectName: string
@@ -116,7 +115,7 @@ export function CommandContextBar({
         {/* Local Machine Tag */}
         <div className="flex items-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-zinc-800/80 transition-colors cursor-pointer text-zinc-300">
           <Monitor className="size-3.5 text-zinc-400" />
-          <span className="font-medium text-[11px]">Local</span>
+          <span className="font-medium text-[11px]">{isLocal ? "Local" : "Remote"}</span>
         </div>
 
         {/* Git Branch Tag */}
@@ -174,61 +173,15 @@ export function CommandContextBar({
 
           {/* Right Controls: Model Selector with In-App Refresh, Mic, Send */}
           <div className="flex items-center gap-1.5">
-            {/* Model Selector Container */}
-            <div className="flex items-center rounded-lg border border-zinc-800/80 bg-zinc-950/60 hover:border-zinc-700/80 transition-all p-0.5">
-              <div className="relative">
-                <select
-                  value={model}
-                  onChange={(e) => onModelChange(e.target.value)}
-                  className="appearance-none bg-transparent hover:bg-zinc-800/60 rounded-md px-2 py-1 pr-5 text-[11px] font-medium text-zinc-300 outline-none cursor-pointer transition-colors max-w-[170px] truncate"
-                  title="Switch Primary Reasoning Model"
-                >
-                  {/* If availableModels populated from cache */}
-                  {availableModels && availableModels.length > 0 ? (
-                    <>
-                      {/* Ensure current selected model is present if not in list */}
-                      {!availableModels.some((m) => m.id === model) && (
-                        <option value={model} className="bg-zinc-900 text-zinc-200">
-                          {model}
-                        </option>
-                      )}
-                      {availableModels.map((m) => (
-                        <option key={m.id} value={m.id} className="bg-zinc-900 text-zinc-200">
-                          {m.name && m.name !== m.id ? m.name : m.id}
-                        </option>
-                      ))}
-                    </>
-                  ) : (
-                    <>
-                      <option value={model || "5.6 Terra High"} className="bg-zinc-900 text-zinc-200">
-                        {model || "5.6 Terra High"}
-                      </option>
-                      <option value="Claude 3.7 Sonnet" className="bg-zinc-900 text-zinc-200">
-                        Claude 3.7 Sonnet
-                      </option>
-                      <option value="GPT-4o" className="bg-zinc-900 text-zinc-200">
-                        GPT-4o
-                      </option>
-                      <option value="DeepSeek R1" className="bg-zinc-900 text-zinc-200">
-                        DeepSeek R1
-                      </option>
-                    </>
-                  )}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 size-2.5 text-zinc-500" />
-              </div>
-
-              {/* Refresh Models Button */}
-              <button
-                type="button"
-                onClick={() => setShowRefreshConfirm(true)}
-                disabled={isRefreshingModels}
-                className="flex size-6 items-center justify-center rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-violet-300 disabled:opacity-50 transition-colors cursor-pointer"
-                title="Refresh models list from provider"
-              >
-                <RotateCw className={`size-3 ${isRefreshingModels ? "animate-spin text-violet-400" : ""}`} />
-              </button>
-            </div>
+            {/* Accessible Model Selector Popover */}
+            <ModelSelectorPopover
+              value={model}
+              onChange={onModelChange}
+              availableModels={availableModels}
+              onRefresh={() => setShowRefreshConfirm(true)}
+              isRefreshing={isRefreshingModels}
+              activeProvider={activeProvider}
+            />
 
             {/* Microphone Button */}
             <button

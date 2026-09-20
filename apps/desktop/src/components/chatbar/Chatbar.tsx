@@ -3,13 +3,12 @@ import { useChatbarState, KryptonChatPayload } from "./useChatbarState"
 import { AttachmentTray } from "./AttachmentTray"
 import { CommandMenu } from "./CommandMenu"
 import { AudioWaveform } from "./AudioWaveform"
+import { ModelSelectorPopover } from "./ModelSelectorPopover"
 import {
   ArrowUp,
   Globe,
-  Sparkles,
   Paperclip,
   Wrench,
-  Check,
 } from "lucide-react"
 
 interface ChatbarProps {
@@ -135,17 +134,11 @@ export function Chatbar({
 
         {/* Right Execution Controls */}
         <div className="flex items-center gap-2">
-          {/* Model Selector Chip */}
-          <select
+          {/* Model Selector Popover */}
+          <ModelSelectorPopover
             value={model}
-            onChange={(e) => setModel(e.target.value)}
-            className="rounded-md border border-zinc-800 bg-zinc-950/70 px-2 py-1 text-[11px] font-medium text-zinc-300 outline-none hover:border-zinc-700 cursor-pointer"
-          >
-            <option value="claude-3-7-sonnet">Claude 3.7 Sonnet</option>
-            <option value="deepseek-r1">DeepSeek R1</option>
-            <option value="llama-3.3-70b">Llama 3.3 70B (Local)</option>
-            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
-          </select>
+            onChange={setModel}
+          />
 
           {/* Real-time Voice Audio Visualizer */}
           <AudioWaveform
