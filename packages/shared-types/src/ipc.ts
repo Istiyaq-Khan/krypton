@@ -132,6 +132,58 @@ export const VoiceTranscribedEventSchema = z.object({
 export type VoiceTranscribedEvent = z.infer<typeof VoiceTranscribedEventSchema>;
 
 /**
+ * Interactive Human-in-the-Loop tool/command approval request.
+ */
+export const ToolApprovalRequestSchema = z.object({
+  id: z.string(),
+  taskId: z.string().optional(),
+  agentId: z.string(),
+  agentName: z.string(),
+  type: z.enum(["terminal_command", "file_write", "vcs_merge", "security_violation"]),
+  title: z.string(),
+  description: z.string(),
+  command: z.string().optional(),
+  diff: z.string().optional(),
+  status: z.enum(["pending", "approved", "rejected"]).default("pending"),
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type ToolApprovalRequest = z.infer<typeof ToolApprovalRequestSchema>;
+
+export const ToolApprovalRequestedEventSchema = z.object({
+  type: z.literal("tool_approval_requested"),
+  approval: ToolApprovalRequestSchema,
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type ToolApprovalRequestedEvent = z.infer<
+  typeof ToolApprovalRequestedEventSchema
+>;
+
+/**
+ * Dynamic Tool Execution Event emitted over WebSocket.
+ */
+export const ToolExecutionItemSchema = z.object({
+  id: z.string(),
+  type: z.enum(["file_edit", "terminal_command", "ast_linter", "test_run", "browser_action"]),
+  title: z.string(),
+  subtitle: z.string().optional(),
+  command: z.string().optional(),
+  stdout: z.string().optional(),
+  durationMs: z.number().nonnegative(),
+  status: z.enum(["success", "running", "failed"]),
+  exitCode: z.number().optional(),
+});
+export type ToolExecutionItem = z.infer<typeof ToolExecutionItemSchema>;
+
+export const ToolExecutionEventSchema = z.object({
+  type: z.literal("tool_execution"),
+  taskId: z.string().optional(),
+  agentId: z.string(),
+  tool: ToolExecutionItemSchema,
+  timestamp: z.number().int().nonnegative().default(() => Date.now()),
+});
+export type ToolExecutionEvent = z.infer<typeof ToolExecutionEventSchema>;
+
+/**
  * Discriminated union of all WebSocket stream packets.
  */
 export const WebSocketPacketSchema = z.discriminatedUnion("type", [
@@ -141,6 +193,8 @@ export const WebSocketPacketSchema = z.discriminatedUnion("type", [
   ClarificationRequestedEventSchema,
   SteeringInputEventSchema,
   VoiceTranscribedEventSchema,
+  ToolApprovalRequestedEventSchema,
+  ToolExecutionEventSchema,
 ]);
 export type WebSocketPacket = z.infer<typeof WebSocketPacketSchema>;
 

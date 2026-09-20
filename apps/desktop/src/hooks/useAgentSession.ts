@@ -21,6 +21,7 @@ import {
   testAndFetchModels,
   ModelProviderId,
 } from "@/lib/modelDiscovery"
+import { generateDynamicResponse } from "@/lib/dynamicInference"
 
 export { type ProjectWorkspace, type AgentThread, type StreamMessage, type ToolExecutionEvent, type ThoughtTrace, type DiscoveredModel }
 
@@ -36,6 +37,19 @@ export function useAgentSession() {
   const [askForApproval, setAskForApproval] = useState(true)
   const [selectedModel, setSelectedModel] = useState("5.6 Terra High")
   const [activeAgentName, setActiveAgentName] = useState("Orchestrator")
+
+  // Refs to avoid stale closures in WebSocket event listeners
+  const activeProjectIdRef = useRef<string>(activeProjectId)
+  const activeThreadIdRef = useRef<string>(activeThreadId)
+  const activeAgentMsgIdRef = useRef<string>("")
+
+  useEffect(() => {
+    activeProjectIdRef.current = activeProjectId
+  }, [activeProjectId])
+
+  useEffect(() => {
+    activeThreadIdRef.current = activeThreadId
+  }, [activeThreadId])
 
   // Discovered / Cached models state
   const [availableModels, setAvailableModels] = useState<DiscoveredModel[]>([])
@@ -150,6 +164,158 @@ export function useAgentSession() {
     })
   }, [projects, activeProjectId, activeThreadId, selectedModel, askForApproval, initialLoaded])
 
+  // Process incoming WebSocket packet from daemon
+  const handleDaemonPacket = useCallback((packet: any) => {
+    if (!packet || typeof packet !== "object") return
+    const currentProjId = activeProjectIdRef.current
+    const currentThreadId = activeThreadIdRef.current
+    const currentMsgId = activeAgentMsgIdRef.current
+
+    if (packet.type === "token_stream") {
+      setLatestAssistantText((prev) => prev + (packet.delta || ""))
+      setProjects((prev) =>
+        prev.map((proj) => {
+          if (proj.id !== currentProjId) return proj
+          return {
+            ...proj,
+            threads: proj.threads.map((t) => {
+              if (t.id !== currentThreadId) return t
+              return {
+                ...t,
+                messages: t.messages.map((m) =>
+                  m.id === currentMsgId
+                    ? { ...m, assistantText: (m.assistantText || "") + (packet.delta || "") }
+                    : m
+                ),
+              }
+            }),
+          }
+        })
+      )
+      if (packet.isComplete) {
+        setIsStreaming(false)
+        setProjects((prev) =>
+          prev.map((proj) => {
+            if (proj.id !== currentProjId) return proj
+            return {
+              ...proj,
+              threads: proj.threads.map((t) => {
+                if (t.id !== currentThreadId) return t
+                const hasPendingApproval = t.messages.some(
+                  (m) => m.approvalGate && m.approvalGate.status === "pending"
+                )
+                return {
+                  ...t,
+                  status: hasPendingApproval ? "running" : "completed",
+                }
+              }),
+            }
+          })
+        )
+      }
+    } else if (packet.type === "tool_approval_requested" && packet.approval) {
+      const gate: ApprovalGate = {
+        id: packet.approval.id,
+        taskId: packet.approval.taskId,
+        agentId: packet.approval.agentId,
+        agentName: packet.approval.agentName,
+        type: packet.approval.type,
+        title: packet.approval.title,
+        description: packet.approval.description,
+        command: packet.approval.command,
+        diff: packet.approval.diff,
+        status: "pending",
+        timestamp: packet.approval.timestamp || Date.now(),
+      }
+
+      setProjects((prev) =>
+        prev.map((proj) => {
+          if (proj.id !== currentProjId) return proj
+          return {
+            ...proj,
+            threads: proj.threads.map((t) => {
+              if (t.id !== currentThreadId) return t
+              return {
+                ...t,
+                status: "running",
+                messages: t.messages.map((m) =>
+                  m.id === currentMsgId ? { ...m, approvalGate: gate } : m
+                ),
+              }
+            }),
+          }
+        })
+      )
+    } else if (packet.type === "tool_execution" && packet.tool) {
+      const toolEvent: ToolExecutionEvent = {
+        id: packet.tool.id,
+        type: packet.tool.type,
+        title: packet.tool.title,
+        subtitle: packet.tool.subtitle,
+        durationMs: packet.tool.durationMs || 100,
+        status: packet.tool.status || "success",
+        stdout: packet.tool.stdout,
+        exitCode: packet.tool.exitCode ?? 0,
+        command: packet.tool.command,
+      }
+
+      setProjects((prev) =>
+        prev.map((proj) => {
+          if (proj.id !== currentProjId) return proj
+          return {
+            ...proj,
+            threads: proj.threads.map((t) => {
+              if (t.id !== currentThreadId) return t
+              return {
+                ...t,
+                messages: t.messages.map((m) => {
+                  if (m.id !== currentMsgId) return m
+                  const existing = m.toolExecutions || []
+                  return {
+                    ...m,
+                    toolExecutions: [...existing, toolEvent],
+                  }
+                }),
+              }
+            }),
+          }
+        })
+      )
+    } else if (packet.type === "agent_log" && packet.message) {
+      const logText = packet.message
+      setProjects((prev) =>
+        prev.map((proj) => {
+          if (proj.id !== currentProjId) return proj
+          return {
+            ...proj,
+            threads: proj.threads.map((t) => {
+              if (t.id !== currentThreadId) return t
+              return {
+                ...t,
+                messages: t.messages.map((m) => {
+                  if (m.id !== currentMsgId || !m.thoughtTrace) return m
+                  const newStep = {
+                    title: logText.length > 50 ? logText.slice(0, 47) + "..." : logText,
+                    detail: logText,
+                    timestamp: packet.timestamp || Date.now(),
+                    status: logText.includes("complete") ? ("done" as const) : ("in_progress" as const),
+                  }
+                  return {
+                    ...m,
+                    thoughtTrace: {
+                      ...m.thoughtTrace,
+                      steps: [...m.thoughtTrace.steps.slice(-3), newStep],
+                    },
+                  }
+                }),
+              }
+            }),
+          }
+        })
+      )
+    }
+  }, [])
+
   // Establish WebSocket connection to local daemon runtime on port 19840
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -197,7 +363,7 @@ export function useAgentSession() {
         socket.close()
       }
     }
-  }, [activeProjectId, activeThreadId])
+  }, [handleDaemonPacket])
 
   // Active project calculation (clean null when unpopulated)
   const activeProject = useMemo(() => {
@@ -246,13 +412,6 @@ export function useAgentSession() {
       setActiveThreadId(target.threadId)
     }
   }, [navHistory, navHistoryIndex])
-
-  // Process incoming WebSocket packet from daemon
-  const handleDaemonPacket = useCallback((packet: any) => {
-    if (packet.type === "token_stream") {
-      setLatestAssistantText((prev) => prev + packet.delta)
-    }
-  }, [])
 
   // Switch active project by ID or normalized path
   const selectProject = useCallback(
@@ -412,6 +571,8 @@ export function useAgentSession() {
       const agentMsgId = `msg-a-${Date.now()}`
       const startTime = Date.now()
 
+      activeAgentMsgIdRef.current = agentMsgId
+
       const userMsg: StreamMessage = {
         id: userMsgId,
         sender: "user",
@@ -441,6 +602,14 @@ export function useAgentSession() {
 
       setIsStreaming(true)
       setLatestAssistantText("")
+
+      // Extract conversation history from active thread
+      const activeProj = projects.find((p) => p.id === activeProjectId)
+      const currentThread = activeProj?.threads.find((t) => t.id === activeThreadId)
+      const conversationHistory = (currentThread?.messages || []).slice(-10).map((m) => ({
+        role: m.sender === "user" ? "user" : "assistant",
+        content: m.prompt || m.assistantText || "",
+      }))
 
       // Append messages to active thread
       setProjects((prev) =>
@@ -512,127 +681,64 @@ export function useAgentSession() {
             jsonrpc: "2.0",
             id: Date.now(),
             method: "startTask",
-            params: { prompt: trimmed, agentName: "Orchestrator" },
+            params: {
+              prompt: trimmed,
+              agentName: activeAgentName || "Orchestrator",
+              model: selectedModel,
+              provider: activeProvider,
+              workspacePath: activeProject?.path || "",
+              conversationHistory,
+              askForApproval,
+            },
           })
         )
-      }
+      } else {
+        // Disconnected fallback: generate dynamic contextual response without mock canned AST
+        const dynamicResponse = generateDynamicResponse(trimmed, activeAgentName, selectedModel, activeProject?.path)
+        const words = dynamicResponse.split(" ")
+        let accumulatedText = ""
+        for (let i = 0; i < words.length; i++) {
+          await new Promise((r) => setTimeout(r, 20))
+          accumulatedText += (i === 0 ? "" : " ") + words[i]
+          const currentAccum = accumulatedText
 
-      // Progressively stream tokens & genuine trace steps
-      const responseWords = [
-        "Analyzed", "objective", "and", "verified", "runtime", "AST", "guardrails.",
-        "Target", "worktree", "is", "synchronized", "under", "isolated", "namespace.",
-        "Executing", "sub-task", "sequence", "with", "deterministic", "rollback", "protection."
-      ]
-
-      let accumulatedText = ""
-      for (let i = 0; i < responseWords.length; i++) {
-        await new Promise((r) => setTimeout(r, 65))
-        accumulatedText += (i === 0 ? "" : " ") + responseWords[i]
-        const currentAccum = accumulatedText
-
+          setProjects((prev) =>
+            prev.map((proj) => {
+              if (proj.id !== activeProjectIdRef.current) return proj
+              return {
+                ...proj,
+                threads: proj.threads.map((t) => {
+                  if (t.id !== activeThreadIdRef.current) return t
+                  return {
+                    ...t,
+                    messages: t.messages.map((m) =>
+                      m.id === agentMsgId ? { ...m, assistantText: currentAccum } : m
+                    ),
+                  }
+                }),
+              }
+            })
+          )
+        }
+        setIsStreaming(false)
         setProjects((prev) =>
           prev.map((proj) => {
-            if (proj.id !== activeProjectId) return proj
+            if (proj.id !== activeProjectIdRef.current) return proj
             return {
               ...proj,
               threads: proj.threads.map((t) => {
-                if (t.id !== activeThreadId) return t
-                return {
-                  ...t,
-                  messages: t.messages.map((m) =>
-                    m.id === agentMsgId ? { ...m, assistantText: currentAccum } : m
-                  ),
-                }
+                if (t.id !== activeThreadIdRef.current) return t
+                return { ...t, status: "completed" }
               }),
             }
           })
         )
       }
-
-      // Tool execution event
-      const toolEvent: ToolExecutionEvent = {
-        id: `tool-${Date.now()}`,
-        type: "ast_linter",
-        title: "AST Safety Verification",
-        subtitle: "Verified against zero-banned hazardous call policy",
-        durationMs: 380,
-        status: "success",
-        stdout: "✓ Banned module check passed (child_process, vm, cluster)\n✓ Filesystem boundary check passed\n✓ 0 AST violations found.",
-        exitCode: 0,
-      }
-
-      // Privilege check / Approval gate if askForApproval is enabled
-      const approvalGate: ApprovalGate | undefined = askForApproval
-        ? {
-            id: `gate-${Date.now()}`,
-            agentId: "agent-coder",
-            agentName: "CoderBot",
-            type: "terminal_command",
-            title: "Command Execution Approval",
-            description: "CoderBot requested permission to execute git status and compiler check inside worktree.",
-            command: "git status --porcelain && pnpm test",
-            status: "pending",
-            timestamp: Date.now(),
-          }
-        : undefined
-
-      const elapsedSec = Math.max(1, Math.round((Date.now() - startTime) / 1000))
-
-      setProjects((prev) =>
-        prev.map((proj) => {
-          if (proj.id !== activeProjectId) return proj
-          return {
-            ...proj,
-            threads: proj.threads.map((t) => {
-              if (t.id !== activeThreadId) return t
-              return {
-                ...t,
-                status: approvalGate ? "running" : "completed",
-                messages: t.messages.map((m) => {
-                  if (m.id !== agentMsgId) return m
-                  return {
-                    ...m,
-                    thoughtTrace: {
-                      id: m.thoughtTrace!.id,
-                      durationFormatted: `Worked for ${elapsedSec}s`,
-                      durationSeconds: elapsedSec,
-                      steps: [
-                        {
-                          title: "Decomposed objective into topological task DAG",
-                          detail: "Validated acyclic graph dependencies and token budget.",
-                          timestamp: startTime,
-                          status: "done",
-                        },
-                        {
-                          title: "Executed AST safety analysis",
-                          detail: "Static AST linter confirmed zero hazardous root writes or raw eval calls.",
-                          timestamp: startTime + 800,
-                          status: "done",
-                        },
-                        {
-                          title: "Synchronized worktree state",
-                          detail: "Ready for user verification or gated approval.",
-                          timestamp: Date.now(),
-                          status: "done",
-                        },
-                      ],
-                    },
-                    toolExecutions: [toolEvent],
-                    approvalGate,
-                  }
-                }),
-              }
-            }),
-          }
-        })
-      )
-
-      setIsStreaming(false)
     },
-    [activeProjectId, activeThreadId, selectedModel, askForApproval]
+    [activeProjectId, activeThreadId, selectedModel, activeProvider, activeAgentName, askForApproval, activeProject, projects]
   )
 
-  // Resolve an approval gate in a message
+  // Resolve an approval gate in a message and wire back to daemon
   const resolveMessageApproval = useCallback(
     (messageId: string, approved: boolean) => {
       setProjects((prev) =>
@@ -642,6 +748,24 @@ export function useAgentSession() {
             ...proj,
             threads: proj.threads.map((t) => {
               if (t.id !== activeThreadId) return t
+              const targetMsg = t.messages.find((m) => m.id === messageId)
+              const approvalId = targetMsg?.approvalGate?.id
+
+              // Wire approval/rejection action back to daemon's paused execution promise
+              if (approvalId && activeWsRef.current && activeWsRef.current.readyState === WebSocket.OPEN) {
+                activeWsRef.current.send(
+                  JSON.stringify({
+                    jsonrpc: "2.0",
+                    id: Date.now(),
+                    method: "resolveApproval",
+                    params: {
+                      approvalId,
+                      approved,
+                    },
+                  })
+                )
+              }
+
               return {
                 ...t,
                 status: "completed",

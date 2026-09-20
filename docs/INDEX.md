@@ -13,6 +13,8 @@ docs/
 ├── INDEX.md                                # Master routing directory (This file)
 │
 ├── 🏛 Architecture & Lifecycle
+│   ├── [Full Architecture Specification](architecture/full-architecture.md) # Master comprehensive architectural blueprint
+│   ├── [Interactive Architecture Diagram](architecture/system-architecture-diagram.html) # SVG editorial system architecture diagram
 │   ├── [System Topology](architecture/system-topology.md)             # Monorepo packages, process tree, IPC
 │   ├── [Process Lifecycle](architecture/process-lifecycle.md)         # Startup, sidecar supervision, teardown
 │   └── [Actor Engine](architecture/actor-engine.md)                   # Universal Actor loop, recursion caps, event sourcing
@@ -69,6 +71,8 @@ docs/
 
 | If you need to... | Read this document |
 | :--- | :--- |
+| **Review master comprehensive system architecture** | [`architecture/full-architecture.md`](architecture/full-architecture.md) |
+| **Inspect interactive SVG system architecture diagram** | [`architecture/system-architecture-diagram.html`](architecture/system-architecture-diagram.html) |
 | **Understand overall system topology and packages** | [`architecture/system-topology.md`](architecture/system-topology.md) |
 | **Inspect or modify how daemon is supervised** | [`architecture/process-lifecycle.md`](architecture/process-lifecycle.md) |
 | **Work on Actor loop, sub-agent recursion, or budgets**| [`architecture/actor-engine.md`](architecture/actor-engine.md) |
