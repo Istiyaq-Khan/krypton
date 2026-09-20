@@ -28,6 +28,8 @@ import {
   readAgentConfig,
   readAgentContextMarkdown,
   updateAgentConfig,
+  deleteBootstrapFile,
+  resolveAgentDir,
 } from "../filesystem/agent-storage.js";
 import { AgentConfigFile } from "@krypton/shared-types";
 import { LLMProvider } from "../providers/types.js";
@@ -44,6 +46,7 @@ export interface AgentConfig {
   recursionBoundary?: Partial<RecursionBoundary>;
   systemPrompt?: string;
   soulDirectives?: string;
+  bootstrapDirectives?: string;
   provider?: LLMProvider;
   scheduler?: ActorScheduler;
   eventStore?: AgentEventStore;
@@ -89,6 +92,7 @@ export class Agent extends EventEmitter {
   private customRoot?: string;
   private systemPrompt: string;
   private soulDirectives: string;
+  private bootstrapDirectives: string;
   private activeAbortController?: AbortController;
   private cleanupAbort?: () => void;
 
@@ -101,6 +105,7 @@ export class Agent extends EventEmitter {
     this.toolExecutor = config.toolExecutor;
     this.systemPrompt = config.systemPrompt ?? "";
     this.soulDirectives = config.soulDirectives ?? "";
+    this.bootstrapDirectives = config.bootstrapDirectives ?? "";
 
     const parsedBudget = TokenBudgetSchema.parse({
       hardLimit: config.tokenBudget?.hardLimit ?? 100_000,
@@ -175,6 +180,22 @@ export class Agent extends EventEmitter {
     if (this.soulDirectives.trim()) {
       parts.push(`\n## Core Directives & Behavioral Guardrails\n${this.soulDirectives.trim()}`);
     }
+    if (this.bootstrapDirectives.trim()) {
+      parts.push(
+        [
+          "=================================================================",
+          "CRITICAL ONBOARDING DIRECTIVE: ACTIVE BOOTSTRAP PROTOCOL DETECTED",
+          "=================================================================",
+          "You are currently executing the first-run birth sequence specified below. Complete the onboarding beats in order.",
+          "You (the agent) alone are responsible for verifying your setup and deleting BOOTSTRAP.md via file tools once all beats are verified.",
+          "The Krypton system will NEVER automatically delete this file for you.",
+          "",
+          "FILE CONTENT:",
+          this.bootstrapDirectives.trim(),
+          "=================================================================",
+        ].join("\n")
+      );
+    }
     return parts.join("\n\n");
   }
 
@@ -182,10 +203,10 @@ export class Agent extends EventEmitter {
    * Factory method to load an agent instance directly from its disk folder (~/.krypton/agents/<name>).
    * Enforces strict separation of concerns:
    * - Machine configuration loaded exclusively from `config.json` via readAgentConfig().
-   * - Prompts and behavioral directives loaded as pure markdown text via readAgentContextMarkdown().
+   * - Prompts, behavioral directives, and active bootstrap instructions loaded as pure markdown text via readAgentContextMarkdown().
    */
   public static async fromWorkspace(
-    agentName: string,
+    agentNameOrDir: string,
     options?: {
       customRoot?: string;
       provider?: LLMProvider;
@@ -193,17 +214,27 @@ export class Agent extends EventEmitter {
       toolExecutor?: (toolCall: ToolCall) => Promise<ToolResult>;
     }
   ): Promise<Agent> {
-    const config = await readAgentConfig(agentName, {
-      customRoot: options?.customRoot,
+    const { agentName, agentDir } = resolveAgentDir(agentNameOrDir, options?.customRoot);
+    const effectiveCustomRoot =
+      options?.customRoot ||
+      (path.isAbsolute(agentNameOrDir) ? path.dirname(path.dirname(agentDir)) : undefined);
+
+    const config = await readAgentConfig(agentDir, {
+      customRoot: effectiveCustomRoot,
     });
 
     // Load pure markdown context without config keys or frontmatter leakage
-    const systemPrompt = await readAgentContextMarkdown(agentName, "IDENTITY.md", {
-      customRoot: options?.customRoot,
-    });
-    const soulDirectives = await readAgentContextMarkdown(agentName, "SOUL.md", {
-      customRoot: options?.customRoot,
-    });
+    const [systemPrompt, soulDirectives, bootstrapDirectives] = await Promise.all([
+      readAgentContextMarkdown(agentDir, "IDENTITY.md", {
+        customRoot: effectiveCustomRoot,
+      }),
+      readAgentContextMarkdown(agentDir, "SOUL.md", {
+        customRoot: effectiveCustomRoot,
+      }),
+      readAgentContextMarkdown(agentDir, "BOOTSTRAP.md", {
+        customRoot: effectiveCustomRoot,
+      }),
+    ]);
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(config.id);
     const agentId = isUuid ? config.id : crypto.randomUUID();
@@ -214,6 +245,7 @@ export class Agent extends EventEmitter {
       role: config.role,
       systemPrompt,
       soulDirectives,
+      bootstrapDirectives,
       tokenBudget: {
         hardLimit: config.budget?.total ?? 100_000,
         usedTokens: config.budget?.used ?? 0,
@@ -222,7 +254,7 @@ export class Agent extends EventEmitter {
         maxDepth: config.permissions?.maxDepth ?? 3,
         maxConcurrentChildren: config.permissions?.maxConcurrentChildren ?? 5,
       },
-      customRoot: options?.customRoot,
+      customRoot: effectiveCustomRoot,
       provider: options?.provider,
       scheduler: options?.scheduler,
       toolExecutor: options?.toolExecutor,
@@ -245,6 +277,10 @@ export class Agent extends EventEmitter {
 
   public getMessages(): Message[] {
     return [...this.messages];
+  }
+
+  public getSystemPrompt(): string {
+    return this.buildCombinedSystemPrompt();
   }
 
   public getState(): AgentState {
@@ -493,12 +529,7 @@ export class Agent extends EventEmitter {
           };
         }
       } else {
-        result = {
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          content: `No tool executor configured for tool '${toolCall.name}'`,
-          isError: true,
-        };
+        result = await this.executeBuiltinTool(toolCall);
       }
 
       // Check output offloading (>1500 tokens / 6KB)
@@ -547,6 +578,71 @@ export class Agent extends EventEmitter {
       toolCalls,
       toolResults,
       terminal: this.stateManager.isTerminal(),
+    };
+  }
+
+  /**
+   * Built-in file and workspace tool executor fallback.
+   * Handles agent-governed file operations including deleting BOOTSTRAP.md upon verification.
+   */
+  /**
+   * Built-in file and workspace tool executor fallback.
+   * Handles agent-governed file operations including deleting BOOTSTRAP.md upon verification.
+   */
+  public async executeBuiltinTool(
+    toolNameOrCall: string | ToolCall,
+    args?: Record<string, any>
+  ): Promise<ToolResult & { success: boolean; output: string }> {
+    const call: ToolCall =
+      typeof toolNameOrCall === "string"
+        ? {
+            id: `call-${Date.now()}`,
+            name: toolNameOrCall,
+            arguments: args || {},
+          }
+        : toolNameOrCall;
+
+    const name = call.name.toLowerCase();
+    if (
+      name === "file_delete" ||
+      name === "delete_file" ||
+      name === "unlink" ||
+      name === "remove_file"
+    ) {
+      const callArgs = (call.arguments as Record<string, any>) || {};
+      const targetPath = String(
+        callArgs.path || callArgs.filePath || callArgs.target || callArgs.file || ""
+      );
+      const fileName = path.basename(targetPath);
+      if (fileName.toLowerCase() === "bootstrap.md") {
+        const deleted = await deleteBootstrapFile(this.name, {
+          customRoot: this.customRoot,
+        });
+        if (deleted) {
+          this.bootstrapDirectives = "";
+        }
+        const output = deleted
+          ? "Successfully deleted BOOTSTRAP.md from workspace. Onboarding birth sequence complete."
+          : "BOOTSTRAP.md was not found or already deleted.";
+        return {
+          toolCallId: call.id,
+          toolName: call.name,
+          content: output,
+          isError: !deleted,
+          success: deleted,
+          output,
+        };
+      }
+    }
+
+    const output = `No tool executor configured for tool '${call.name}'`;
+    return {
+      toolCallId: call.id,
+      toolName: call.name,
+      content: output,
+      isError: true,
+      success: false,
+      output,
     };
   }
 

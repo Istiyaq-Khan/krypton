@@ -31,7 +31,20 @@ import {
   updateAgentConfig,
   writeAgentContextMarkdown,
   loadAgentContext,
+  deleteBootstrapFile,
 } from "./filesystem/agent-storage.js"
+import {
+  saveWorkspaceRecord,
+  loadWorkspaceRecord,
+  listWorkspaceRecords,
+  deleteWorkspaceRecord,
+  saveSessionThread,
+  loadSessionThread,
+  listSessionThreads,
+  deleteSessionThread,
+  saveWorkstationStateToDisk,
+  loadWorkstationStateFromDisk,
+} from "./filesystem/workspace-storage.js"
 import { parseMarkdownWithFrontmatter } from "./filesystem/parser.js"
 import { TaskTree } from "./planner/task-tree.js"
 import { VcsDiffAndRollbackEngine } from "./vcs/diff.js"
@@ -132,7 +145,21 @@ export function generateDynamicResponse(
     ].join("\n")
   }
 
-  // 4. Default dynamic query decomposition:
+  // 4. Bootstrap / onboarding lifecycle queries
+  if (lower.includes("bootstrap")) {
+    return [
+      `### Krypton Agent Bootstrap Lifecycle`,
+      `Agent **${agentName}** configured with model **${model}** has processed the bootstrap initialization${ws}.`,
+      "",
+      `- **Lifecycle Rule**: Krypton does not automatically delete \`BOOTSTRAP.md\` or \`bootstrap.md\`.`,
+      `- **Agent Governance**: The active agent executes onboarding setup tasks and deletes \`BOOTSTRAP.md\` via tool calls once verified.`,
+      `- **Persistence**: Workspace configuration, agent directives, and session history are persistently recorded to disk.`,
+      "",
+      `System bootstrap protocol active.`,
+    ].join("\n")
+  }
+
+  // 5. Default dynamic query decomposition:
   const firstSentence = p.length > 80 ? p.slice(0, 77) + "..." : p
   return [
     `### Autonomous Execution Plan for "${firstSentence}"`,
@@ -757,6 +784,97 @@ export class KryptonDaemonServer {
           break
         }
 
+        // Workspace Storage RPCs
+        case "saveWorkspace":
+        case "workspace:save": {
+          const record = await saveWorkspaceRecord(p as any)
+          result = { success: true, workspace: record }
+          break
+        }
+
+        case "loadWorkspace":
+        case "workspace:load": {
+          const wsId = p.id || p.workspaceId
+          if (!wsId) throw new Error("Workspace ID is required")
+          const record = await loadWorkspaceRecord(wsId)
+          result = { success: true, workspace: record }
+          break
+        }
+
+        case "listWorkspaces":
+        case "workspace:list": {
+          const records = await listWorkspaceRecords()
+          result = { success: true, workspaces: records }
+          break
+        }
+
+        case "deleteWorkspace":
+        case "workspace:delete": {
+          const wsId = p.id || p.workspaceId
+          if (!wsId) throw new Error("Workspace ID is required")
+          await deleteWorkspaceRecord(wsId)
+          result = { success: true, id: wsId }
+          break
+        }
+
+        // Session Storage RPCs
+        case "saveSession":
+        case "session:save": {
+          const thread = await saveSessionThread(p as any)
+          result = { success: true, session: thread }
+          break
+        }
+
+        case "loadSession":
+        case "session:load": {
+          const sId = p.id || p.sessionId
+          if (!sId) throw new Error("Session ID is required")
+          const thread = await loadSessionThread(sId)
+          result = { success: true, session: thread }
+          break
+        }
+
+        case "listSessions":
+        case "session:list": {
+          const threads = await listSessionThreads()
+          result = { success: true, sessions: threads }
+          break
+        }
+
+        case "deleteSession":
+        case "session:delete": {
+          const sId = p.id || p.sessionId
+          if (!sId) throw new Error("Session ID is required")
+          await deleteSessionThread(sId)
+          result = { success: true, id: sId }
+          break
+        }
+
+        // Workstation State RPCs
+        case "saveWorkstationState":
+        case "workstation:saveState": {
+          const state = await saveWorkstationStateToDisk(p as any)
+          result = { success: true, state }
+          break
+        }
+
+        case "loadWorkstationState":
+        case "workstation:loadState": {
+          const state = await loadWorkstationStateFromDisk()
+          result = { success: true, state }
+          break
+        }
+
+        // Agent-governed bootstrap file deletion RPC
+        case "deleteBootstrap":
+        case "agent:deleteBootstrap": {
+          const target = p.workspacePath || p.agentName || p.target
+          if (!target) throw new Error("Workspace path or agent name is required")
+          const deleted = await deleteBootstrapFile(target)
+          result = { success: true, deleted }
+          break
+        }
+
         default:
           return {
             jsonrpc: "2.0",
@@ -904,7 +1022,57 @@ export class KryptonDaemonServer {
           apiKey,
         })
 
+        let systemPrompt = ""
+        try {
+          const agentCtx = await loadAgentContext(agentName)
+          if (agentCtx && agentCtx.combinedSystemPrompt) {
+            systemPrompt = agentCtx.combinedSystemPrompt
+          }
+        } catch {
+          // If agent context doesn't exist, proceed with workspace check
+        }
+
+        if (workspacePath && fs.existsSync(workspacePath)) {
+          for (const candidate of ["BOOTSTRAP.md", "bootstrap.md"]) {
+            const candidatePath = path.join(workspacePath, candidate)
+            if (fs.existsSync(candidatePath)) {
+              try {
+                const rawBootstrap = fs.readFileSync(candidatePath, "utf-8")
+                if (rawBootstrap.trim().length > 0 && !systemPrompt.includes(rawBootstrap.trim())) {
+                  const bootstrapDirectives = [
+                    "=================================================================",
+                    "CRITICAL ONBOARDING DIRECTIVE: ACTIVE BOOTSTRAP PROTOCOL DETECTED",
+                    "=================================================================",
+                    `A pending initialization file exists in the active workspace at: ${candidatePath}`,
+                    "",
+                    "FILE CONTENT:",
+                    rawBootstrap.trim(),
+                    "",
+                    "OPERATIONAL RULES FOR BOOTSTRAP:",
+                    "1. You MUST execute, configure, or initialize any setup tasks listed in this file.",
+                    "2. Krypton will NEVER automatically delete this file.",
+                    "3. You alone are responsible for removing this file using file deletion tools once setup and verification are complete.",
+                    "=================================================================",
+                  ].join("\n")
+                  systemPrompt = systemPrompt ? `${systemPrompt}\n\n${bootstrapDirectives}` : bootstrapDirectives
+                }
+              } catch {
+                // Ignore read errors
+              }
+              break
+            }
+          }
+        }
+
         const messages: Message[] = []
+        if (systemPrompt.length > 0) {
+          messages.push({
+            id: crypto.randomUUID(),
+            role: "system",
+            content: systemPrompt,
+            timestamp: Date.now(),
+          })
+        }
         if (conversationHistory.length > 0) {
           for (const item of conversationHistory) {
             if (item && item.role && item.content) {

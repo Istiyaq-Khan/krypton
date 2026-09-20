@@ -17,7 +17,8 @@ docs/
 │   ├── [Interactive Architecture Diagram](architecture/system-architecture-diagram.html) # SVG editorial system architecture diagram
 │   ├── [System Topology](architecture/system-topology.md)             # Monorepo packages, process tree, IPC
 │   ├── [Process Lifecycle](architecture/process-lifecycle.md)         # Startup, sidecar supervision, teardown
-│   └── [Actor Engine](architecture/actor-engine.md)                   # Universal Actor loop, recursion caps, event sourcing
+│   ├── [Actor Engine](architecture/actor-engine.md)                   # Universal Actor loop, recursion caps, event sourcing
+│   └── [Workspace Persistence & Bootstrap Lifecycle](architecture/workspace-persistence-and-bootstrap-lifecycle.md) # Filesystem persistence & agent-governed BOOTSTRAP.md
 │
 ├── 🖥 Desktop UI & Frontend
 │   ├── [Window Controls & Titlebar](desktop/window-controls-titlebar.md) # Frameless architecture, drag regions, window IPC
@@ -76,6 +77,7 @@ docs/
 | **Understand overall system topology and packages** | [`architecture/system-topology.md`](architecture/system-topology.md) |
 | **Inspect or modify how daemon is supervised** | [`architecture/process-lifecycle.md`](architecture/process-lifecycle.md) |
 | **Work on Actor loop, sub-agent recursion, or budgets**| [`architecture/actor-engine.md`](architecture/actor-engine.md) |
+| **Manage workspace persistence or BOOTSTRAP.md lifecycle**| [`architecture/workspace-persistence-and-bootstrap-lifecycle.md`](architecture/workspace-persistence-and-bootstrap-lifecycle.md) |
 | **Add or adjust desktop UI titlebar and window controls**| [`desktop/window-controls-titlebar.md`](desktop/window-controls-titlebar.md) |
 | **Edit desktop dashboard, routing, or CSS design tokens**| [`desktop/views-and-routing.md`](desktop/views-and-routing.md) |
 | **Modify onboarding wizard or initial configuration** | [`desktop/first-run-setup.md`](desktop/first-run-setup.md) |

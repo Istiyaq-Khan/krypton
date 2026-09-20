@@ -90,6 +90,8 @@ export async function bootstrapAgentWorkspace(
 
   // 1. Dedicated machine-readable config.json
   const configPath = path.join(agentDir, "config.json");
+  const isExistingWorkspace = fs.existsSync(configPath) && !options.forceReset;
+
   if (!fs.existsSync(configPath) || options.forceReset) {
     const initialConfig = createDefaultAgentConfig(sanitizedName, options.initialConfig);
     fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), "utf-8");
@@ -101,6 +103,10 @@ export async function bootstrapAgentWorkspace(
 
   for (const [fileName, content] of Object.entries(archetype)) {
     const filePath = path.join(agentDir, fileName);
+    // Once deleted by the agent in an existing workspace, do not resurrect BOOTSTRAP.md
+    if (isExistingWorkspace && (fileName === "BOOTSTRAP.md" || fileName === "bootstrap.md")) {
+      continue;
+    }
     if (!fs.existsSync(filePath) || options.forceReset) {
       fs.writeFileSync(filePath, content, "utf-8");
       filesCreated.push(filePath);
@@ -139,6 +145,8 @@ export async function bootstrapKryptonHome(
     "models",
     "logs",
     "sandbox_workspace",
+    "workspaces",
+    "sessions",
   ];
 
   const directoriesCreated: string[] = [];

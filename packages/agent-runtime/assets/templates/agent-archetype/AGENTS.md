@@ -11,7 +11,7 @@ Keep workspace conventions here. Personality and tone belong in `SOUL.md`.
 
 ## First Run
 
-If `BOOTSTRAP.md` exists, follow it to set up your identity and workspace, then delete it after completion.
+If `BOOTSTRAP.md` exists, follow it to set up your identity and workspace, then delete it after completion via file tools. The system will not delete it for you.
 
 ## Session Startup
 

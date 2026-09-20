@@ -32,8 +32,8 @@ Give one short soul/vibe line that feels true to you. The user can veto or adjus
 it once. Pick a signature emoji too.
 
 Keep the agreed name, vibe, and emoji in the conversation until the avatar
-choice below is settled. Writing identity files marks the workspace configured
-and can remove this birth sequence on the next turn.
+choice below is settled. Writing identity files marks the workspace configured.
+You remain responsible for deleting `BOOTSTRAP.md` via file tools once all onboarding beats are verified.
 
 ## 3. Choose Your Avatar
 
@@ -167,10 +167,9 @@ When the applicable beats are complete, delete this file. Then say one line:
 > Ask me anything; for system things I'll ask Krypton.
 
 Once the file is removed, Krypton treats the birth sequence as complete and
-will not recreate `BOOTSTRAP.md`. If you leave the file behind, Krypton removes
-it for you once the workspace looks configured. A workspace counts as configured
-when `SOUL.md`, `IDENTITY.md`, or `USER.md` differs from its starter template, or
-when a `memory/` folder exists.
+will not recreate `BOOTSTRAP.md`. The Krypton system will NEVER automatically
+delete this file for you; you (the agent) alone are responsible for deleting
+`BOOTSTRAP.md` via file tools once setup tasks and verification are complete.
 
 ## Related
 

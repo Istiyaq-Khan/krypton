@@ -10,6 +10,18 @@ import { parseMarkdownWithFrontmatter } from "./parser.js";
 
 export interface AgentStorageOptions {
   customRoot?: string;
+  raw?: boolean;
+}
+
+export type AgentStorageOptionsInput = AgentStorageOptions | string;
+
+export function normalizeAgentStorageOptions(
+  options?: AgentStorageOptionsInput
+): AgentStorageOptions | undefined {
+  if (typeof options === "string") {
+    return { customRoot: options };
+  }
+  return options;
 }
 
 /**
@@ -17,8 +29,9 @@ export interface AgentStorageOptions {
  */
 export function resolveAgentDir(
   agentDirOrName: string,
-  options?: AgentStorageOptions
+  options?: AgentStorageOptionsInput
 ): { agentName: string; agentDir: string } {
+  const opts = normalizeAgentStorageOptions(options);
   if (!agentDirOrName || !agentDirOrName.trim()) {
     throw new Error("Agent name or directory must be specified");
   }
@@ -30,7 +43,7 @@ export function resolveAgentDir(
     return { agentName, agentDir: resolved };
   }
 
-  const kryptonHome = resolveKryptonHome(options?.customRoot);
+  const kryptonHome = resolveKryptonHome(opts?.customRoot);
   const agentDir = path.join(kryptonHome, "agents", trimmed);
   return { agentName: trimmed, agentDir };
 }
@@ -60,7 +73,7 @@ export function stripMarkdownFrontmatter(content: string): string {
  */
 export async function readAgentConfig(
   agentDirOrName: string,
-  options?: AgentStorageOptions
+  options?: AgentStorageOptionsInput
 ): Promise<AgentConfigFile> {
   const { agentName, agentDir } = resolveAgentDir(agentDirOrName, options);
   const configPath = path.join(agentDir, "config.json");
@@ -174,7 +187,7 @@ export async function readAgentConfig(
 export async function writeAgentConfig(
   agentDirOrName: string,
   config: AgentConfigFile,
-  options?: AgentStorageOptions
+  options?: AgentStorageOptionsInput
 ): Promise<void> {
   const { agentDir } = resolveAgentDir(agentDirOrName, options);
 
@@ -198,7 +211,7 @@ export async function writeAgentConfig(
 export async function updateAgentConfig(
   agentDirOrName: string,
   patch: Partial<AgentConfigFile>,
-  options?: AgentStorageOptions
+  options?: AgentStorageOptionsInput
 ): Promise<AgentConfigFile> {
   const existing = await readAgentConfig(agentDirOrName, options);
 
@@ -232,17 +245,30 @@ export async function updateAgentConfig(
 export async function readAgentContextMarkdown(
   agentDirOrName: string,
   fileName: string,
-  options?: AgentStorageOptions & { raw?: boolean }
+  options?: AgentStorageOptionsInput & { raw?: boolean }
 ): Promise<string> {
-  const { agentDir } = resolveAgentDir(agentDirOrName, options);
-  const filePath = path.join(agentDir, fileName);
+  const opts = normalizeAgentStorageOptions(options);
+  const { agentDir } = resolveAgentDir(agentDirOrName, opts);
+  let filePath = path.join(agentDir, fileName);
 
   if (!fs.existsSync(filePath)) {
-    return "";
+    // Cross-platform case fallback (e.g. BOOTSTRAP.md <-> bootstrap.md)
+    const altName =
+      fileName === "BOOTSTRAP.md"
+        ? "bootstrap.md"
+        : fileName === "bootstrap.md"
+          ? "BOOTSTRAP.md"
+          : null;
+    if (altName && fs.existsSync(path.join(agentDir, altName))) {
+      filePath = path.join(agentDir, altName);
+    } else {
+      return "";
+    }
   }
 
   const content = await fs.promises.readFile(filePath, "utf-8");
-  if (options?.raw) {
+  const rawFlag = typeof options === "object" && options ? (options as any).raw : false;
+  if (rawFlag) {
     return content;
   }
 
@@ -258,7 +284,7 @@ export async function writeAgentContextMarkdown(
   agentDirOrName: string,
   fileName: string,
   content: string,
-  options?: AgentStorageOptions
+  options?: AgentStorageOptionsInput
 ): Promise<void> {
   const { agentDir } = resolveAgentDir(agentDirOrName, options);
 
@@ -278,28 +304,36 @@ export interface LoadedAgentContext {
     agents: string;
     user: string;
     memory: string;
+    bootstrap?: string;
   };
+  bootstrapPrompt?: string;
+  bootstrapDirectives?: string;
   combinedSystemPrompt: string;
+  hasBootstrap: boolean;
 }
 
 /**
  * Orchestrates loading an agent's complete operational context:
  * - Reads machine-readable settings from `config.json`.
  * - Reads pure instructions and domain knowledge from Markdown files.
+ * - Injects BOOTSTRAP.md when present with explicit agent-governed deletion instructions.
  * - Assembles a clean, structured system prompt for LLM generation.
  */
 export async function loadAgentContext(
   agentDirOrName: string,
-  options?: AgentStorageOptions
+  options?: AgentStorageOptionsInput
 ): Promise<LoadedAgentContext> {
-  const config = await readAgentConfig(agentDirOrName, options);
+  const opts = normalizeAgentStorageOptions(options);
+  const { agentDir } = resolveAgentDir(agentDirOrName, opts);
+  const config = await readAgentConfig(agentDirOrName, opts);
 
-  const [identity, soul, agents, user, memory] = await Promise.all([
-    readAgentContextMarkdown(agentDirOrName, "IDENTITY.md", options),
-    readAgentContextMarkdown(agentDirOrName, "SOUL.md", options),
-    readAgentContextMarkdown(agentDirOrName, "AGENTS.md", options),
-    readAgentContextMarkdown(agentDirOrName, "USER.md", options),
-    readAgentContextMarkdown(agentDirOrName, "MEMORY.md", options),
+  const [identity, soul, agents, user, memory, bootstrap] = await Promise.all([
+    readAgentContextMarkdown(agentDirOrName, "IDENTITY.md", opts),
+    readAgentContextMarkdown(agentDirOrName, "SOUL.md", opts),
+    readAgentContextMarkdown(agentDirOrName, "AGENTS.md", opts),
+    readAgentContextMarkdown(agentDirOrName, "USER.md", opts),
+    readAgentContextMarkdown(agentDirOrName, "MEMORY.md", opts),
+    readAgentContextMarkdown(agentDirOrName, "BOOTSTRAP.md", opts),
   ]);
 
   const promptSections: string[] = [];
@@ -317,6 +351,27 @@ export async function loadAgentContext(
     promptSections.push(`## User Preferences & Directives\n${user.trim()}`);
   }
 
+  const hasBootstrap = Boolean(bootstrap && bootstrap.trim().length > 0);
+  let bootstrapDirectives: string | undefined;
+  if (hasBootstrap) {
+    bootstrapDirectives = [
+      "=================================================================",
+      "CRITICAL ONBOARDING DIRECTIVE: ACTIVE BOOTSTRAP PROTOCOL DETECTED",
+      "=================================================================",
+      `A pending initialization file exists in the active workspace at: ${path.join(agentDir, "BOOTSTRAP.md")}`,
+      "",
+      "FILE CONTENT:",
+      bootstrap.trim(),
+      "",
+      "OPERATIONAL RULES FOR BOOTSTRAP:",
+      "1. You MUST execute, configure, or initialize any setup tasks listed in this file.",
+      "2. Krypton will NEVER automatically delete this file.",
+      "3. You alone are responsible for removing this file using file deletion tools once setup and verification are complete.",
+      "=================================================================",
+    ].join("\n");
+    promptSections.push(bootstrapDirectives);
+  }
+
   return {
     config,
     prompts: {
@@ -325,7 +380,41 @@ export async function loadAgentContext(
       agents,
       user,
       memory,
+      ...(hasBootstrap ? { bootstrap: bootstrap.trim() } : {}),
     },
+    bootstrapPrompt: hasBootstrap ? bootstrap.trim() : undefined,
+    bootstrapDirectives,
     combinedSystemPrompt: promptSections.join("\n\n"),
+    hasBootstrap,
   };
 }
+
+/**
+ * Removes BOOTSTRAP.md or bootstrap.md from the agent workspace.
+ * Invoked strictly when the agent issues a verified file tool execution to remove the file.
+ * The system never executes this automatically.
+ */
+export async function deleteBootstrapFile(
+  agentDirOrName: string,
+  options?: AgentStorageOptionsInput
+): Promise<boolean> {
+  const opts = normalizeAgentStorageOptions(options);
+  const { agentDir } = resolveAgentDir(agentDirOrName, opts);
+  const targets = ["BOOTSTRAP.md", "bootstrap.md"];
+  let deleted = false;
+
+  for (const file of targets) {
+    const filePath = path.join(agentDir, file);
+    if (fs.existsSync(filePath)) {
+      try {
+        await fs.promises.unlink(filePath);
+        deleted = true;
+      } catch {
+        // Failed to unlink target
+      }
+    }
+  }
+
+  return deleted;
+}
+
