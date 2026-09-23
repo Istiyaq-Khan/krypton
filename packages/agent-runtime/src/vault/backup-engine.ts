@@ -424,12 +424,14 @@ export async function purgeAllKryptonData(
   const home = os.homedir();
   const pathsInfo = detectPlatformStoragePaths(options.customRoot);
 
-  const candidateDirs = [
-    kryptonHome,
-    pathsInfo.appData,
-    pathsInfo.localAppData,
-    pathsInfo.cacheDir,
-  ].filter((p): p is string => Boolean(p));
+  const candidateDirs = options.customRoot
+    ? [kryptonHome]
+    : [
+        kryptonHome,
+        pathsInfo.appData,
+        pathsInfo.localAppData,
+        pathsInfo.cacheDir,
+      ].filter((p): p is string => Boolean(p));
 
   // Additional platform-specific candidates
   if (process.platform === "darwin") {

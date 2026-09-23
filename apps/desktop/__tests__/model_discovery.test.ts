@@ -5,6 +5,7 @@ import {
   DEFAULT_PROVIDER_URLS,
   loadCachedModels,
   persistCachedModels,
+  sanitizeBaseUrl,
 } from "../src/lib/modelDiscovery"
 
 describe("Krypton Model Discovery & Validation Engine", () => {
@@ -428,6 +429,99 @@ describe("Krypton Model Discovery & Validation Engine", () => {
           }),
         })
       )
+    })
+
+    it("sanitizes /chat/completions suffix before dispatching to daemon proxy", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          provider: "openai",
+          models: [{ id: "meta/llama-3.3-70b-instruct" }],
+        }),
+      } as Response)
+
+      const res = await testAndFetchModels({
+        provider: "openai",
+        apiKey: "nvapi-test",
+        baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions",
+        useProxy: true,
+      })
+
+      expect(res.success).toBe(true)
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:19840/api/fetch-models",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            provider: "openai",
+            apiKey: "nvapi-test",
+            baseUrl: "https://integrate.api.nvidia.com/v1",
+          }),
+        })
+      )
+    })
+
+    it("sanitizes trailing slashes before dispatching to daemon proxy", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          success: true,
+          provider: "openai",
+          models: [{ id: "meta/llama-3.3-70b-instruct" }],
+        }),
+      } as Response)
+
+      const res = await testAndFetchModels({
+        provider: "openai",
+        apiKey: "nvapi-test",
+        baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions/",
+        useProxy: true,
+      })
+
+      expect(res.success).toBe(true)
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:19840/api/fetch-models",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            provider: "openai",
+            apiKey: "nvapi-test",
+            baseUrl: "https://integrate.api.nvidia.com/v1",
+          }),
+        })
+      )
+    })
+
+    it("returns error diagnostics when daemon proxy reports failure", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({
+          success: false,
+          error: "Authentication failed (401): The provided API key was rejected by OpenAI-Compatible.",
+        }),
+      } as Response)
+
+      const res = await testAndFetchModels({
+        provider: "openai",
+        apiKey: "bad-key",
+        baseUrl: "https://integrate.api.nvidia.com/v1",
+        useProxy: true,
+      })
+
+      expect(res.success).toBe(false)
+      expect(res.error).toContain("Authentication failed (401)")
+    })
+
+    it("correctly normalizes URLs via sanitizeBaseUrl helper", () => {
+      expect(sanitizeBaseUrl("https://api.openai.com/v1")).toBe("https://api.openai.com/v1")
+      expect(sanitizeBaseUrl("https://integrate.api.nvidia.com/v1/chat/completions")).toBe("https://integrate.api.nvidia.com/v1")
+      expect(sanitizeBaseUrl("https://integrate.api.nvidia.com/v1/chat/completions/")).toBe("https://integrate.api.nvidia.com/v1")
+      expect(sanitizeBaseUrl("https://integrate.api.nvidia.com/v1/")).toBe("https://integrate.api.nvidia.com/v1")
+      expect(sanitizeBaseUrl("http://localhost:11434/v1")).toBe("http://localhost:11434/v1")
     })
   })
 })

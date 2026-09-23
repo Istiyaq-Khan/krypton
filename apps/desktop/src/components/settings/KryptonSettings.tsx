@@ -45,8 +45,10 @@ import {
   PROVIDER_METADATA,
   DEFAULT_PROVIDER_URLS,
   testAndFetchModels,
+  loadCachedModels,
   persistCachedModels,
   isTemperatureSupported,
+  sanitizeBaseUrl,
 } from "@/lib/modelDiscovery"
 import {
   AgentFleetItem,
@@ -149,6 +151,7 @@ export function KryptonSettings({
   const [agents, setAgents] = useState<AgentFleetItem[]>([])
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
   const [isCreatingAgent, setIsCreatingAgent] = useState(false)
+  const [cachedModels, setCachedModels] = useState<DiscoveredModel[]>([])
 
   // Create Agent Form State
   const [newAgentName, setNewAgentName] = useState("")
@@ -252,6 +255,16 @@ export function KryptonSettings({
         }
       } catch (err) {
         console.warn("Could not load live agents from IPC:", err)
+      }
+
+      // 1c. Hydrate cached discovered models
+      try {
+        const cached = await loadCachedModels()
+        if (cached && cached.models && cached.models.length > 0) {
+          setCachedModels(cached.models)
+        }
+      } catch (err) {
+        console.warn("Could not load cached models:", err)
       }
 
       // 2. Hydrate from Host / Tauri IPC
@@ -471,6 +484,8 @@ export function KryptonSettings({
 
   const persistProviderCredentials = useCallback(
     async (prov: string, key: string, url: string, customModel?: string) => {
+      const sanitizedUrl = sanitizeBaseUrl(url)
+
       // 1. Update localStorage
       if (typeof window !== "undefined") {
         const storedKeys = JSON.parse(localStorage.getItem("krypton_provider_keys") || "{}")
@@ -487,7 +502,7 @@ export function KryptonSettings({
                 {
                   provider: prov,
                   apiKey: key,
-                  baseUrl: url,
+                  baseUrl: sanitizedUrl,
                   customModel: customModel || null,
                 },
               ],
@@ -511,13 +526,19 @@ export function KryptonSettings({
     setTestResult(null)
 
     const key = providerKeys[prov] || ""
-    const url = providerUrls[prov] || DEFAULT_PROVIDER_URLS[prov]
+    const rawUrl = providerUrls[prov] || DEFAULT_PROVIDER_URLS[prov]
+    const url = sanitizeBaseUrl(rawUrl)
+
+    if (url && url !== rawUrl) {
+      setProviderUrls((prev) => ({ ...prev, [prov]: url }))
+    }
 
     try {
       const result = await testAndFetchModels({
         provider: prov,
         apiKey: key,
         baseUrl: url,
+        useProxy: true,
       })
 
       if (result.success) {
@@ -534,6 +555,7 @@ export function KryptonSettings({
           models: result.models,
           updatedAt: Date.now(),
         })
+        setCachedModels(result.models)
         // Also persist credentials on successful test
         await persistProviderCredentials(prov, key, url, prov === "custom" ? customModelId : undefined)
       } else {
@@ -1510,6 +1532,13 @@ export function KryptonSettings({
                       onChange={(e) => {
                         const val = e.target.value
                         setProviderUrls((prev) => ({ ...prev, [selectedProvider]: val }))
+                      }}
+                      onBlur={() => {
+                        const curr = providerUrls[selectedProvider] || ""
+                        const cleaned = sanitizeBaseUrl(curr)
+                        if (cleaned !== curr) {
+                          setProviderUrls((prev) => ({ ...prev, [selectedProvider]: cleaned }))
+                        }
                       }}
                       placeholder={PROVIDER_METADATA[selectedProvider].urlPlaceholder}
                       className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-xs font-mono text-zinc-200 outline-none focus:border-violet-500"

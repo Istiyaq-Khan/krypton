@@ -299,6 +299,44 @@ export const VaultStoreSchema = z.record(z.string(), VaultCredentialSchema);
 export type VaultStore = z.infer<typeof VaultStoreSchema>;
 
 /**
+ * Normalizes and sanitizes provider base URLs by:
+ * - Trimming leading and trailing whitespace
+ * - Removing trailing slashes
+ * - Stripping subpaths commonly pasted by mistake (/chat/completions, /completions, /models, /messages)
+ *
+ * Examples:
+ * - "https://integrate.api.nvidia.com/v1/chat/completions" -> "https://integrate.api.nvidia.com/v1"
+ * - "https://integrate.api.nvidia.com/v1/chat/completions/" -> "https://integrate.api.nvidia.com/v1"
+ * - "https://api.openai.com/v1/" -> "https://api.openai.com/v1"
+ * - "http://localhost:11434/v1" -> "http://localhost:11434/v1"
+ * - "http://localhost:11434/" -> "http://localhost:11434"
+ */
+export function sanitizeBaseUrl(rawUrl?: string): string {
+  if (!rawUrl) return "";
+  let sanitized = rawUrl.trim();
+  if (!sanitized) return "";
+
+  // Trim trailing slashes first
+  sanitized = sanitized.replace(/\/+$/, "");
+
+  // Remove common pasted endpoint subpaths
+  const redundantSuffixes = [
+    "/chat/completions",
+    "/completions",
+    "/models",
+    "/messages",
+  ];
+
+  for (const suffix of redundantSuffixes) {
+    if (sanitized.toLowerCase().endsWith(suffix)) {
+      sanitized = sanitized.slice(0, -suffix.length).replace(/\/+$/, "");
+    }
+  }
+
+  return sanitized;
+}
+
+/**
  * Supported model provider identifiers for first-run setup and dynamic discovery.
  */
 export const ModelProviderIdSchema = z.enum([

@@ -399,14 +399,14 @@ export function KryptonSynapse({
       ref={containerRef}
       data-synapse-window="true"
       style={
-        isStandaloneWindow
-          ? { WebkitAppRegion: "drag" as any }
+        (isStandaloneWindow
+          ? { WebkitAppRegion: "drag" }
           : {
               position: "fixed",
               left: `${position.x}px`,
               top: `${position.y}px`,
-              WebkitAppRegion: "drag" as any,
-            }
+              WebkitAppRegion: "drag",
+            }) as unknown as React.CSSProperties
       }
       data-tauri-drag-region="true"
       onPointerDown={handlePointerDown}
@@ -426,7 +426,7 @@ export function KryptonSynapse({
         <div
           onClick={handleOrbClick}
           data-tauri-drag-region="false"
-          style={{ WebkitAppRegion: "no-drag" as any }}
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           title={
             agentState === "listening"
               ? "Click to stop listening. Double click to collapse. Triple click to close."
@@ -440,7 +440,7 @@ export function KryptonSynapse({
         {!isOrbOnlyMode && (
           <>
             {/* Middle: Agent Fleet Selector Dropdown */}
-            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" as any }}>
+            <div className="relative" data-tauri-drag-region="false" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
               <button
                 type="button"
                 onClick={() => setIsAgentMenuOpen((v) => !v)}
@@ -486,7 +486,7 @@ export function KryptonSynapse({
                 <div
                   className="flex items-center gap-1.5"
                   data-tauri-drag-region="false"
-                  style={{ WebkitAppRegion: "no-drag" as any }}
+                  style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
                 >
                   <span className="max-w-[210px] truncate text-xs font-normal text-zinc-100" title={transcription}>
                     &ldquo;{transcription}&rdquo;
@@ -535,7 +535,7 @@ export function KryptonSynapse({
             <div
               className="flex items-center gap-1 pl-1 border-l border-zinc-800/80"
               data-tauri-drag-region="false"
-              style={{ WebkitAppRegion: "no-drag" as any }}
+              style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
             >
               <button
                 type="button"

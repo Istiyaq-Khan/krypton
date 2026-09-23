@@ -104,20 +104,27 @@ Step 2 implements a streamlined two-provider protocol architecture paired with a
 
 ### Server-Side Proxy Architecture (`model-proxy.ts` & `daemon.ts`)
 
-Because desktop webviews and browser renderers enforce Cross-Origin Resource Sharing (CORS), client-side queries to external endpoints lacking browser CORS headers (such as NVIDIA NIM at `https://integrate.api.nvidia.com/v1`, vLLM instances, or self-hosted LLMs) fail with generic `Failed to fetch` errors.
+Because desktop webviews and browser renderers enforce Cross-Origin Resource Sharing (CORS), client-side queries to external endpoints lacking browser CORS headers (such as NVIDIA NIM at `https://integrate.api.nvidia.com/v1`, vLLM instances, or self-hosted LLMs) fail with generic `Failed to fetch` or `Network/CORS error` messages.
 
 Krypton resolves this by proxying discovery through the background Node.js daemon sidecar (`krypton-daemon` on `http://127.0.0.1:19840`):
-1. **Renderer Dispatch**: Setup wizard sends discovery parameters to `POST /api/fetch-models` or JSON-RPC method `api:fetch-models`.
-2. **Node Native Fetch**: Daemon executes native `fetch` with 10-second `AbortSignal` timeout, system TLS trust stores, and protocol-specific authorization headers.
-3. **URL Normalization**: Normalizes base URLs (e.g. ensuring `https://integrate.api.nvidia.com/v1` correctly resolves to `/models` without path duplication).
-4. **Status Code Translation**: Maps upstream HTTP errors into structured, user-friendly diagnostic messages.
+1. **Renderer Dispatch**: Setup wizard sends discovery parameters to `POST /api/fetch-models` or JSON-RPC method `api:fetch-models`. The daemon HTTP server provides full CORS support (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Headers: Content-Type, Authorization, Accept, X-Requested-With, Origin, anthropic-version`) and answers `OPTIONS` preflight queries with `204 No Content`.
+2. **Node Native Fetch**: Daemon executes native `fetch` with 10-second `AbortSignal` timeout, system TLS trust stores, and protocol-specific authorization headers (`Authorization: Bearer <key>` for OpenAI-compatible/NVIDIA NIM, `x-api-key: <key>` for Anthropic).
+3. **Automatic Base URL Sanitization (`sanitizeBaseUrl`)**: Automatically cleans user-provided URLs:
+   - Strips pasted chat completions subpaths (e.g. `https://integrate.api.nvidia.com/v1/chat/completions` -> `https://integrate.api.nvidia.com/v1`).
+   - Trims trailing slashes (e.g. `https://integrate.api.nvidia.com/v1/` -> `https://integrate.api.nvidia.com/v1`).
+   - Normalizes local ports (e.g. `http://localhost:11434/v1` -> `http://localhost:11434/v1`).
+   - Appends `/models` cleanly for model roster discovery (`GET <baseUrl>/models`) without path duplication, and later appends `/chat/completions` cleanly for inference.
+4. **Status Code Translation**: Maps upstream HTTP errors into structured, user-friendly diagnostic banners (401 Authentication, 403 Forbidden, 404 Route Not Found, 429 Rate Limit / Quota Exceeded, 500–504 Server Error, or ECONNREFUSED).
 
-### Provider Protocol Contracts
+### Provider Protocol Contracts & Concrete Examples
 
-| Protocol Option | Target Endpoint | Configurable Inputs | Default Base URL & Headers |
+| Provider | Protocol / Target Endpoint | Concrete Base URL Example | Authentication |
 | :--- | :--- | :--- | :--- |
-| **OpenAI-Compatible** | `GET <baseUrl>/models` | Base URL, API Key / Bearer Token | Default: `https://api.openai.com/v1`<br/>Supports NVIDIA NIM (`https://integrate.api.nvidia.com/v1`), vLLM, Ollama (`http://localhost:11434/v1`), OpenRouter.<br/>`Authorization: Bearer <key>` |
-| **Anthropic-Compatible** | `GET <baseUrl>/models` | Base URL, API Key | Default: `https://api.anthropic.com/v1`<br/>`x-api-key: <key>`, `anthropic-version: 2023-06-01` |
+| **NVIDIA NIM** | OpenAI-Compatible (`GET <baseUrl>/models`, `POST <baseUrl>/chat/completions`) | `https://integrate.api.nvidia.com/v1` | `Authorization: Bearer nvapi-...` |
+| **OpenAI** | OpenAI-Compatible (`GET <baseUrl>/models`, `POST <baseUrl>/chat/completions`) | `https://api.openai.com/v1` | `Authorization: Bearer sk-proj-...` |
+| **Ollama** | Local OpenAI-Compatible (`GET <baseUrl>/models` or `/api/tags`) | `http://localhost:11434/v1` or `http://localhost:11434` | Optional / none required |
+| **OpenRouter** | OpenAI-Compatible Gateway (`GET <baseUrl>/models`) | `https://openrouter.ai/api/v1` | `Authorization: Bearer sk-or-v1-...` |
+| **Anthropic** | Anthropic-Compatible (`GET <baseUrl>/models`, `POST <baseUrl>/messages`) | `https://api.anthropic.com/v1` | `x-api-key: sk-ant-api03-...`<br/>`anthropic-version: 2023-06-01` |
 
 ---
 

@@ -3,9 +3,15 @@ import {
   ModelProviderId,
   DiscoveredModel,
   CachedModelsData,
+  sanitizeBaseUrl,
 } from "@krypton/shared-types"
 
-export { type ModelProviderId, type DiscoveredModel, type CachedModelsData }
+export {
+  type ModelProviderId,
+  type DiscoveredModel,
+  type CachedModelsData,
+  sanitizeBaseUrl,
+}
 
 export interface ModelDiscoveryOptions {
   provider: ModelProviderId | string
@@ -94,7 +100,7 @@ export const PROVIDER_METADATA: Record<
     requiresBaseUrl: true,
     defaultBaseUrl: "https://api.openai.com/v1",
     keyPlaceholder: "sk-... or API Key",
-    urlPlaceholder: "https://api.openai.com/v1 or https://integrate.api.nvidia.com/v1",
+    urlPlaceholder: "https://api.openai.com/v1, https://integrate.api.nvidia.com/v1, or http://localhost:11434/v1",
   },
   anthropic: {
     name: "Anthropic-Compatible",
@@ -112,7 +118,7 @@ export const PROVIDER_METADATA: Record<
     requiresBaseUrl: true,
     defaultBaseUrl: "http://localhost:11434",
     keyPlaceholder: "Optional API Key",
-    urlPlaceholder: "http://localhost:11434",
+    urlPlaceholder: "http://localhost:11434/v1 or http://localhost:11434",
   },
   openrouter: {
     name: "OpenRouter",
@@ -144,7 +150,7 @@ export async function testAndFetchModels(
 ): Promise<ModelDiscoveryResult> {
   const provider = options.provider as ModelProviderId
   const apiKey = (options.apiKey || "").trim()
-  const rawBaseUrl = (options.baseUrl || "").trim()
+  const rawBaseUrl = sanitizeBaseUrl(options.baseUrl || "")
 
   // 1. Validate required inputs
   if (provider === "openai" && !apiKey && (!rawBaseUrl || rawBaseUrl.includes("api.openai.com"))) {

@@ -1,4 +1,6 @@
-import { DiscoveredModel } from "@krypton/shared-types"
+import { DiscoveredModel, sanitizeBaseUrl } from "@krypton/shared-types"
+
+export { sanitizeBaseUrl }
 
 export interface ProxyFetchModelsOptions {
   provider: string
@@ -26,10 +28,12 @@ export const DEFAULT_PROXY_URLS: Record<string, string> = {
 
 /**
  * Resolves standard target endpoint URL for model discovery.
+ * Uses sanitizeBaseUrl to ensure trailing slashes and redundant subpaths (/chat/completions) are removed.
  */
 export function resolveTargetModelsUrl(provider: string, baseUrl: string): string {
-  const cleanBase = baseUrl.trim().replace(/\/+$/, "")
+  const cleanBase = sanitizeBaseUrl(baseUrl)
   const isAnthropic = provider.toLowerCase().includes("anthropic")
+  const isOllama = provider.toLowerCase().includes("ollama") || cleanBase.includes("11434")
 
   if (cleanBase.endsWith("/models")) {
     return cleanBase
@@ -39,12 +43,11 @@ export function resolveTargetModelsUrl(provider: string, baseUrl: string): strin
     return `${cleanBase}/models`
   }
 
-  // OpenAI-compatible endpoints
-  if (cleanBase.endsWith("/v1")) {
-    return `${cleanBase}/models`
+  if (isOllama && !cleanBase.endsWith("/v1")) {
+    return `${cleanBase}/v1/models`
   }
 
-  // If no /v1 or /models specified, default to /v1/models (or /models if already a custom API root)
+  // OpenAI-compatible endpoints (e.g. https://api.openai.com/v1 or https://integrate.api.nvidia.com/v1)
   return `${cleanBase}/models`
 }
 
@@ -57,7 +60,7 @@ export async function proxyFetchModels(
 ): Promise<ProxyFetchModelsResult> {
   const rawProvider = (options.provider || "openai").trim().toLowerCase()
   const apiKey = (options.apiKey || "").trim()
-  const rawBaseUrl = (options.baseUrl || "").trim()
+  const rawBaseUrl = sanitizeBaseUrl(options.baseUrl || "")
   const timeoutMs = options.timeoutMs || 10000
 
   const isAnthropic = rawProvider.includes("anthropic")

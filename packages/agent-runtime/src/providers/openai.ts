@@ -3,6 +3,7 @@ import {
   ToolCall,
   McpTool,
   TokenStreamChunk,
+  sanitizeBaseUrl,
 } from "@krypton/shared-types";
 import { LLMProvider, GenerateOptions, GenerateResult } from "./types.js";
 
@@ -28,7 +29,7 @@ export class OpenAiGateway implements LLMProvider {
   constructor(options: OpenAiGatewayOptions) {
     this.apiKey = options.apiKey;
     this.model = options.model;
-    this.baseUrl = (options.baseUrl || "https://api.openai.com/v1").replace(/\/+$/, "");
+    this.baseUrl = sanitizeBaseUrl(options.baseUrl || "https://api.openai.com/v1");
     this.defaultHeaders = options.defaultHeaders || {};
     this.maxRetries = options.maxRetries ?? 3;
   }

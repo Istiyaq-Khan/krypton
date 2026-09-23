@@ -245,7 +245,8 @@ export class KryptonDaemonServer {
       // CORS & Health check
       res.setHeader("Access-Control-Allow-Origin", "*")
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type")
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, X-Requested-With, Origin, anthropic-version")
+      res.setHeader("Access-Control-Max-Age", "86400")
 
       if (req.method === "OPTIONS") {
         res.writeHead(204)

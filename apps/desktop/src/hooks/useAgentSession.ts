@@ -20,6 +20,7 @@ import {
   getActiveProviderConfig,
   testAndFetchModels,
   ModelProviderId,
+  sanitizeBaseUrl,
 } from "@/lib/modelDiscovery"
 import { generateDynamicResponse } from "@/lib/dynamicInference"
 
@@ -119,12 +120,13 @@ export function useAgentSession() {
       const provCfg = await getActiveProviderConfig()
       const provider = (provCfg?.provider || activeProvider || "openai") as ModelProviderId
       const apiKey = provCfg?.apiKey
-      const baseUrl = provCfg?.baseUrl
+      const cleanBaseUrl = baseUrl ? sanitizeBaseUrl(baseUrl) : undefined
 
       const res = await testAndFetchModels({
         provider,
         apiKey,
-        baseUrl,
+        baseUrl: cleanBaseUrl,
+        useProxy: true,
       })
 
       setIsRefreshingModels(false)

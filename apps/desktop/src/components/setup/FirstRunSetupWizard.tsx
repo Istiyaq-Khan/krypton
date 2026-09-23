@@ -31,6 +31,7 @@ import {
   DEFAULT_PROVIDER_URLS,
   testAndFetchModels,
   persistCachedModels,
+  sanitizeBaseUrl,
 } from "@/lib/modelDiscovery"
 
 export interface SetupCompletedData {
@@ -120,7 +121,16 @@ export function FirstRunSetupWizard({
     setFetchSuccess(false)
 
     const apiKey = selectedProvider === "openai" ? openaiKey.trim() : anthropicKey.trim()
-    const baseUrl = selectedProvider === "openai" ? openaiBaseUrl.trim() : anthropicBaseUrl.trim()
+    const rawBaseUrl = selectedProvider === "openai" ? openaiBaseUrl.trim() : anthropicBaseUrl.trim()
+    const baseUrl = sanitizeBaseUrl(rawBaseUrl)
+
+    if (baseUrl && baseUrl !== rawBaseUrl) {
+      if (selectedProvider === "openai") {
+        setOpenaiBaseUrl(baseUrl)
+      } else {
+        setAnthropicBaseUrl(baseUrl)
+      }
+    }
 
     const res = await testAndFetchModels({
       provider: selectedProvider,
@@ -186,7 +196,8 @@ export function FirstRunSetupWizard({
     setErrorMsg(null)
 
     const apiKey = selectedProvider === "openai" ? openaiKey.trim() : anthropicKey.trim()
-    const baseUrl = selectedProvider === "openai" ? openaiBaseUrl.trim() : anthropicBaseUrl.trim()
+    const rawBaseUrl = selectedProvider === "openai" ? openaiBaseUrl.trim() : anthropicBaseUrl.trim()
+    const baseUrl = sanitizeBaseUrl(rawBaseUrl)
 
     const payload = {
       agentName: agentName.trim() || "Orchestrator",
@@ -465,8 +476,8 @@ export function FirstRunSetupWizard({
                   <label className="text-xs text-zinc-400">Endpoint Base URL</label>
                   <span className="text-[10px] text-zinc-500">
                     {selectedProvider === "openai"
-                      ? "e.g. OpenAI, NVIDIA NIM, vLLM, Ollama"
-                      : "e.g. Anthropic API or custom proxy"}
+                      ? "e.g. OpenAI (https://api.openai.com/v1), NVIDIA NIM (https://integrate.api.nvidia.com/v1), Ollama (http://localhost:11434/v1)"
+                      : "e.g. Anthropic API (https://api.anthropic.com/v1)"}
                   </span>
                 </div>
                 <input
@@ -479,9 +490,16 @@ export function FirstRunSetupWizard({
                       setAnthropicBaseUrl(e.target.value)
                     }
                   }}
+                  onBlur={() => {
+                    if (selectedProvider === "openai") {
+                      setOpenaiBaseUrl(sanitizeBaseUrl(openaiBaseUrl))
+                    } else {
+                      setAnthropicBaseUrl(sanitizeBaseUrl(anthropicBaseUrl))
+                    }
+                  }}
                   placeholder={
                     selectedProvider === "openai"
-                      ? "https://api.openai.com/v1 or https://integrate.api.nvidia.com/v1"
+                      ? "https://api.openai.com/v1, https://integrate.api.nvidia.com/v1, or http://localhost:11434/v1"
                       : "https://api.anthropic.com/v1"
                   }
                   className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-xs font-mono text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"

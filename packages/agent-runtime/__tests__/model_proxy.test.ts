@@ -27,6 +27,26 @@ describe("Backend Model Proxy & Endpoint Discovery Engine", () => {
       expect(url).toBe("https://integrate.api.nvidia.com/v1/models")
     })
 
+    it("strips /chat/completions from NVIDIA NIM endpoint when resolving models URL", () => {
+      const url = resolveTargetModelsUrl("openai", "https://integrate.api.nvidia.com/v1/chat/completions")
+      expect(url).toBe("https://integrate.api.nvidia.com/v1/models")
+    })
+
+    it("strips trailing slash and /chat/completions/ from NVIDIA NIM endpoint", () => {
+      const url = resolveTargetModelsUrl("openai", "https://integrate.api.nvidia.com/v1/chat/completions/")
+      expect(url).toBe("https://integrate.api.nvidia.com/v1/models")
+    })
+
+    it("strips trailing slash from base URL", () => {
+      const url = resolveTargetModelsUrl("openai", "https://integrate.api.nvidia.com/v1/")
+      expect(url).toBe("https://integrate.api.nvidia.com/v1/models")
+    })
+
+    it("normalizes custom local port endpoint with /v1", () => {
+      const url = resolveTargetModelsUrl("openai", "http://localhost:11434/v1")
+      expect(url).toBe("http://localhost:11434/v1/models")
+    })
+
     it("does not duplicate /models if already present", () => {
       const url = resolveTargetModelsUrl("openai", "https://api.openai.com/v1/models")
       expect(url).toBe("https://api.openai.com/v1/models")
@@ -99,6 +119,36 @@ describe("Backend Model Proxy & Endpoint Discovery Engine", () => {
         expect.objectContaining({
           headers: expect.objectContaining({
             Authorization: "Bearer nvapi-sample-key",
+          }),
+        })
+      )
+    })
+
+    it("successfully discovers models when user passes /chat/completions in NVIDIA NIM base URL", async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            { id: "meta/llama-3.3-70b-instruct", created: 1733443200, owned_by: "nvidia" },
+          ],
+        }),
+      } as Response)
+
+      const res = await proxyFetchModels({
+        provider: "openai",
+        apiKey: "nvapi-sample-key",
+        baseUrl: "https://integrate.api.nvidia.com/v1/chat/completions/",
+      })
+
+      expect(res.success).toBe(true)
+      expect(res.models.length).toBe(1)
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        "https://integrate.api.nvidia.com/v1/models",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer nvapi-sample-key",
+            Accept: "application/json",
           }),
         })
       )
