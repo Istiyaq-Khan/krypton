@@ -87,14 +87,24 @@ Multiple agent instances exist in parallel under `~/.krypton/agents/`:
     └── AGENTS.md
 ```
 
-### Prompt Assembly Pipeline (`combinedSystemPrompt`)
+### Prompt Assembly Pipeline (`compileSystemPrompt` & `combinedSystemPrompt`)
 
-When an agent executes (`loadAgentContext()` / `Agent.fromWorkspace()`):
-1. **Persona (`IDENTITY.md`)**: Stripped of YAML frontmatter, positioned at the top of the prompt as the agent's identity.
-2. **Behavioral Guardrails (`SOUL.md`)**: Injected under `## Core Directives & Behavioral Guardrails`.
-3. **Workspace Conventions & Role (`AGENTS.md`)**: Injected under `## Workspace Conventions & Operational Directives`. Role directives are governed here, eliminating manual "Agent Role" textareas in the UI.
-4. **User Directives (`USER.md`)**: Injected under `## User Preferences & Directives`.
-5. **Birth Ritual (`BOOTSTRAP.md`)**: If present, appended as an explicit high-priority onboarding directive until deleted by the agent via file tools.
+When an agent executes (`compileSystemPrompt()` / `loadAgentContext()` / `Agent.fromWorkspace()`):
+1. **Root System Directives (`~/.krypton/system.md`)**: Injected at the very root of the prompt context, providing global operating principles, zero server lock-in, and AST validation constraints.
+2. **Root / Agent Profile (`~/.krypton/agents/root.md` or `agents/<agentName>.md`)**: Injected to define persona scope and general reasoning behavior without requiring manual UI forms.
+3. **Dedicated Workspace Persona (`IDENTITY.md`)**: Stripped of YAML frontmatter, positioned as the specific agent's persona.
+4. **Behavioral Guardrails (`SOUL.md`)**: Injected under `## Core Directives & Behavioral Guardrails`.
+5. **Workspace Conventions & Role (`AGENTS.md`)**: Injected under `## Workspace Conventions & Operational Directives`. Role directives are governed here, eliminating manual "Agent Role" textareas in the UI.
+6. **User Directives (`USER.md`)**: Injected under `## User Preferences & Directives`.
+7. **Long-Term Memory (`MEMORY.md`)**: Injected under `## Distilled Memory & Long-Term Context`.
+8. **Birth Ritual (`BOOTSTRAP.md`)**: If present, appended as an explicit high-priority onboarding directive until deleted by the agent via file tools.
+
+### Self-Updating Tooling (`read_system_instructions` & `update_system_instructions`)
+
+Agents can inspect and autonomously refine their system prompts and operational directives at runtime:
+- **`read_system_instructions`**: Reads `system.md`, `agents/root.md`, or specific agent `.md` files safely.
+- **`update_system_instructions`**: Updates or appends to target markdown files atomically (`mode: "overwrite" | "append"`).
+- **Security & Safety Invariants**: Strictly validates all paths against path traversal (`..`, symlinks outside `~/.krypton`, absolute path escapes) and enforces a mandatory `.md` extension, preventing unauthorized modification of `config.json`, credentials, or system binaries.
 
 ---
 

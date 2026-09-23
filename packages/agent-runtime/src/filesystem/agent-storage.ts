@@ -338,6 +338,38 @@ export async function loadAgentContext(
 
   const promptSections: string[] = [];
 
+  const kryptonHome = resolveKryptonHome(opts?.customRoot);
+  const systemMdPath = path.join(kryptonHome, "system.md");
+  if (fs.existsSync(systemMdPath)) {
+    try {
+      const rawSystem = fs.readFileSync(systemMdPath, "utf-8");
+      const parsedSystem = parseMarkdownWithFrontmatter(rawSystem).body.trim();
+      if (parsedSystem) {
+        promptSections.push(parsedSystem);
+      }
+    } catch {
+      // Ignore read errors
+    }
+  }
+
+  const rootAgentMdPath = path.join(kryptonHome, "agents", "root.md");
+  if (
+    fs.existsSync(rootAgentMdPath) &&
+    (agentDirOrName.toLowerCase() === "root" ||
+      agentDirOrName.toLowerCase() === "orchestrator" ||
+      !identity.trim())
+  ) {
+    try {
+      const rawRootAgent = fs.readFileSync(rootAgentMdPath, "utf-8");
+      const parsedRoot = parseMarkdownWithFrontmatter(rawRootAgent).body.trim();
+      if (parsedRoot) {
+        promptSections.push(parsedRoot);
+      }
+    } catch {
+      // Ignore read errors
+    }
+  }
+
   if (identity.trim()) {
     promptSections.push(identity.trim());
   }

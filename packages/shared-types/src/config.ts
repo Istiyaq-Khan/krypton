@@ -399,7 +399,7 @@ export type ModelDiscoveryResponse = z.infer<typeof ModelDiscoveryResponseSchema
  */
 export const SetupConfigPayloadSchema = z.object({
   agentName: z.string().min(1, "Agent name is required").default("Orchestrator"),
-  agentRole: z.string().default("Autonomous Desktop AI Agent"),
+  agentRole: z.string().optional(),
   provider: z.string().default("openai"),
   primaryModel: z.string().default("5.6 Terra High"),
   apiKeys: z
@@ -423,6 +423,30 @@ export const SetupConfigPayloadSchema = z.object({
   vttApiKey: z.string().optional(),
 });
 export type SetupConfigPayload = z.infer<typeof SetupConfigPayloadSchema>;
+
+/**
+ * System Instructions Tools (file-driven system prompt engine)
+ */
+export const ReadSystemInstructionsInputSchema = z.object({
+  targetFile: z.string().default("system.md"),
+});
+export type ReadSystemInstructionsInput = z.infer<typeof ReadSystemInstructionsInputSchema>;
+
+export const UpdateSystemInstructionsInputSchema = z.object({
+  targetFile: z.string().min(1, "Target file path is required"),
+  content: z.string(),
+  mode: z.enum(["overwrite", "append"]).default("overwrite"),
+});
+export type UpdateSystemInstructionsInput = z.infer<typeof UpdateSystemInstructionsInputSchema>;
+
+export const SystemInstructionResultSchema = z.object({
+  success: z.boolean(),
+  targetFile: z.string(),
+  content: z.string().optional(),
+  bytesWritten: z.number().optional(),
+  message: z.string(),
+});
+export type SystemInstructionResult = z.infer<typeof SystemInstructionResultSchema>;
 
 /**
  * Record representing a project workspace saved to disk at ~/.krypton/workspaces/<id>.json.

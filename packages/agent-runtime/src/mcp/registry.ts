@@ -29,16 +29,53 @@ export class ToolRegistry {
   private readonly clientManager: McpClientManager;
   private tools = new Map<string, RegisteredToolEntry>();
   private synthesizedTools = new Map<string, SynthesizedToolMetadata>();
+  private builtinExecutors = new Map<
+    string,
+    (params: Record<string, unknown>) => Promise<{ content: string; isError?: boolean }>
+  >();
 
   constructor(clientManager: McpClientManager) {
     this.clientManager = clientManager;
   }
 
   /**
+   * Registers a built-in system tool directly into the registry.
+   */
+  public registerBuiltinTool(
+    tool: McpTool,
+    executor: (params: Record<string, unknown>) => Promise<{ content: string; isError?: boolean }>
+  ): void {
+    const entry: RegisteredToolEntry = {
+      namespacedName: `system__${tool.name}`,
+      originalName: tool.name,
+      serverName: "system",
+      tool,
+    };
+    this.tools.set(entry.namespacedName, entry);
+    if (!this.tools.has(tool.name)) {
+      this.tools.set(tool.name, entry);
+    }
+    this.builtinExecutors.set(tool.name, executor);
+    this.builtinExecutors.set(entry.namespacedName, executor);
+  }
+
+  /**
    * Refreshes and discovers all tools from connected MCP clients.
    */
   public async discoverTools(): Promise<McpTool[]> {
+    // Preserve built-in tools when clearing
+    const preservedBuiltin = new Map<string, RegisteredToolEntry>();
+    for (const [key, val] of this.tools.entries()) {
+      if (val.serverName === "system") {
+        preservedBuiltin.set(key, val);
+      }
+    }
+
     this.tools.clear();
+    for (const [key, val] of preservedBuiltin.entries()) {
+      this.tools.set(key, val);
+    }
+
     const discovered: McpTool[] = [];
 
     const clients = this.clientManager.listClients();
@@ -153,6 +190,36 @@ export class ToolRegistry {
         isError: true,
         outputOffloaded: false,
       });
+    }
+
+    const builtinExecutor = this.builtinExecutors.get(validatedReq.toolName);
+    if (builtinExecutor) {
+      try {
+        const res = await builtinExecutor(validatedReq.parameters);
+        const durationMs = Date.now() - startTime;
+        return ToolExecutionResultSchema.parse({
+          requestId: validatedReq.requestId,
+          toolName: validatedReq.toolName,
+          stdout: res.isError ? "" : res.content,
+          stderr: res.isError ? res.content : "",
+          exitCode: res.isError ? 1 : 0,
+          durationMs,
+          isError: Boolean(res.isError),
+          outputOffloaded: false,
+        });
+      } catch (err: any) {
+        const durationMs = Date.now() - startTime;
+        return ToolExecutionResultSchema.parse({
+          requestId: validatedReq.requestId,
+          toolName: validatedReq.toolName,
+          stdout: "",
+          stderr: err?.message || String(err),
+          exitCode: 1,
+          durationMs,
+          isError: true,
+          outputOffloaded: false,
+        });
+      }
     }
 
     const client = this.clientManager.getClient(entry.serverName);

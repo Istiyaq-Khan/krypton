@@ -36,7 +36,7 @@ import {
 
 export interface SetupCompletedData {
   agentName: string
-  agentRole: string
+  agentRole?: string
   provider: string
   primaryModel: string
   defaultWorkspaceDir: string
@@ -61,10 +61,8 @@ export function FirstRunSetupWizard({
   const [currentStep, setCurrentStep] = useState(1)
   const totalSteps = 4
 
-  // Step 1: Agent Identity
+  // Step 1: Agent Identity (File-driven system prompt architecture)
   const [agentName, setAgentName] = useState("Orchestrator")
-  const [agentRole, setAgentRole] = useState("Autonomous Desktop AI Agent & System Orchestrator")
-  const [reasoningTone, setReasoningTone] = useState("strict")
 
   // Step 2: Simplified Two-Provider Selection & Model Discovery
   const [selectedProvider, setSelectedProvider] = useState<ModelProviderId>("openai")
@@ -201,7 +199,6 @@ export function FirstRunSetupWizard({
 
     const payload = {
       agentName: agentName.trim() || "Orchestrator",
-      agentRole: agentRole.trim(),
       provider: selectedProvider,
       primaryModel: primaryModel.trim(),
       apiKeys: {
@@ -259,7 +256,6 @@ export function FirstRunSetupWizard({
 
       onComplete({
         agentName: payload.agentName,
-        agentRole: payload.agentRole,
         provider: payload.provider,
         primaryModel: payload.primaryModel,
         defaultWorkspaceDir: payload.defaultWorkspaceDir,
@@ -391,39 +387,20 @@ export function FirstRunSetupWizard({
               </span>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-zinc-300">Agent Role & Operating Directive</label>
-              <input
-                type="text"
-                value={agentRole}
-                onChange={(e) => setAgentRole(e.target.value)}
-                placeholder="e.g. Autonomous Desktop AI Agent & System Orchestrator"
-                className="rounded-xl border border-zinc-800 bg-zinc-950 px-3.5 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-zinc-300">Reasoning Style & Tone</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "strict", title: "Strict & Analytical", desc: "Prioritizes safety and type invariants" },
-                  { id: "intuitive", title: "Autonomous Agile", desc: "Balanced speed with verification" },
-                  { id: "exploratory", title: "Research & Synthesis", desc: "Exploratory architectural planning" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setReasoningTone(item.id)}
-                    className={`flex flex-col rounded-xl border p-3 text-left transition-all cursor-pointer ${
-                      reasoningTone === item.id
-                        ? "border-violet-500 bg-violet-950/40 text-violet-200"
-                        : "border-zinc-800 bg-zinc-950 hover:border-zinc-700 text-zinc-400"
-                    }`}
-                  >
-                    <span className="text-xs font-medium text-zinc-200">{item.title}</span>
-                    <span className="text-[10px] text-zinc-500 mt-1">{item.desc}</span>
-                  </button>
-                ))}
+            {/* File-Driven System Prompt Engine Indicator */}
+            <div className="rounded-xl border border-violet-900/50 bg-violet-950/20 p-4 text-xs">
+              <div className="flex items-center gap-2 font-medium text-violet-300 mb-1.5">
+                <Sparkles className="size-4 text-violet-400 shrink-0" />
+                <span>File-Driven System Prompt Architecture</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-zinc-400">
+                Operating directives, persona details, and reasoning behaviors are dynamically loaded from Markdown templates in{" "}
+                <code className="rounded bg-zinc-800/90 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">~/.krypton/system.md</code> and{" "}
+                <code className="rounded bg-zinc-800/90 px-1.5 py-0.5 font-mono text-[11px] text-violet-200">~/.krypton/agents/root.md</code>.
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-[11px] text-zinc-400 border-t border-violet-950/60 pt-2.5">
+                <Check className="size-3.5 text-emerald-400 shrink-0" />
+                <span>Fully customizable anytime via local markdown files or self-updating agent tools.</span>
               </div>
             </div>
           </div>

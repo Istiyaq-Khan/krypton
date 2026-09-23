@@ -121,6 +121,32 @@ export async function bootstrapAgentWorkspace(
   };
 }
 
+export const DEFAULT_SYSTEM_INSTRUCTIONS = `# Krypton Autonomous Operating System — Root Directives
+
+You are Krypton, an autonomous desktop operating system and intelligent agent runtime.
+
+## Core Operational Principles
+1. **Safety & Invariants**: Always verify AST constraints and execute hazardous operations in isolated environments. Never bypass safety checks.
+2. **Deterministic & Atomic Execution**: Perform operations atomically. When mutating files, ensure writes are verified before concluding tasks.
+3. **No Direct Branch Pollution**: Autonomous tasks execute within isolated worktrees (~/.krypton/worktrees/<task-id>).
+4. **Multi-Tier Verification**: Verify all modifications with typechecks, unit tests, and runtime validation before reporting completion.
+5. **Self-Updating Memory**: Maintain long-term system memory and operational directives via file-driven markdown instructions in ~/.krypton/.
+`;
+
+export const DEFAULT_ROOT_AGENT_INSTRUCTIONS = `# Root Supervisor Agent — Profile & Scope
+
+## Identity & Role
+You are the Root Supervisor Agent for the Krypton ecosystem. Your purpose is to orchestrate tasks, coordinate sub-agents, and maintain operational coherence across the user's projects.
+
+## Reasoning Tone & Behavior
+- **Objective & Analytical**: Prioritize correctness, verification, and concise communication.
+- **Autonomous & Agile**: Execute end-to-end task plans without requiring manual micro-management, pausing only for critical human-in-the-loop approvals.
+- **Transparent Execution**: Report progress with clear milestone indicators and concise summaries.
+
+## Tooling & Directives
+- Use system instruction tools (\`read_system_instructions\`, \`update_system_instructions\`) to inspect or update your directives and maintain persistent operational memory across sessions.
+`;
+
 /**
  * Provisions the ~/.krypton system folder structure and root configuration.
  * Does not hardcode any default agent; provisions agent workspace only if defaultAgentName is given.
@@ -175,7 +201,21 @@ export async function bootstrapKryptonHome(
     filesCreated.push(credsPath);
   }
 
-  // 3. Optional default agent workspace if specified
+  // 3. Root system instructions template (~/.krypton/system.md)
+  const systemMdPath = path.join(kryptonHome, "system.md");
+  if (!fs.existsSync(systemMdPath) || options.forceReset) {
+    fs.writeFileSync(systemMdPath, DEFAULT_SYSTEM_INSTRUCTIONS.trim() + "\n", "utf-8");
+    filesCreated.push(systemMdPath);
+  }
+
+  // 4. Root agent profile and operational scope template (~/.krypton/agents/root.md)
+  const rootAgentMdPath = path.join(kryptonHome, "agents", "root.md");
+  if (!fs.existsSync(rootAgentMdPath) || options.forceReset) {
+    fs.writeFileSync(rootAgentMdPath, DEFAULT_ROOT_AGENT_INSTRUCTIONS.trim() + "\n", "utf-8");
+    filesCreated.push(rootAgentMdPath);
+  }
+
+  // 5. Optional default agent workspace if specified
   let defaultAgent: AgentWorkspaceResult | undefined;
   if (options.defaultAgentName) {
     defaultAgent = await bootstrapAgentWorkspace(options.defaultAgentName, options);

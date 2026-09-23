@@ -34,6 +34,7 @@ import {
   deleteBootstrapFile,
   deleteAgentWorkspace,
 } from "./filesystem/agent-storage.js"
+import { compileSystemPrompt } from "./filesystem/prompt-compiler.js"
 import {
   saveWorkspaceRecord,
   loadWorkspaceRecord,
@@ -1041,43 +1042,18 @@ export class KryptonDaemonServer {
 
         let systemPrompt = ""
         try {
-          const agentCtx = await loadAgentContext(agentName)
-          if (agentCtx && agentCtx.combinedSystemPrompt) {
-            systemPrompt = agentCtx.combinedSystemPrompt
-          }
+          systemPrompt = await compileSystemPrompt({
+            agentName,
+            workspacePath: workspacePath || undefined,
+          })
         } catch {
-          // If agent context doesn't exist, proceed with workspace check
-        }
-
-        if (workspacePath && fs.existsSync(workspacePath)) {
-          for (const candidate of ["BOOTSTRAP.md", "bootstrap.md"]) {
-            const candidatePath = path.join(workspacePath, candidate)
-            if (fs.existsSync(candidatePath)) {
-              try {
-                const rawBootstrap = fs.readFileSync(candidatePath, "utf-8")
-                if (rawBootstrap.trim().length > 0 && !systemPrompt.includes(rawBootstrap.trim())) {
-                  const bootstrapDirectives = [
-                    "=================================================================",
-                    "CRITICAL ONBOARDING DIRECTIVE: ACTIVE BOOTSTRAP PROTOCOL DETECTED",
-                    "=================================================================",
-                    `A pending initialization file exists in the active workspace at: ${candidatePath}`,
-                    "",
-                    "FILE CONTENT:",
-                    rawBootstrap.trim(),
-                    "",
-                    "OPERATIONAL RULES FOR BOOTSTRAP:",
-                    "1. You MUST execute, configure, or initialize any setup tasks listed in this file.",
-                    "2. Krypton will NEVER automatically delete this file.",
-                    "3. You alone are responsible for removing this file using file deletion tools once setup and verification are complete.",
-                    "=================================================================",
-                  ].join("\n")
-                  systemPrompt = systemPrompt ? `${systemPrompt}\n\n${bootstrapDirectives}` : bootstrapDirectives
-                }
-              } catch {
-                // Ignore read errors
-              }
-              break
+          try {
+            const agentCtx = await loadAgentContext(agentName)
+            if (agentCtx && agentCtx.combinedSystemPrompt) {
+              systemPrompt = agentCtx.combinedSystemPrompt
             }
+          } catch {
+            // If agent context doesn't exist, proceed
           }
         }
 

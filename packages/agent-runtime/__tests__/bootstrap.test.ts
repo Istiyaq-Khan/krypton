@@ -44,10 +44,17 @@ describe("Dynamic Agent Templating & Bootstrap System", () => {
     expect(fs.existsSync(path.join(tempRoot, "sandbox_workspace"))).toBe(true);
     expect(fs.existsSync(path.join(tempRoot, "agents"))).toBe(true);
 
-    // No hardcoded agents should exist
+    // No hardcoded agent workspace directories should exist
     expect(result.defaultAgent).toBeUndefined();
-    const agents = fs.readdirSync(path.join(tempRoot, "agents"));
-    expect(agents).toHaveLength(0);
+    const agentEntries = fs.readdirSync(path.join(tempRoot, "agents"));
+    const agentDirs = agentEntries.filter((f) =>
+      fs.statSync(path.join(tempRoot, "agents", f)).isDirectory()
+    );
+    expect(agentDirs).toHaveLength(0);
+
+    // Default file-driven markdown templates should be seeded
+    expect(fs.existsSync(path.join(tempRoot, "system.md"))).toBe(true);
+    expect(fs.existsSync(path.join(tempRoot, "agents", "root.md"))).toBe(true);
   });
 
   it("dynamically provisions an agent workspace under any user-defined name as pure markdown prompts", async () => {

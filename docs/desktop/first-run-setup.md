@@ -57,7 +57,7 @@ The onboarding modal guides the user through four essential configuration stages
 
 | Step | Section | Configured Properties |
 | :--- | :--- | :--- |
-| **1** | **Agent Identity** | Supervisor Name (`Orchestrator`), Role description, Persona/Directive template, Reasoning Style (Analytical / Agile / Research). |
+| **1** | **Agent Identity** | Supervisor Name (`Orchestrator`) backed by the File-Driven System Prompt Architecture (`~/.krypton/system.md` & `~/.krypton/agents/root.md`). Eliminates manual role and tone forms in favor of declarative Markdown prompt files and self-updating agent tools. |
 | **2** | **Model & Providers** | Simplified Two-Protocol Selection (OpenAI-Compatible & Anthropic-Compatible), Custom Base URL & API Key Inputs, Backend Daemon Server-Side Discovery Proxy (`/api/fetch-models`), Dynamic Model Discovery & Credential Validation, Primary Reasoning Model Selection, Local Cache Generation. |
 | **3** | **Workspace Path** | Root Project Directory (`%USERPROFILE%\Projects` or `$HOME/projects`), Initial Workspace Name (`krypton-workspace`). |
 | **4** | **Guardrails, Voice & Privacy**| HITL confirmation requirements, AST Safety Linter enforcement, Voice-To-Text (VTT) Engine Selection & Speech Configuration (Whisper Local, Whisper API, NVIDIA Parakeet v3, Custom Endpoint), Telemetry opt-in (disabled by default). |

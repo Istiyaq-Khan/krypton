@@ -9,6 +9,8 @@ export * from "./filesystem/template-loader.js";
 export * from "./filesystem/parser.js";
 export * from "./filesystem/watcher.js";
 export * from "./filesystem/workspace-storage.js";
+export * from "./filesystem/prompt-compiler.js";
+export * from "./filesystem/system-instructions.js";
 
 // Providers & Keyring secret vault
 export * from "./providers/index.js";

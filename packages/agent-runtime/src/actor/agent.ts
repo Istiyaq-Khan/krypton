@@ -34,6 +34,10 @@ import {
 import { AgentConfigFile } from "@krypton/shared-types";
 import { LLMProvider } from "../providers/types.js";
 import { ObservationOffloader } from "../context/offloader.js";
+import {
+  readSystemInstructions,
+  updateSystemInstructions,
+} from "../filesystem/system-instructions.js";
 
 export interface AgentConfig {
   agentId?: string;
@@ -177,6 +181,21 @@ export class Agent extends EventEmitter {
 
   private buildCombinedSystemPrompt(): string {
     const parts: string[] = [];
+
+    const kryptonHome = resolveKryptonHome(this.customRoot);
+    const systemMdPath = path.join(kryptonHome, "system.md");
+    if (fs.existsSync(systemMdPath)) {
+      try {
+        const raw = fs.readFileSync(systemMdPath, "utf-8");
+        const clean = raw.replace(/^---[\s\S]*?---\n*/, "").trim();
+        if (clean && !this.systemPrompt.includes(clean)) {
+          parts.push(clean);
+        }
+      } catch {
+        // ignore read errors
+      }
+    }
+
     if (this.systemPrompt.trim()) {
       parts.push(this.systemPrompt.trim());
     }
@@ -643,6 +662,43 @@ export class Agent extends EventEmitter {
           output,
         };
       }
+    }
+
+    if (name === "read_system_instructions" || name === "read_instructions") {
+      const callArgs = (call.arguments as Record<string, any>) || {};
+      const targetFile = String(callArgs.targetFile || callArgs.path || callArgs.file || "system.md");
+      const res = await readSystemInstructions(targetFile, {
+        customRoot: this.customRoot,
+        agentName: this.name,
+      });
+      return {
+        toolCallId: call.id,
+        toolName: call.name,
+        content: res.content || res.message,
+        isError: !res.success,
+        success: res.success,
+        output: res.content || res.message,
+      };
+    }
+
+    if (name === "update_system_instructions" || name === "update_instructions") {
+      const callArgs = (call.arguments as Record<string, any>) || {};
+      const targetFile = String(callArgs.targetFile || callArgs.path || callArgs.file || "system.md");
+      const content = String(callArgs.content || callArgs.instructions || "");
+      const mode = (callArgs.mode === "append" ? "append" : "overwrite") as "overwrite" | "append";
+
+      const res = await updateSystemInstructions(
+        { targetFile, content, mode },
+        { customRoot: this.customRoot, agentName: this.name }
+      );
+      return {
+        toolCallId: call.id,
+        toolName: call.name,
+        content: res.message,
+        isError: !res.success,
+        success: res.success,
+        output: res.message,
+      };
     }
 
     const output = `No tool executor configured for tool '${call.name}'`;
