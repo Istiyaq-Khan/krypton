@@ -118,9 +118,11 @@ export function useAgentSession() {
 
     try {
       const provCfg = await getActiveProviderConfig()
-      const provider = (provCfg?.provider || activeProvider || "openai") as ModelProviderId
+      const cached = await loadCachedModels()
+      const provider = (provCfg?.provider || cached?.provider || activeProvider || "openai") as ModelProviderId
       const apiKey = provCfg?.apiKey
-      const cleanBaseUrl = baseUrl ? sanitizeBaseUrl(baseUrl) : undefined
+      const rawBaseUrl = provCfg?.baseUrl || cached?.baseUrl
+      const cleanBaseUrl = rawBaseUrl ? sanitizeBaseUrl(rawBaseUrl) : undefined
 
       const res = await testAndFetchModels({
         provider,
@@ -134,7 +136,7 @@ export function useAgentSession() {
         setAvailableModels(res.models)
         await persistCachedModels({
           provider,
-          baseUrl,
+          baseUrl: cleanBaseUrl,
           models: res.models,
           updatedAt: Date.now(),
         })
