@@ -338,14 +338,28 @@ export function sanitizeBaseUrl(rawUrl?: string): string {
 
 /**
  * Supported model provider identifiers for first-run setup and dynamic discovery.
+ * Accepts any registered catalog provider or custom identifier.
  */
-export const ModelProviderIdSchema = z.enum([
+export const KnownModelProviderIds = [
   "openai",
   "anthropic",
-  "ollama",
+  "google",
+  "deepseek",
+  "groq",
+  "mistral",
+  "together",
+  "fireworks",
+  "perplexity",
+  "xai",
+  "cohere",
+  "cerebras",
   "openrouter",
+  "nvidia",
+  "ollama",
   "custom",
-]);
+] as const;
+
+export const ModelProviderIdSchema = z.string().min(1, "Provider identifier is required");
 export type ModelProviderId = z.infer<typeof ModelProviderIdSchema>;
 
 /**
@@ -377,9 +391,10 @@ export type CachedModelsData = z.infer<typeof CachedModelsDataSchema>;
  * Model discovery request parameters.
  */
 export const ModelDiscoveryRequestSchema = z.object({
-  provider: ModelProviderIdSchema,
+  provider: z.string().min(1),
   apiKey: z.string().optional(),
   baseUrl: z.string().optional(),
+  timeoutMs: z.number().int().positive().optional(),
 });
 export type ModelDiscoveryRequest = z.infer<typeof ModelDiscoveryRequestSchema>;
 
@@ -388,7 +403,7 @@ export type ModelDiscoveryRequest = z.infer<typeof ModelDiscoveryRequestSchema>;
  */
 export const ModelDiscoveryResponseSchema = z.object({
   success: z.boolean(),
-  provider: ModelProviderIdSchema,
+  provider: z.string().min(1),
   models: z.array(DiscoveredModelSchema).default([]),
   error: z.string().optional(),
 });

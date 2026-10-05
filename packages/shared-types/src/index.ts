@@ -32,3 +32,6 @@ export * from "./browser.js";
 export * from "./terminal.js";
 export * from "./intelligence.js";
 export * from "./desktop.js";
+
+// AI Model Providers & Catalog Contracts
+export * from "./providers.js";

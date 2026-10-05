@@ -1,29 +1,25 @@
-import { DiscoveredModel, sanitizeBaseUrl } from "@krypton/shared-types"
+import {
+  DiscoveredModel,
+  sanitizeBaseUrl,
+  findCatalogProvider,
+  PROVIDER_CATALOG,
+} from "@krypton/shared-types";
+import { getDefaultBaseUrl } from "../providers/catalog.js";
 
-export { sanitizeBaseUrl }
+export { sanitizeBaseUrl };
 
 export interface ProxyFetchModelsOptions {
-  provider: string
-  apiKey?: string
-  baseUrl?: string
-  timeoutMs?: number
+  provider: string;
+  apiKey?: string;
+  baseUrl?: string;
+  timeoutMs?: number;
 }
 
 export interface ProxyFetchModelsResult {
-  success: boolean
-  provider: string
-  models: DiscoveredModel[]
-  error?: string
-}
-
-export const DEFAULT_PROXY_URLS: Record<string, string> = {
-  openai: "https://api.openai.com/v1",
-  "openai-compatible": "https://api.openai.com/v1",
-  anthropic: "https://api.anthropic.com/v1",
-  "anthropic-compatible": "https://api.anthropic.com/v1",
-  ollama: "http://localhost:11434",
-  openrouter: "https://openrouter.ai/api/v1",
-  custom: "https://api.openai.com/v1",
+  success: boolean;
+  provider: string;
+  models: DiscoveredModel[];
+  error?: string;
 }
 
 /**
@@ -31,24 +27,47 @@ export const DEFAULT_PROXY_URLS: Record<string, string> = {
  * Uses sanitizeBaseUrl to ensure trailing slashes and redundant subpaths (/chat/completions) are removed.
  */
 export function resolveTargetModelsUrl(provider: string, baseUrl: string): string {
-  const cleanBase = sanitizeBaseUrl(baseUrl)
-  const isAnthropic = provider.toLowerCase().includes("anthropic")
-  const isOllama = provider.toLowerCase().includes("ollama") || cleanBase.includes("11434")
+  const cleanBase = sanitizeBaseUrl(baseUrl);
+  const lower = provider.toLowerCase().trim();
+  const catalogItem = findCatalogProvider(lower);
+  const isAnthropic = catalogItem ? catalogItem.protocol === "anthropic" : lower.includes("anthropic");
+  const isOllama = lower.includes("ollama") || cleanBase.includes("11434");
 
   if (cleanBase.endsWith("/models")) {
-    return cleanBase
+    return cleanBase;
   }
 
   if (isAnthropic) {
-    return `${cleanBase}/models`
+    return `${cleanBase}/models`;
   }
 
   if (isOllama && !cleanBase.endsWith("/v1")) {
-    return `${cleanBase}/v1/models`
+    return `${cleanBase}/v1/models`;
   }
 
   // OpenAI-compatible endpoints (e.g. https://api.openai.com/v1 or https://integrate.api.nvidia.com/v1)
-  return `${cleanBase}/models`
+  return `${cleanBase}/models`;
+}
+
+function isModelTemperatureSupported(modelId: string, itemMeta?: any): boolean {
+  if (itemMeta && typeof itemMeta.supports_temperature === "boolean") {
+    return itemMeta.supports_temperature;
+  }
+  if (itemMeta && typeof itemMeta.supportsTemperature === "boolean") {
+    return itemMeta.supportsTemperature;
+  }
+  const lower = modelId.toLowerCase().trim();
+  if (
+    lower === "o1" ||
+    lower.startsWith("o1-") ||
+    lower === "o3" ||
+    lower.startsWith("o3-") ||
+    lower.startsWith("o4-") ||
+    lower.includes("reasoning")
+  ) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -58,28 +77,35 @@ export function resolveTargetModelsUrl(provider: string, baseUrl: string): strin
 export async function proxyFetchModels(
   options: ProxyFetchModelsOptions
 ): Promise<ProxyFetchModelsResult> {
-  const rawProvider = (options.provider || "openai").trim().toLowerCase()
-  const apiKey = (options.apiKey || "").trim()
-  const rawBaseUrl = sanitizeBaseUrl(options.baseUrl || "")
-  const timeoutMs = options.timeoutMs || 10000
+  const rawProvider = (options.provider || "openai").trim().toLowerCase();
+  const apiKey = (options.apiKey || "").trim();
+  const rawBaseUrl = sanitizeBaseUrl(options.baseUrl || "");
+  const timeoutMs = options.timeoutMs || 10000;
 
-  const isAnthropic = rawProvider.includes("anthropic")
-  const providerKey = isAnthropic ? "anthropic" : "openai"
-  const providerDisplayName = isAnthropic ? "Anthropic-Compatible" : "OpenAI-Compatible"
+  const catalogItem = findCatalogProvider(rawProvider);
+  const isAnthropic = catalogItem
+    ? catalogItem.protocol === "anthropic"
+    : rawProvider.includes("anthropic");
+  const providerDisplayName = isAnthropic ? "Anthropic-Compatible" : catalogItem?.name || "OpenAI-Compatible";
 
   // 1. Validate required inputs
-  if (isAnthropic && !apiKey) {
+  if (isAnthropic && !apiKey && !catalogItem?.isLocal) {
     return {
       success: false,
-      provider: providerKey,
+      provider: rawProvider,
       models: [],
-      error: "Anthropic-Compatible requires an API key (sk-ant-api03-...).",
-    }
+      error: `${providerDisplayName} requires an API key (sk-ant-api03-...).`,
+    };
   }
 
-  const effectiveBaseUrl = (rawBaseUrl || DEFAULT_PROXY_URLS[rawProvider] || DEFAULT_PROXY_URLS[providerKey]).replace(/\/+$/, "")
+  const effectiveBaseUrl = (
+    rawBaseUrl ||
+    catalogItem?.apiUrl ||
+    getDefaultBaseUrl(rawProvider) ||
+    "https://api.openai.com/v1"
+  ).replace(/\/+$/, "");
 
-  // OpenAI direct cloud endpoint requires an API key; local/custom endpoints may not
+  // Cloud OpenAI direct endpoint requires an API key
   if (
     !isAnthropic &&
     effectiveBaseUrl.includes("api.openai.com") &&
@@ -87,163 +113,140 @@ export async function proxyFetchModels(
   ) {
     return {
       success: false,
-      provider: providerKey,
+      provider: rawProvider,
       models: [],
       error: "OpenAI requires an API key (sk-proj-...).",
-    }
+    };
   }
 
   // 2. Build target request configuration
-  const targetUrl = resolveTargetModelsUrl(rawProvider, effectiveBaseUrl)
+  const targetUrl = resolveTargetModelsUrl(rawProvider, effectiveBaseUrl);
   const headers: Record<string, string> = {
     Accept: "application/json",
     "User-Agent": "Krypton-Daemon/1.0",
-  }
+  };
 
   if (isAnthropic) {
     if (apiKey) {
-      headers["x-api-key"] = apiKey
+      headers["x-api-key"] = apiKey;
     }
-    headers["anthropic-version"] = "2023-06-01"
-    headers["anthropic-dangerous-direct-browser-access"] = "true"
+    headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-dangerous-direct-browser-access"] = "true";
   } else {
     if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`
+      headers["Authorization"] = `Bearer ${apiKey}`;
     }
-    // Set OpenRouter headers if targeting OpenRouter
     if (effectiveBaseUrl.includes("openrouter.ai")) {
-      headers["HTTP-Referer"] = "https://krypton.local"
-      headers["X-Title"] = "Krypton Desktop"
+      headers["HTTP-Referer"] = "https://krypton.local";
+      headers["X-Title"] = "Krypton Desktop";
     }
   }
 
   // 3. Dispatch native Node fetch with AbortController timeout
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     let res = await fetch(targetUrl, {
       method: "GET",
       headers,
       signal: controller.signal,
-    })
+    });
 
     // Handle Ollama fallback if /models or /v1/models returns 404
     if (!res.ok && res.status === 404 && (rawProvider === "ollama" || effectiveBaseUrl.includes("11434"))) {
-      const fallbackUrl = `${effectiveBaseUrl}/api/tags`
+      const fallbackUrl = `${effectiveBaseUrl}/api/tags`;
       try {
         const fallbackRes = await fetch(fallbackUrl, {
           method: "GET",
           headers: { Accept: "application/json" },
           signal: controller.signal,
-        })
+        });
         if (fallbackRes.ok) {
-          res = fallbackRes
+          res = fallbackRes;
         }
       } catch {
         // preserve original response
       }
     }
 
-    clearTimeout(timeoutId)
+    clearTimeout(timeoutId);
 
     // 4. Map upstream HTTP status codes to user-friendly error banners
     if (!res.ok) {
-      const status = res.status
-      let errorDetail = ""
+      const status = res.status;
+      let errorDetail = "";
       try {
-        const errorJson: any = await res.json()
+        const errorJson: any = await res.json();
         errorDetail =
           errorJson.error?.message ||
           errorJson.message ||
-          (typeof errorJson.error === "string" ? errorJson.error : "")
+          (typeof errorJson.error === "string" ? errorJson.error : "");
       } catch {
-        errorDetail = await res.text().catch(() => "")
+        errorDetail = await res.text().catch(() => "");
       }
 
       if (status === 401) {
         return {
           success: false,
-          provider: providerKey,
+          provider: rawProvider,
           models: [],
           error: `Authentication failed (401): The provided API key was rejected by ${providerDisplayName}. ${errorDetail}`.trim(),
-        }
+        };
       }
 
       if (status === 403) {
         return {
           success: false,
-          provider: providerKey,
+          provider: rawProvider,
           models: [],
           error: `Access denied (403): The API key lacks permission to list models. ${errorDetail}`.trim(),
-        }
+        };
       }
 
       if (status === 404) {
         return {
           success: false,
-          provider: providerKey,
+          provider: rawProvider,
           models: [],
           error: `Endpoint not found (404): Could not find models route at ${targetUrl}. Verify your Base URL.`,
-        }
+        };
       }
 
       if (status === 429) {
         return {
           success: false,
-          provider: providerKey,
+          provider: rawProvider,
           models: [],
           error: `Rate limit / Quota exceeded (429): Account has exceeded quota or hit rate limits. ${errorDetail}`.trim(),
-        }
+        };
       }
 
       if (status >= 500 && status <= 504) {
         return {
           success: false,
-          provider: providerKey,
+          provider: rawProvider,
           models: [],
           error: `Upstream server error (${status}): Service at ${effectiveBaseUrl} returned a server error. ${errorDetail}`.trim(),
-        }
+        };
       }
 
       return {
         success: false,
-        provider: providerKey,
+        provider: rawProvider,
         models: [],
         error: `Provider error (${status}): ${errorDetail || res.statusText || "Request failed"}`,
-      }
+      };
     }
 
-function isModelTemperatureSupported(modelId: string, itemMeta?: any): boolean {
-  if (itemMeta && typeof itemMeta.supports_temperature === "boolean") {
-    return itemMeta.supports_temperature
-  }
-  if (itemMeta && typeof itemMeta.supportsTemperature === "boolean") {
-    return itemMeta.supportsTemperature
-  }
-  const lower = modelId.toLowerCase().trim()
-  if (
-    lower === "o1" ||
-    lower.startsWith("o1-") ||
-    lower === "o3" ||
-    lower.startsWith("o3-") ||
-    lower.startsWith("o4-") ||
-    lower.includes("reasoning")
-  ) {
-    return false
-  }
-  return true
-}
-
     // 5. Parse discovered models roster
-    const data: any = await res.json()
-    const parsedModels: DiscoveredModel[] = []
+    const data: any = await res.json();
+    const parsedModels: DiscoveredModel[] = [];
 
     if (data && Array.isArray(data.data)) {
-      // Standard OpenAI / OpenRouter / Anthropic format
       for (const item of data.data) {
         if (item && item.id) {
-          const modelId = String(item.id)
+          const modelId = String(item.id);
           parsedModels.push({
             id: modelId,
             name: item.display_name || item.name || modelId,
@@ -252,40 +255,38 @@ function isModelTemperatureSupported(modelId: string, itemMeta?: any): boolean {
             created: typeof item.created === "number" ? item.created : undefined,
             ownedBy: item.owned_by ? String(item.owned_by) : undefined,
             supportsTemperature: isModelTemperatureSupported(modelId, item),
-          })
+          });
         }
       }
     } else if (data && Array.isArray(data.models)) {
-      // Ollama /api/tags format
       for (const item of data.models) {
-        const modelId = item.name || item.model
+        const modelId = item.name || item.model;
         if (modelId) {
-          const mId = String(modelId)
+          const mId = String(modelId);
           parsedModels.push({
             id: mId,
             name: mId,
             description: item.details?.family ? `Family: ${item.details.family}` : undefined,
             supportsTemperature: isModelTemperatureSupported(mId, item),
-          })
+          });
         }
       }
     } else if (Array.isArray(data)) {
-      // Top-level array format
       for (const item of data) {
         if (typeof item === "string") {
           parsedModels.push({
             id: item,
             name: item,
             supportsTemperature: isModelTemperatureSupported(item),
-          })
+          });
         } else if (item && typeof item === "object" && item.id) {
-          const mId = String(item.id)
+          const mId = String(item.id);
           parsedModels.push({
             id: mId,
             name: item.name || mId,
             description: item.description,
             supportsTemperature: isModelTemperatureSupported(mId, item),
-          })
+          });
         }
       }
     }
@@ -293,70 +294,56 @@ function isModelTemperatureSupported(modelId: string, itemMeta?: any): boolean {
     if (parsedModels.length === 0) {
       return {
         success: false,
-        provider: providerKey,
+        provider: rawProvider,
         models: [],
         error: `Connected to ${providerDisplayName} at ${effectiveBaseUrl}, but no models were returned by the endpoint roster.`,
-      }
+      };
     }
 
-    // Sort alphabetically by ID
-    parsedModels.sort((a, b) => a.id.localeCompare(b.id))
+    parsedModels.sort((a, b) => a.id.localeCompare(b.id));
 
     return {
       success: true,
-      provider: providerKey,
+      provider: rawProvider,
       models: parsedModels,
-    }
+    };
   } catch (err: any) {
-    clearTimeout(timeoutId)
+    clearTimeout(timeoutId);
 
     if (err.name === "AbortError" || err.message?.includes("aborted")) {
       return {
         success: false,
-        provider: providerKey,
+        provider: rawProvider,
         models: [],
         error: `Request timed out after ${Math.round(timeoutMs / 1000)} seconds while connecting to ${effectiveBaseUrl}. Check server status and network.`,
-      }
+      };
     }
 
-    const errMsg = String(err?.message || err)
+    const errMsg = String(err?.message || err);
     if (errMsg.includes("ECONNREFUSED")) {
       return {
         success: false,
-        provider: providerKey,
+        provider: rawProvider,
         models: [],
         error: `Connection refused: Unable to connect to server at ${effectiveBaseUrl}. Ensure the model service is running.`,
-      }
+      };
     }
 
     if (errMsg.includes("ENOTFOUND")) {
       return {
         success: false,
-        provider: providerKey,
+        provider: rawProvider,
         models: [],
         error: `Host not found (DNS resolution failed): Unable to reach host for ${effectiveBaseUrl}. Verify the Base URL domain.`,
-      }
-    }
-
-    if (
-      errMsg.includes("Failed to fetch") ||
-      errMsg.includes("fetch failed") ||
-      errMsg.includes("NetworkError")
-    ) {
-      return {
-        success: false,
-        provider: providerKey,
-        models: [],
-        error: `Network/CORS error: Unable to connect to ${effectiveBaseUrl}. Check your internet connection or server headers.`,
-      }
+      };
     }
 
     return {
       success: false,
-      provider: providerKey,
+      provider: rawProvider,
       models: [],
       error: `Failed to fetch models from ${providerDisplayName}: ${errMsg}`,
-    }
+    };
   }
 }
 
@@ -366,5 +353,5 @@ function isModelTemperatureSupported(modelId: string, itemMeta?: any): boolean {
 export async function proxyValidateEndpoint(
   options: ProxyFetchModelsOptions
 ): Promise<ProxyFetchModelsResult> {
-  return proxyFetchModels(options)
+  return proxyFetchModels(options);
 }

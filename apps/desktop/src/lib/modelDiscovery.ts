@@ -4,12 +4,26 @@ import {
   DiscoveredModel,
   CachedModelsData,
   sanitizeBaseUrl,
+  PROVIDER_CATALOG,
+  CatalogProvider,
+  findCatalogProvider,
+  parseNamespacedModel,
+  formatNamespacedModel,
+  normalizeCredential,
+  CredentialRef,
 } from "@krypton/shared-types"
 
 export {
   type ModelProviderId,
   type DiscoveredModel,
   type CachedModelsData,
+  type CatalogProvider,
+  type CredentialRef,
+  PROVIDER_CATALOG,
+  findCatalogProvider,
+  parseNamespacedModel,
+  formatNamespacedModel,
+  normalizeCredential,
   sanitizeBaseUrl,
 }
 
@@ -32,6 +46,26 @@ export interface ActiveProviderConfig {
   model: string
   baseUrl?: string
   apiKey?: string
+  credential?: CredentialRef
+}
+
+export interface SaveProviderConfigInput {
+  provider: string
+  model: string
+  baseUrl?: string
+  apiKey?: string
+  credential?: CredentialRef
+}
+
+export interface InferenceStreamOptions {
+  model: string
+  messages: Array<{ role: string; content: string }>
+  temperature?: number
+  maxTokens?: number
+  onToken?: (token: string) => void
+  onError?: (err: Error) => void
+  onComplete?: () => void
+  signal?: AbortSignal
 }
 
 /**
@@ -73,26 +107,31 @@ export function isTemperatureSupported(
 
 export const DAEMON_PROXY_URL = "http://127.0.0.1:19840/api/fetch-models"
 
-export const DEFAULT_PROVIDER_URLS: Record<ModelProviderId, string> = {
+export const DEFAULT_PROVIDER_URLS: Record<string, string> = {
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com/v1",
   ollama: "http://localhost:11434",
   openrouter: "https://openrouter.ai/api/v1",
   custom: "http://localhost:8000/v1",
+  nvidia: "https://integrate.api.nvidia.com/v1",
+  groq: "https://api.groq.com/openai/v1",
+  deepseek: "https://api.deepseek.com",
+  together: "https://api.together.xyz/v1",
 }
 
-export const PROVIDER_METADATA: Record<
-  ModelProviderId,
-  {
-    name: string
-    tagline: string
-    requiresApiKey: boolean
-    requiresBaseUrl: boolean
-    defaultBaseUrl: string
-    keyPlaceholder: string
-    urlPlaceholder: string
-  }
-> = {
+export interface ProviderMetadataItem {
+  name: string
+  tagline: string
+  requiresApiKey: boolean
+  requiresBaseUrl: boolean
+  defaultBaseUrl: string
+  keyPlaceholder: string
+  urlPlaceholder: string
+  docsUrl?: string
+  apiKeyUrl?: string
+}
+
+export const PROVIDER_METADATA: Record<string, ProviderMetadataItem> = {
   openai: {
     name: "OpenAI-Compatible",
     tagline: "OpenAI, NVIDIA NIM, vLLM, Ollama, OpenRouter, Groq",
@@ -101,6 +140,8 @@ export const PROVIDER_METADATA: Record<
     defaultBaseUrl: "https://api.openai.com/v1",
     keyPlaceholder: "sk-... or API Key",
     urlPlaceholder: "https://api.openai.com/v1, https://integrate.api.nvidia.com/v1, or http://localhost:11434/v1",
+    docsUrl: "https://platform.openai.com/docs",
+    apiKeyUrl: "https://platform.openai.com/api-keys",
   },
   anthropic: {
     name: "Anthropic-Compatible",
@@ -110,6 +151,8 @@ export const PROVIDER_METADATA: Record<
     defaultBaseUrl: "https://api.anthropic.com/v1",
     keyPlaceholder: "sk-ant-api03-...",
     urlPlaceholder: "https://api.anthropic.com/v1",
+    docsUrl: "https://docs.anthropic.com",
+    apiKeyUrl: "https://console.anthropic.com/settings/keys",
   },
   ollama: {
     name: "Ollama / Local Runtime",
@@ -119,6 +162,7 @@ export const PROVIDER_METADATA: Record<
     defaultBaseUrl: "http://localhost:11434",
     keyPlaceholder: "Optional API Key",
     urlPlaceholder: "http://localhost:11434/v1 or http://localhost:11434",
+    docsUrl: "https://ollama.com",
   },
   openrouter: {
     name: "OpenRouter",
@@ -128,6 +172,8 @@ export const PROVIDER_METADATA: Record<
     defaultBaseUrl: "https://openrouter.ai/api/v1",
     keyPlaceholder: "sk-or-v1-...",
     urlPlaceholder: "https://openrouter.ai/api/v1",
+    docsUrl: "https://openrouter.ai/docs",
+    apiKeyUrl: "https://openrouter.ai/keys",
   },
   custom: {
     name: "Custom Compatible",
@@ -141,9 +187,44 @@ export const PROVIDER_METADATA: Record<
 }
 
 /**
+ * Resolves metadata for any provider ID, falling back to the 64-provider catalog.
+ */
+export function getProviderMetadata(providerId: string): ProviderMetadataItem {
+  const lower = (providerId || "openai").toLowerCase().trim()
+  if (PROVIDER_METADATA[lower]) {
+    return PROVIDER_METADATA[lower]
+  }
+
+  const catalogItem = findCatalogProvider(lower)
+  if (catalogItem) {
+    return {
+      name: catalogItem.name,
+      tagline: `${catalogItem.name} endpoint (${catalogItem.protocol})`,
+      requiresApiKey: !catalogItem.isLocal && !catalogItem.id.includes("ollama"),
+      requiresBaseUrl: true,
+      defaultBaseUrl: catalogItem.apiUrl,
+      keyPlaceholder: catalogItem.isLocal ? "Optional API Key" : "API Key / Bearer Token",
+      urlPlaceholder: catalogItem.apiUrl,
+      docsUrl: catalogItem.docs,
+      apiKeyUrl: catalogItem.apiKeyUrl,
+    }
+  }
+
+  return {
+    name: providerId,
+    tagline: "Custom Model Provider",
+    requiresApiKey: false,
+    requiresBaseUrl: true,
+    defaultBaseUrl: "http://localhost:8000/v1",
+    keyPlaceholder: "Optional Bearer Token",
+    urlPlaceholder: "http://localhost:8000/v1",
+  }
+}
+
+/**
  * Executes dynamic model discovery against the provider's standard endpoint,
  * validating credentials and returning detailed error diagnostics on failure.
- * When useProxy is enabled, queries the backend daemon to bypass renderer CORS restrictions.
+ * When in Tauri desktop mode, queries the backend daemon to bypass renderer CORS restrictions.
  */
 export async function testAndFetchModels(
   options: ModelDiscoveryOptions
@@ -151,9 +232,12 @@ export async function testAndFetchModels(
   const provider = options.provider as ModelProviderId
   const apiKey = (options.apiKey || "").trim()
   const rawBaseUrl = sanitizeBaseUrl(options.baseUrl || "")
+  const lowerProvider = String(provider || "openai").toLowerCase().trim()
+  const catalogItem = findCatalogProvider(lowerProvider)
+  const isAnthropic = catalogItem ? catalogItem.protocol === "anthropic" : lowerProvider.includes("anthropic")
 
   // 1. Validate required inputs
-  if (provider === "openai" && !apiKey && (!rawBaseUrl || rawBaseUrl.includes("api.openai.com"))) {
+  if (lowerProvider === "openai" && !apiKey && (!rawBaseUrl || rawBaseUrl.includes("api.openai.com"))) {
     return {
       success: false,
       provider,
@@ -162,7 +246,7 @@ export async function testAndFetchModels(
     }
   }
 
-  if (provider === "anthropic" && !apiKey) {
+  if (isAnthropic && !apiKey && !catalogItem?.isLocal) {
     return {
       success: false,
       provider,
@@ -171,7 +255,7 @@ export async function testAndFetchModels(
     }
   }
 
-  if (provider === "openrouter" && !apiKey) {
+  if (lowerProvider === "openrouter" && !apiKey) {
     return {
       success: false,
       provider,
@@ -180,18 +264,21 @@ export async function testAndFetchModels(
     }
   }
 
-  if ((provider === "ollama" || provider === "custom") && !rawBaseUrl) {
+  if ((lowerProvider === "ollama" || lowerProvider === "custom") && !rawBaseUrl) {
     return {
       success: false,
       provider,
       models: [],
-      error: `Please provide a valid Base URL for ${PROVIDER_METADATA[provider]?.name || provider}.`,
+      error: `Please provide a valid Base URL for ${getProviderMetadata(lowerProvider).name}.`,
     }
   }
 
-  // 2. If proxy requested, dispatch to backend daemon to bypass renderer CORS
-  if (options.useProxy) {
-    try {
+  const inTauri = typeof window !== "undefined" && isTauri()
+  const shouldProxy = options.useProxy ?? inTauri
+
+  // 2. If proxy requested or running in Tauri desktop, dispatch to backend daemon to bypass renderer CORS
+  if (shouldProxy) {
+    const callProxy = async (): Promise<ModelDiscoveryResult> => {
       const proxyRes = await fetch(DAEMON_PROXY_URL, {
         method: "POST",
         headers: {
@@ -206,25 +293,56 @@ export async function testAndFetchModels(
       })
 
       if (proxyRes.ok) {
-        const parsed = (await proxyRes.json()) as ModelDiscoveryResult
-        return parsed
+        return (await proxyRes.json()) as ModelDiscoveryResult
       } else {
         const errJson = await proxyRes.json().catch(() => null)
-        if (errJson && errJson.error) {
+        return {
+          success: false,
+          provider,
+          models: [],
+          error: errJson?.error || `Daemon returned HTTP ${proxyRes.status}`,
+        }
+      }
+    }
+
+    try {
+      return await callProxy()
+    } catch {
+      // In Tauri desktop mode, if daemon is not answering, auto-spawn and retry once
+      if (inTauri) {
+        try {
+          await invoke("spawn_daemon")
+          await new Promise((resolve) => setTimeout(resolve, 600))
+          return await callProxy()
+        } catch {
           return {
             success: false,
             provider,
             models: [],
-            error: errJson.error,
+            error: "Krypton background daemon is starting up or unreachable at 127.0.0.1:19840. Please wait a moment and try again.",
           }
         }
       }
-    } catch {
-      // If daemon is not yet running (e.g. offline unit test), fall back to direct fetch
+
+      // If proxy was explicitly requested, never fall through to direct remote fetch to avoid browser CORS errors
+      if (options.useProxy) {
+        return {
+          success: false,
+          provider,
+          models: [],
+          error: "Krypton background daemon is unreachable at 127.0.0.1:19840. Remote operations must execute via native backend daemon to prevent browser CORS restrictions.",
+        }
+      }
+      // If not in Tauri and proxy was not explicitly requested (e.g. offline unit test mocking globalThis.fetch), fall through to mockable direct fetch
     }
   }
 
-  const effectiveBaseUrl = (rawBaseUrl || DEFAULT_PROVIDER_URLS[provider] || "https://api.openai.com/v1").replace(/\/+$/, "")
+  const effectiveBaseUrl = (
+    rawBaseUrl ||
+    catalogItem?.apiUrl ||
+    DEFAULT_PROVIDER_URLS[lowerProvider] ||
+    "https://api.openai.com/v1"
+  ).replace(/\/+$/, "")
 
   // 3. Build target request configuration
   let targetUrl = ""
@@ -232,14 +350,7 @@ export async function testAndFetchModels(
     Accept: "application/json",
   }
 
-  if (provider === "openai") {
-    targetUrl = effectiveBaseUrl.endsWith("/models")
-      ? effectiveBaseUrl
-      : `${effectiveBaseUrl}/models`
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`
-    }
-  } else if (provider === "anthropic") {
+  if (isAnthropic) {
     targetUrl = effectiveBaseUrl.endsWith("/models")
       ? effectiveBaseUrl
       : `${effectiveBaseUrl}/models`
@@ -248,23 +359,20 @@ export async function testAndFetchModels(
     }
     headers["anthropic-version"] = "2023-06-01"
     headers["anthropic-dangerous-direct-browser-access"] = "true"
-  } else if (provider === "openrouter") {
-    targetUrl = effectiveBaseUrl.endsWith("/v1")
-      ? `${effectiveBaseUrl}/models`
-      : `${effectiveBaseUrl}/v1/models`
-    headers["Authorization"] = `Bearer ${apiKey}`
-    headers["HTTP-Referer"] = "https://krypton.local"
-    headers["X-Title"] = "Krypton Desktop"
-  } else if (provider === "ollama") {
+  } else if (lowerProvider === "openrouter") {
     targetUrl = effectiveBaseUrl.endsWith("/v1")
       ? `${effectiveBaseUrl}/models`
       : `${effectiveBaseUrl}/v1/models`
     if (apiKey) {
       headers["Authorization"] = `Bearer ${apiKey}`
     }
+    headers["HTTP-Referer"] = "https://krypton.local"
+    headers["X-Title"] = "Krypton Desktop"
   } else {
-    // Custom OpenAI-compatible
-    targetUrl = effectiveBaseUrl.endsWith("/v1")
+    // OpenAI-compatible and custom endpoints
+    targetUrl = effectiveBaseUrl.endsWith("/models")
+      ? effectiveBaseUrl
+      : effectiveBaseUrl.endsWith("/v1")
       ? `${effectiveBaseUrl}/models`
       : `${effectiveBaseUrl}/v1/models`
     if (apiKey) {
@@ -284,7 +392,7 @@ export async function testAndFetchModels(
     })
 
     // If Ollama /v1/models returns 404, fallback to /api/tags
-    if (!res.ok && res.status === 404 && provider === "ollama") {
+    if (!res.ok && res.status === 404 && lowerProvider === "ollama") {
       const fallbackUrl = `${effectiveBaseUrl}/api/tags`
       try {
         const fallbackRes = await fetch(fallbackUrl, {
@@ -315,12 +423,14 @@ export async function testAndFetchModels(
         errorDetail = await res.text().catch(() => "")
       }
 
+      const provName = getProviderMetadata(lowerProvider).name
+
       if (status === 401) {
         return {
           success: false,
           provider,
           models: [],
-          error: `Authentication failed (401): The provided API key was rejected by ${PROVIDER_METADATA[provider].name}. ${errorDetail}`.trim(),
+          error: `Authentication failed (401): The provided API key was rejected by ${provName}. ${errorDetail}`.trim(),
         }
       }
 
@@ -404,7 +514,7 @@ export async function testAndFetchModels(
     }
 
     if (parsedModels.length === 0) {
-      if (provider === "ollama") {
+      if (lowerProvider === "ollama") {
         return {
           success: false,
           provider,
@@ -417,11 +527,11 @@ export async function testAndFetchModels(
         success: false,
         provider,
         models: [],
-        error: `Connected to ${PROVIDER_METADATA[provider].name}, but no models were returned by the endpoint.`,
+        error: `Connected to ${getProviderMetadata(lowerProvider).name}, but no models were returned by the endpoint.`,
       }
     }
 
-    // Sort models cleanly: popular/chat models prioritized, then alphabetical
+    // Sort models cleanly: alphabetical
     parsedModels.sort((a, b) => a.id.localeCompare(b.id))
 
     return {
@@ -448,7 +558,7 @@ export async function testAndFetchModels(
       errMsg.includes("ECONNREFUSED") ||
       errMsg.includes("NetworkError")
     ) {
-      if (provider === "ollama") {
+      if (lowerProvider === "ollama") {
         return {
           success: false,
           provider,
@@ -469,8 +579,111 @@ export async function testAndFetchModels(
       success: false,
       provider,
       models: [],
-      error: `Failed to fetch models from ${PROVIDER_METADATA[provider].name}: ${errMsg}`,
+      error: `Failed to fetch models from ${getProviderMetadata(lowerProvider).name}: ${errMsg}`,
     }
+  }
+}
+
+/**
+ * Saves provider configuration securely across Tauri backend, daemon proxy, and local fallback.
+ */
+export async function saveProviderConfig(config: SaveProviderConfigInput): Promise<boolean> {
+  const inTauri = typeof window !== "undefined" && isTauri()
+
+  if (inTauri) {
+    try {
+      await invoke("save_setup_configuration", {
+        payload: {
+          agentName: "Orchestrator",
+          provider: config.provider,
+          primaryModel: config.model,
+          apiKeys: {
+            provider: config.provider,
+            baseUrl: config.baseUrl,
+            apiKey: config.apiKey,
+            customEndpoint: config.baseUrl,
+            customModel: config.model,
+          },
+        },
+      })
+      return true
+    } catch (err) {
+      console.warn("Could not save provider config via Tauri invoke, trying daemon:", err)
+    }
+  }
+
+  try {
+    const res = await fetch("http://127.0.0.1:19840/api/save-provider-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config),
+    })
+    if (res.ok) return true
+  } catch {
+    // Daemon offline
+  }
+
+  if (typeof window !== "undefined" && window.localStorage) {
+    window.localStorage.setItem("krypton_provider_config", JSON.stringify(config))
+  }
+
+  return true
+}
+
+/**
+ * Executes a streaming inference request proxied via the native backend daemon.
+ */
+export async function executeInferenceStream(
+  options: InferenceStreamOptions
+): Promise<void> {
+  const { model, messages, temperature, maxTokens, onToken, onError, onComplete, signal } = options
+  try {
+    const res = await fetch("http://127.0.0.1:19840/api/execute-inference-stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature, maxTokens }),
+      signal,
+    })
+
+    if (!res.ok) {
+      throw new Error(`Inference stream request failed with status ${res.status}`)
+    }
+
+    const reader = res.body?.getReader()
+    if (!reader) {
+      throw new Error("No readable stream received from daemon")
+    }
+
+    const decoder = new TextDecoder()
+    let buffer = ""
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split("\n")
+      buffer = lines.pop() || ""
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed.startsWith("data: ")) {
+          const raw = trimmed.slice(6)
+          if (raw === "[DONE]") {
+            onComplete?.()
+            return
+          }
+          try {
+            const parsed = JSON.parse(raw)
+            const token = parsed.token || parsed.delta?.content || ""
+            if (token) onToken?.(token)
+          } catch {
+            if (raw) onToken?.(raw)
+          }
+        }
+      }
+    }
+    onComplete?.()
+  } catch (err: any) {
+    onError?.(err instanceof Error ? err : new Error(String(err)))
   }
 }
 

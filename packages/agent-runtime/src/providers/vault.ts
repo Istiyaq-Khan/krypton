@@ -173,6 +173,38 @@ export class SecretVault {
   }
 
   /**
+   * Resolves a ModelCredential variant (plain_text, env_var, or vault).
+   */
+  public async resolveCredential(
+    credential?: { type: "plain_text" | "env_var" | "vault"; token?: string; envVar?: string; keyId?: string } | string | null
+  ): Promise<string | null> {
+    if (!credential) return null;
+    if (typeof credential === "string") {
+      const trimmed = credential.trim();
+      if (trimmed.startsWith("env:") || trimmed.startsWith("$")) {
+        const varName = trimmed.replace(/^(env:|\$)/, "").trim();
+        return process.env[varName] ?? null;
+      }
+      if (trimmed.startsWith("vault:")) {
+        const keyId = trimmed.replace(/^vault:/, "").trim();
+        return this.getSecret(keyId);
+      }
+      return trimmed;
+    }
+
+    if (credential.type === "plain_text" && credential.token) {
+      return credential.token;
+    }
+    if (credential.type === "env_var" && credential.envVar) {
+      return process.env[credential.envVar] ?? null;
+    }
+    if (credential.type === "vault" && credential.keyId) {
+      return this.getSecret(credential.keyId);
+    }
+    return null;
+  }
+
+  /**
    * Deletes a secret by key.
    */
   public async deleteSecret(key: string): Promise<boolean> {

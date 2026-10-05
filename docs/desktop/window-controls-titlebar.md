@@ -61,6 +61,7 @@ Window lifecycle operations are handled by Rust Tauri commands defined in `apps/
 
 | Action | Rust IPC Command | Description |
 | :--- | :--- | :--- |
+| **Start Dragging** | `window_start_dragging` | Starts native OS window dragging on mouse-down. |
 | **Minimize** | `window_minimize` | Minimizes the active window to the taskbar/dock. |
 | **Toggle Maximize** | `window_toggle_maximize` | Toggles between maximized screen and restored geometry, returning next state. |
 | **Close** | `window_close` | Initiates graceful application teardown. |
@@ -132,4 +133,22 @@ The middle segment breadcrumb (`<projectName> / <threadTitle>`) serves as a clic
 - **Click-to-Activate**: Clicking any workspace from the popover invokes `onSelectProject(proj.id)` and immediately closes the popover.
 - **Dismissal Controls**: Closes gracefully upon outside mouse clicks, selecting a project, opening another header menu, or pressing the `Escape` key.
 - **Drag Isolation**: Nested within an explicit `data-tauri-drag-region="false"` container with CSS `app-region-no-drag` and `pointer-events-auto`, ensuring clicks and scrolls inside the popover are never captured by window drag handlers.
+
+---
+
+## 6. First-Run Setup Wizard Window Drag Region & Mandatory Protocol
+
+During first-run onboarding (`isFirstRun: true`), Krypton renders `FirstRunSetupWizard.tsx` as the full-viewport root view:
+
+1. **Integrated Top Window Header**:
+   - Includes a dedicated top bar marked with `data-tauri-drag-region`, `-webkit-app-region: drag`, and `app-region-drag`.
+   - On left mouse click, dispatches `window_start_dragging` via Tauri IPC to initiate instant native OS window movement across multi-monitor displays.
+   - Allows users to freely drag and relocate the frameless window across any display or monitor on their desktop.
+   - Double-clicking the draggable header toggles window maximization via `window_toggle_maximize`.
+2. **Window Action Controls**:
+   - Provides native **Minimize** (`window_minimize`) and **Maximize / Restore** (`window_toggle_maximize`) buttons.
+   - **Strict Non-Dismissible Constraint**: Omit any **Close** (`X`) or **Cancel** button on the setup header to ensure first-run onboarding is mandatory and completed before workstation entry.
+3. **Control Isolation**:
+   - All interactive buttons on the setup header and form inputs within the card use `data-tauri-drag-region="false"` and `style={{ WebkitAppRegion: "no-drag" }}` to prevent pointer event swallowing.
+
 

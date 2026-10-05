@@ -30,3 +30,10 @@ pub fn window_close(window: WebviewWindow) -> Result<(), String> {
 pub fn window_is_maximized(window: WebviewWindow) -> Result<bool, String> {
     window.is_maximized().map_err(|e| e.to_string())
 }
+
+/// Starts dragging the window via native OS window drag.
+#[tauri::command]
+pub fn window_start_dragging(window: WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+

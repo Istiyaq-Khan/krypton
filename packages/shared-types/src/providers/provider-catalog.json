@@ -1,0 +1,614 @@
+[
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "protocol": "openai",
+    "api_url": "https://api.openai.com/v1",
+    "api_key_url": "https://platform.openai.com/api-keys",
+    "docs": "https://platform.openai.com/docs",
+    "is_local": false
+  },
+  {
+    "id": "anthropic",
+    "name": "Anthropic",
+    "protocol": "anthropic",
+    "api_url": "https://api.anthropic.com/v1",
+    "api_key_url": "https://console.anthropic.com/settings/keys",
+    "docs": "https://docs.anthropic.com",
+    "is_local": false
+  },
+  {
+    "id": "google",
+    "name": "Google (Gemini)",
+    "protocol": "openai",
+    "api_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "api_key_url": "https://aistudio.google.com/app/apikey",
+    "docs": "https://ai.google.dev/gemini-api/docs",
+    "is_local": false
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "protocol": "openai",
+    "api_url": "https://api.deepseek.com/v1",
+    "api_key_url": "https://platform.deepseek.com/api_keys",
+    "docs": "https://api-docs.deepseek.com",
+    "is_local": false
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "protocol": "openai",
+    "api_url": "https://api.groq.com/openai/v1",
+    "api_key_url": "https://console.groq.com/keys",
+    "docs": "https://console.groq.com/docs",
+    "is_local": false
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral",
+    "protocol": "openai",
+    "api_url": "https://api.mistral.ai/v1",
+    "api_key_url": "https://console.mistral.ai/api-keys",
+    "docs": "https://docs.mistral.ai",
+    "is_local": false
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "protocol": "openai",
+    "api_url": "https://api.together.xyz/v1",
+    "api_key_url": "https://api.together.ai/settings/api-keys",
+    "docs": "https://docs.together.ai",
+    "is_local": false
+  },
+  {
+    "id": "fireworks",
+    "name": "Fireworks",
+    "protocol": "openai",
+    "api_url": "https://api.fireworks.ai/inference/v1",
+    "api_key_url": "https://fireworks.ai/account/api-keys",
+    "docs": "https://docs.fireworks.ai",
+    "is_local": false
+  },
+  {
+    "id": "perplexity",
+    "name": "Perplexity",
+    "protocol": "openai",
+    "api_url": "https://api.perplexity.ai",
+    "api_key_url": "https://www.perplexity.ai/settings/api",
+    "docs": "https://docs.perplexity.ai",
+    "is_local": false
+  },
+  {
+    "id": "xai",
+    "name": "xAI",
+    "protocol": "openai",
+    "api_url": "https://api.x.ai/v1",
+    "api_key_url": "https://console.x.ai",
+    "docs": "https://docs.x.ai",
+    "is_local": false
+  },
+  {
+    "id": "cohere",
+    "name": "Cohere",
+    "protocol": "openai",
+    "api_url": "https://api.cohere.com/v2",
+    "api_key_url": "https://dashboard.cohere.com/api-keys",
+    "docs": "https://docs.cohere.com",
+    "is_local": false
+  },
+  {
+    "id": "cerebras",
+    "name": "Cerebras",
+    "protocol": "openai",
+    "api_url": "https://api.cerebras.ai/v1",
+    "api_key_url": "https://cloud.cerebras.ai/platform",
+    "docs": "https://inference-docs.cerebras.ai",
+    "is_local": false
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "protocol": "openai",
+    "api_url": "https://openrouter.ai/api/v1",
+    "api_key_url": "https://openrouter.ai/keys",
+    "docs": "https://openrouter.ai/docs",
+    "is_local": false
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA",
+    "protocol": "openai",
+    "api_url": "https://integrate.api.nvidia.com/v1",
+    "api_key_url": "https://build.nvidia.com",
+    "docs": "https://docs.api.nvidia.com",
+    "is_local": false
+  },
+  {
+    "id": "deepinfra",
+    "name": "DeepInfra",
+    "protocol": "openai",
+    "api_url": "https://api.deepinfra.com/v1/openai",
+    "api_key_url": "https://deepinfra.com/dash/api_keys",
+    "docs": "https://deepinfra.com/docs",
+    "is_local": false
+  },
+  {
+    "id": "novita",
+    "name": "NovitaAI",
+    "protocol": "openai",
+    "api_url": "https://api.novita.ai/v3/openai",
+    "api_key_url": "https://novita.ai/dashboard/key",
+    "docs": "https://novita.ai/docs",
+    "is_local": false
+  },
+  {
+    "id": "baseten",
+    "name": "Baseten",
+    "protocol": "openai",
+    "api_url": "https://model-<model-id>.api.baseten.co/production/predict",
+    "api_key_url": "https://app.baseten.co/settings/api_keys",
+    "docs": "https://docs.baseten.co",
+    "is_local": false
+  },
+  {
+    "id": "chutes",
+    "name": "Chutes",
+    "protocol": "openai",
+    "api_url": "https://api.chutes.ai/v1",
+    "api_key_url": "https://chutes.ai/app/keys",
+    "docs": "https://chutes.ai/docs",
+    "is_local": false
+  },
+  {
+    "id": "featherless",
+    "name": "Featherless AI",
+    "protocol": "openai",
+    "api_url": "https://api.featherless.ai/v1",
+    "api_key_url": "https://featherless.ai/dashboard",
+    "docs": "https://featherless.ai/docs",
+    "is_local": false
+  },
+  {
+    "id": "arcee",
+    "name": "Arcee AI",
+    "protocol": "openai",
+    "api_url": "https://api.arcee.ai/v2",
+    "api_key_url": "https://app.arcee.ai/api-keys",
+    "docs": "https://docs.arcee.ai",
+    "is_local": false
+  },
+  {
+    "id": "alibaba",
+    "name": "Alibaba Model Studio",
+    "protocol": "openai",
+    "api_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "api_key_url": "https://bailian.console.alibabacloud.com",
+    "docs": "https://www.alibabacloud.com/help/en/model-studio",
+    "is_local": false
+  },
+  {
+    "id": "qwen",
+    "name": "Qwen",
+    "protocol": "openai",
+    "api_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "api_key_url": "https://dashscope.console.aliyun.com/apiKey",
+    "docs": "https://help.aliyun.com/document_detail/2712195.html",
+    "is_local": false
+  },
+  {
+    "id": "moonshot",
+    "name": "Moonshot AI",
+    "protocol": "openai",
+    "api_url": "https://api.moonshot.cn/v1",
+    "api_key_url": "https://platform.moonshot.cn/console/api-keys",
+    "docs": "https://platform.moonshot.cn/docs",
+    "is_local": false
+  },
+  {
+    "id": "minimax",
+    "name": "MiniMax",
+    "protocol": "openai",
+    "api_url": "https://api.minimax.chat/v1",
+    "api_key_url": "https://platform.minimaxi.com/user-center/basic-information/interface-key",
+    "docs": "https://platform.minimaxi.com/document/guides",
+    "is_local": false
+  },
+  {
+    "id": "stepfun",
+    "name": "StepFun",
+    "protocol": "openai",
+    "api_url": "https://api.stepfun.com/v1",
+    "api_key_url": "https://platform.stepfun.com/interface-key",
+    "docs": "https://platform.stepfun.com/docs",
+    "is_local": false
+  },
+  {
+    "id": "qianfan",
+    "name": "Qianfan",
+    "protocol": "openai",
+    "api_url": "https://qianfan.baidubce.com/v2",
+    "api_key_url": "https://console.bce.baidu.com/qianfan/ais/console/onlineService",
+    "docs": "https://cloud.baidu.com/doc/WENXINWORKSHOP/index.html",
+    "is_local": false
+  },
+  {
+    "id": "volcengine",
+    "name": "Volcengine (Doubao)",
+    "protocol": "openai",
+    "api_url": "https://ark.cn-beijing.volces.com/api/v3",
+    "api_key_url": "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey",
+    "docs": "https://www.volcengine.com/docs/82379",
+    "is_local": false
+  },
+  {
+    "id": "tencent",
+    "name": "Tencent Cloud (TokenHub / TokenPlan)",
+    "protocol": "openai",
+    "api_url": "https://api.hunyuan.cloud.tencent.com/v1",
+    "api_key_url": "https://console.cloud.tencent.com/cam/capi",
+    "docs": "https://cloud.tencent.com/document/product/1729",
+    "is_local": false
+  },
+  {
+    "id": "zai",
+    "name": "Z.AI",
+    "protocol": "openai",
+    "api_url": "https://open.bigmodel.cn/api/paas/v4",
+    "api_key_url": "https://open.bigmodel.cn/usercenter/apikeys",
+    "docs": "https://open.bigmodel.cn/dev/api",
+    "is_local": false
+  },
+  {
+    "id": "xiaomi",
+    "name": "Xiaomi MiMo",
+    "protocol": "openai",
+    "api_url": "https://api.mimo.xiaomi.com/v1",
+    "api_key_url": "https://platform.mimo.xiaomi.com",
+    "docs": "https://platform.mimo.xiaomi.com/docs",
+    "is_local": false
+  },
+  {
+    "id": "bedrock",
+    "name": "Amazon Bedrock",
+    "protocol": "openai",
+    "api_url": "https://bedrock-runtime.{region}.amazonaws.com",
+    "api_key_url": "https://console.aws.amazon.com/iam",
+    "docs": "https://docs.aws.amazon.com/bedrock/latest/userguide",
+    "is_local": false
+  },
+  {
+    "id": "bedrock-mantle",
+    "name": "Amazon Bedrock Mantle",
+    "protocol": "openai",
+    "api_url": "https://bedrock-mantle.{region}.amazonaws.com/v1",
+    "api_key_url": "https://console.aws.amazon.com/iam",
+    "docs": "https://docs.aws.amazon.com/bedrock",
+    "is_local": false
+  },
+  {
+    "id": "anthropic-vertex",
+    "name": "Anthropic Vertex",
+    "protocol": "anthropic",
+    "api_url": "https://{region}-aiplatform.googleapis.com/v1/projects/{project}/locations/{region}/publishers/anthropic/models",
+    "api_key_url": "https://console.cloud.google.com/apis/credentials",
+    "docs": "https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude",
+    "is_local": false
+  },
+  {
+    "id": "huggingface",
+    "name": "Hugging Face (inference)",
+    "protocol": "openai",
+    "api_url": "https://api-inference.huggingface.co/models",
+    "api_key_url": "https://huggingface.co/settings/tokens",
+    "docs": "https://huggingface.co/docs/api-inference",
+    "is_local": false
+  },
+  {
+    "id": "venice",
+    "name": "Venice AI",
+    "protocol": "openai",
+    "api_url": "https://api.venice.ai/api/v1",
+    "api_key_url": "https://venice.ai/settings/api",
+    "docs": "https://docs.venice.ai",
+    "is_local": false
+  },
+  {
+    "id": "telnyx",
+    "name": "Telnyx",
+    "protocol": "openai",
+    "api_url": "https://api.telnyx.com/v2/ai",
+    "api_key_url": "https://portal.telnyx.com/#/app/api-keys",
+    "docs": "https://developers.telnyx.com/docs/inference",
+    "is_local": false
+  },
+  {
+    "id": "gmicloud",
+    "name": "GMI Cloud",
+    "protocol": "openai",
+    "api_url": "https://api.gmicloud.ai/v1",
+    "api_key_url": "https://console.gmicloud.ai",
+    "docs": "https://docs.gmicloud.ai",
+    "is_local": false
+  },
+  {
+    "id": "longcat",
+    "name": "LongCat",
+    "protocol": "openai",
+    "api_url": "https://api.longcat.chat/v1",
+    "api_key_url": "https://longcat.chat/developer",
+    "docs": "https://longcat.chat/docs",
+    "is_local": false
+  },
+  {
+    "id": "ollama-cloud",
+    "name": "Ollama Cloud",
+    "protocol": "openai",
+    "api_url": "https://cloud.ollama.ai/v1",
+    "api_key_url": "https://cloud.ollama.ai/settings/keys",
+    "docs": "https://docs.ollama.ai",
+    "is_local": false
+  },
+  {
+    "id": "github-copilot",
+    "name": "GitHub Copilot",
+    "protocol": "openai",
+    "api_url": "https://api.githubcopilot.com",
+    "api_key_url": "https://github.com/settings/tokens",
+    "docs": "https://docs.github.com/en/copilot",
+    "is_local": false
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "protocol": "openai",
+    "api_url": "https://api.opencode.ai/v1",
+    "api_key_url": "https://opencode.ai/settings",
+    "docs": "https://docs.opencode.ai",
+    "is_local": false
+  },
+  {
+    "id": "opencode-go",
+    "name": "OpenCode Go",
+    "protocol": "openai",
+    "api_url": "https://go.opencode.ai/v1",
+    "api_key_url": "https://opencode.ai/settings",
+    "docs": "https://docs.opencode.ai",
+    "is_local": false
+  },
+  {
+    "id": "synthetic",
+    "name": "Synthetic",
+    "protocol": "openai",
+    "api_url": "https://api.synthetic.ai/v1",
+    "api_key_url": "https://synthetic.ai/dashboard",
+    "docs": "https://docs.synthetic.ai",
+    "is_local": false
+  },
+  {
+    "id": "radius",
+    "name": "Radius",
+    "protocol": "openai",
+    "api_url": "https://api.radius.ai/v1",
+    "api_key_url": "https://radius.ai/developer",
+    "docs": "https://docs.radius.ai",
+    "is_local": false
+  },
+  {
+    "id": "cloudflare",
+    "name": "Cloudflare AI gateway",
+    "protocol": "openai",
+    "api_url": "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}",
+    "api_key_url": "https://dash.cloudflare.com",
+    "docs": "https://developers.cloudflare.com/ai-gateway/",
+    "is_local": false
+  },
+  {
+    "id": "kilogateway",
+    "name": "Kilo Gateway",
+    "protocol": "openai",
+    "api_url": "https://api.kilogateway.com/v1",
+    "api_key_url": "https://kilogateway.com/dashboard",
+    "docs": "https://docs.kilogateway.com",
+    "is_local": false
+  },
+  {
+    "id": "litellm",
+    "name": "LiteLLM",
+    "protocol": "openai",
+    "api_url": "http://localhost:4000/v1",
+    "api_key_url": "http://localhost:4000",
+    "docs": "https://docs.litellm.ai",
+    "is_local": true
+  },
+  {
+    "id": "vercel",
+    "name": "Vercel AI gateway",
+    "protocol": "openai",
+    "api_url": "https://gateway.ai.vercel.store/v1",
+    "api_key_url": "https://vercel.com/dashboard",
+    "docs": "https://vercel.com/docs/ai",
+    "is_local": false
+  },
+  {
+    "id": "clawrouter",
+    "name": "ClawRouter",
+    "protocol": "openai",
+    "api_url": "https://router.openclaw.ai/v1",
+    "api_key_url": "https://openclaw.ai/settings/keys",
+    "docs": "https://docs.openclaw.ai/gateway",
+    "is_local": false
+  },
+  {
+    "id": "claude-max-proxy",
+    "name": "Claude Max API proxy",
+    "protocol": "anthropic",
+    "api_url": "http://localhost:8080/v1",
+    "api_key_url": "N/A (Local / Self-configured proxy)",
+    "docs": "https://docs.openclaw.ai/providers",
+    "is_local": true
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama",
+    "protocol": "openai",
+    "api_url": "http://localhost:11434/v1",
+    "api_key_url": "N/A (Local / Self-hosted)",
+    "docs": "https://github.com/ollama/ollama/blob/main/docs/api.md",
+    "is_local": true
+  },
+  {
+    "id": "vllm",
+    "name": "vLLM",
+    "protocol": "openai",
+    "api_url": "http://localhost:8000/v1",
+    "api_key_url": "N/A (Local / Self-hosted)",
+    "docs": "https://docs.vllm.ai/",
+    "is_local": true
+  },
+  {
+    "id": "lmstudio",
+    "name": "LM Studio",
+    "protocol": "openai",
+    "api_url": "http://localhost:1234/v1",
+    "api_key_url": "N/A (Local / Self-hosted)",
+    "docs": "https://lmstudio.ai/docs",
+    "is_local": true
+  },
+  {
+    "id": "sglang",
+    "name": "SGLang",
+    "protocol": "openai",
+    "api_url": "http://localhost:30000/v1",
+    "api_key_url": "N/A (Local / Self-hosted)",
+    "docs": "https://sgl-project.github.io/",
+    "is_local": true
+  },
+  {
+    "id": "ds4llmman",
+    "name": "ds4llmman",
+    "protocol": "openai",
+    "api_url": "http://localhost:8080/v1",
+    "api_key_url": "N/A (Local / Self-hosted)",
+    "docs": "https://docs.openclaw.ai/providers",
+    "is_local": true
+  },
+  {
+    "id": "azure-speech",
+    "name": "Azure Speech",
+    "protocol": "custom",
+    "api_url": "https://{region}.tts.speech.microsoft.com/cognitiveservices/v1",
+    "api_key_url": "https://portal.azure.com",
+    "docs": "https://learn.microsoft.com/en-us/azure/ai-services/speech-service",
+    "is_local": false
+  },
+  {
+    "id": "deepgram",
+    "name": "Deepgram",
+    "protocol": "custom",
+    "api_url": "https://api.deepgram.com/v1",
+    "api_key_url": "https://console.deepgram.com",
+    "docs": "https://developers.deepgram.com",
+    "is_local": false
+  },
+  {
+    "id": "elevenlabs",
+    "name": "ElevenLabs",
+    "protocol": "custom",
+    "api_url": "https://api.elevenlabs.io/v1",
+    "api_key_url": "https://elevenlabs.io/app/settings/api-keys",
+    "docs": "https://elevenlabs.io/docs",
+    "is_local": false
+  },
+  {
+    "id": "fish-audio",
+    "name": "Fish Audio",
+    "protocol": "custom",
+    "api_url": "https://api.fish.audio/v1",
+    "api_key_url": "https://fish.audio/app/api-keys",
+    "docs": "https://docs.fish.audio",
+    "is_local": false
+  },
+  {
+    "id": "gradium",
+    "name": "Gradium",
+    "protocol": "custom",
+    "api_url": "https://api.gradium.ai/v1",
+    "api_key_url": "https://gradium.ai/dashboard",
+    "docs": "https://docs.gradium.ai",
+    "is_local": false
+  },
+  {
+    "id": "inworld",
+    "name": "Inworld",
+    "protocol": "custom",
+    "api_url": "https://api.inworld.ai/v1",
+    "api_key_url": "https://studio.inworld.ai",
+    "docs": "https://docs.inworld.ai",
+    "is_local": false
+  },
+  {
+    "id": "senseaudio",
+    "name": "SenseAudio",
+    "protocol": "custom",
+    "api_url": "https://api.senseaudio.ai/v1",
+    "api_key_url": "https://senseaudio.ai/console",
+    "docs": "https://docs.senseaudio.ai",
+    "is_local": false
+  },
+  {
+    "id": "comfyui",
+    "name": "ComfyUI",
+    "protocol": "custom",
+    "api_url": "http://127.0.0.1:8188",
+    "api_key_url": "N/A (Local / Self-hosted)",
+    "docs": "https://github.com/comfyanonymous/ComfyUI",
+    "is_local": true
+  },
+  {
+    "id": "fal",
+    "name": "Fal",
+    "protocol": "custom",
+    "api_url": "https://fal.run",
+    "api_key_url": "https://fal.ai/dashboard/keys",
+    "docs": "https://fal.ai/docs",
+    "is_local": false
+  },
+  {
+    "id": "kie",
+    "name": "Kie AI",
+    "protocol": "openai",
+    "api_url": "https://api.kie.ai/v1",
+    "api_key_url": "https://kie.ai/dashboard",
+    "docs": "https://docs.kie.ai",
+    "is_local": false
+  },
+  {
+    "id": "pixverse",
+    "name": "PixVerse",
+    "protocol": "custom",
+    "api_url": "https://api.pixverse.ai/v1",
+    "api_key_url": "https://platform.pixverse.ai",
+    "docs": "https://docs.pixverse.ai",
+    "is_local": false
+  },
+  {
+    "id": "runway",
+    "name": "Runway",
+    "protocol": "custom",
+    "api_url": "https://api.runwayml.com/v1",
+    "api_key_url": "https://app.runwayml.com/settings/api-keys",
+    "docs": "https://docs.runwayml.com",
+    "is_local": false
+  },
+  {
+    "id": "vydra",
+    "name": "Vydra",
+    "protocol": "openai",
+    "api_url": "https://api.vydra.ai/v1",
+    "api_key_url": "https://vydra.ai/settings",
+    "docs": "https://docs.vydra.ai",
+    "is_local": false
+  }
+]

@@ -92,6 +92,9 @@ export default function DashboardPage() {
     async function checkHostInitialization() {
       try {
         if (typeof window !== "undefined" && isTauri()) {
+          // Ensure daemon background sidecar is running
+          invoke("spawn_daemon").catch(() => {})
+
           const res = await invoke<{
             isInitialized: boolean
             customAgentName: string

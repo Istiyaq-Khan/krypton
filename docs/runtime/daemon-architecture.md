@@ -50,8 +50,16 @@ The daemon implements standard JSON-RPC 2.0 message dispatching (`handleRpcCall`
 | `resolveClarification`| `{ requestId, selectedOptionIds, freeformText }` | `{ resolved: true, requestId }` | Resolves multi-choice HITL prompt |
 | `getVcsDiff` | `{ worktreeId }` | `DiffSummary` (`files, additions, deletions`) | Returns unified Git worktree diff |
 | `mergeVcs` | `{ worktreeId }` | `{ success: true, commitHash }` | Merges worktree changes into parent branch |
+| `api:testAndFetchModels` | `{ provider, apiKey, baseUrl }` | `ProxyFetchModelsResult` | Server-side model discovery bypassing renderer CORS |
+| `api:saveProviderConfig` | `{ provider, model, baseUrl, apiKey }` | `{ success: true }` | Atomically persists provider configuration & credentials |
+| `api:executeInferenceStream` | `{ model, messages, temperature }` | SSE delta stream | Native token streaming delegating to target LLM protocol |
 
 ---
+
+### HTTP Bridge Routes (`daemon.ts`)
+- `POST /api/fetch-models` & `POST /api/test-and-fetch-models`: Dispatches discovery to `proxyFetchModels(body)`.
+- `POST /api/save-provider-config`: Persists verified provider credentials.
+- `POST /api/execute-inference-stream`: Streams SSE tokens (`data: {"delta":{"content":"..."}}`).
 
 ## 4. WebSocket Streaming Event Types
 

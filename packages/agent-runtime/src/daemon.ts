@@ -19,6 +19,7 @@ import {
   AgentConfigFile,
   Role,
   Message,
+  parseNamespacedModel,
 } from "@krypton/shared-types"
 import { createModelProvider, resolveApiKey } from "./providers/index.js"
 import {
@@ -278,7 +279,12 @@ export class KryptonDaemonServer {
         return
       }
 
-      if ((req.url === "/api/fetch-models" || req.url === "/api/validate-endpoint") && req.method === "POST") {
+      if (
+        (req.url === "/api/fetch-models" ||
+          req.url === "/api/test-and-fetch-models" ||
+          req.url === "/api/validate-endpoint") &&
+        req.method === "POST"
+      ) {
         let body = ""
         req.on("data", (chunk) => (body += chunk))
         req.on("end", async () => {
@@ -290,6 +296,91 @@ export class KryptonDaemonServer {
           } catch (e: any) {
             res.writeHead(500, { "Content-Type": "application/json" })
             res.end(JSON.stringify({ success: false, error: e.message, models: [] }))
+          }
+        })
+        return
+      }
+
+      if (req.url === "/api/save-provider-config" && req.method === "POST") {
+        let body = ""
+        req.on("data", (chunk) => (body += chunk))
+        req.on("end", async () => {
+          try {
+            const payload = JSON.parse(body || "{}")
+            const home = resolveKryptonHome()
+            const providersPath = path.join(home, "providers.json")
+            let providers: Record<string, any> = {}
+            if (fs.existsSync(providersPath)) {
+              try {
+                providers = JSON.parse(fs.readFileSync(providersPath, "utf-8"))
+              } catch {}
+            }
+            const providerId = payload.id || payload.provider
+            if (providerId) {
+              providers[providerId] = {
+                ...payload,
+                updatedAt: Date.now(),
+              }
+              fs.writeFileSync(providersPath, JSON.stringify(providers, null, 2))
+            }
+            res.writeHead(200, { "Content-Type": "application/json" })
+            res.end(JSON.stringify({ success: true, providerId }))
+          } catch (e: any) {
+            res.writeHead(500, { "Content-Type": "application/json" })
+            res.end(JSON.stringify({ success: false, error: e.message }))
+          }
+        })
+        return
+      }
+
+      if (req.url === "/api/execute-inference-stream" && req.method === "POST") {
+        let body = ""
+        req.on("data", (chunk) => (body += chunk))
+        req.on("end", async () => {
+          try {
+            const payload = JSON.parse(body || "{}")
+            const reqModel = payload.model || "openai/gpt-4o"
+            const parsed = parseNamespacedModel(reqModel, payload.provider)
+            const effProvider = (payload.provider || parsed.providerId).toLowerCase().trim()
+            const effModel = parsed.isNamespaced ? parsed.modelId : reqModel
+            const effKey = payload.apiKey || (await resolveApiKey(effProvider))
+
+            const llmProvider = await createModelProvider({
+              provider: effProvider,
+              model: effModel,
+              apiKey: effKey,
+              baseUrl: payload.baseUrl,
+            })
+
+            res.writeHead(200, {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              Connection: "keep-alive",
+            })
+
+            await llmProvider.generate({
+              agentId: payload.agentId || crypto.randomUUID(),
+              taskId: payload.taskId,
+              messages: payload.messages || [],
+              temperature: payload.temperature,
+              maxTokens: payload.maxTokens,
+              onToken: (chunk) => {
+                if (chunk.delta) {
+                  res.write(`data: ${JSON.stringify({ token: chunk.delta, delta: { content: chunk.delta } })}\n\n`)
+                }
+              },
+            })
+
+            res.write("data: [DONE]\n\n")
+            res.end()
+          } catch (e: any) {
+            if (!res.headersSent) {
+              res.writeHead(500, { "Content-Type": "application/json" })
+              res.end(JSON.stringify({ error: e.message }))
+            } else {
+              res.write(`data: ${JSON.stringify({ error: e.message })}\n\n`)
+              res.end()
+            }
           }
         })
         return
@@ -796,9 +887,62 @@ export class KryptonDaemonServer {
 
         case "api:validate-endpoint":
         case "api:fetch-models":
+        case "api:testAndFetchModels":
+        case "testAndFetchModels":
         case "validateEndpoint":
         case "fetchModels": {
           result = await proxyFetchModels(p as any)
+          break
+        }
+
+        case "api:saveProviderConfig":
+        case "saveProviderConfig": {
+          const home = resolveKryptonHome()
+          const providersPath = path.join(home, "providers.json")
+          let providers: Record<string, any> = {}
+          if (fs.existsSync(providersPath)) {
+            try {
+              providers = JSON.parse(fs.readFileSync(providersPath, "utf-8"))
+            } catch {}
+          }
+          const providerId = p.id || p.provider
+          if (providerId) {
+            providers[providerId] = {
+              ...p,
+              updatedAt: Date.now(),
+            }
+            fs.writeFileSync(providersPath, JSON.stringify(providers, null, 2))
+          }
+          result = { success: true, providerId }
+          break
+        }
+
+        case "api:executeInferenceStream":
+        case "executeInferenceStream": {
+          const reqModel = p.model || "openai/gpt-4o"
+          const parsed = parseNamespacedModel(reqModel, p.provider)
+          const effProvider = (p.provider || parsed.providerId).toLowerCase().trim()
+          const effModel = parsed.isNamespaced ? parsed.modelId : reqModel
+          const effKey = p.apiKey || (await resolveApiKey(effProvider))
+
+          const llmProvider = await createModelProvider({
+            provider: effProvider,
+            model: effModel,
+            apiKey: effKey,
+            baseUrl: p.baseUrl,
+          })
+
+          const genResult = await llmProvider.generate({
+            agentId: p.agentId || crypto.randomUUID(),
+            taskId: p.taskId,
+            messages: p.messages || [],
+            temperature: p.temperature,
+            maxTokens: p.maxTokens,
+            onToken: (chunk) => {
+              this.broadcast(chunk)
+            },
+          })
+          result = genResult
           break
         }
 
@@ -1031,12 +1175,16 @@ export class KryptonDaemonServer {
     let streamedTokensCount = 0
     let modelSuccess = false
 
-    const apiKey = await resolveApiKey(provider)
+    const parsedModel = parseNamespacedModel(model, provider)
+    const effectiveProvider = (provider || parsedModel.providerId).toLowerCase().trim()
+    const effectiveModel = parsedModel.isNamespaced ? parsedModel.modelId : model
+
+    const apiKey = await resolveApiKey(effectiveProvider)
     if (apiKey && apiKey.trim().length > 0) {
       try {
         const llmProvider = await createModelProvider({
-          provider,
-          model,
+          provider: effectiveProvider,
+          model: effectiveModel,
           apiKey,
         })
 

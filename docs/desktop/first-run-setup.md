@@ -58,22 +58,22 @@ The onboarding modal guides the user through four essential configuration stages
 | Step | Section | Configured Properties |
 | :--- | :--- | :--- |
 | **1** | **Agent Identity** | Supervisor Name (`Orchestrator`) backed by the File-Driven System Prompt Architecture (`~/.krypton/system.md` & `~/.krypton/agents/root.md`). Eliminates manual role and tone forms in favor of declarative Markdown prompt files and self-updating agent tools. |
-| **2** | **Model & Providers** | Simplified Two-Protocol Selection (OpenAI-Compatible & Anthropic-Compatible), Custom Base URL & API Key Inputs, Backend Daemon Server-Side Discovery Proxy (`/api/fetch-models`), Dynamic Model Discovery & Credential Validation, Primary Reasoning Model Selection, Local Cache Generation. |
+| **2** | **Model & Providers** | Three Core Protocols (OpenAI-Compatible, Anthropic-Compatible, Local/Ollama), 64-Provider Catalog Presets (NVIDIA NIM, Groq, DeepSeek, Together, OpenRouter, Mistral, etc.), Custom Base URL & Credentials, Backend Daemon Server-Side Discovery Proxy (`/api/fetch-models`), Namespaced Model Identification (`<provider_id>/<model_id>`), Primary Reasoning Model Selection, Local Cache Generation. |
 | **3** | **Workspace Path** | Root Project Directory (`%USERPROFILE%\Projects` or `$HOME/projects`), Initial Workspace Name (`krypton-workspace`). |
 | **4** | **Guardrails, Voice & Privacy**| HITL confirmation requirements, AST Safety Linter enforcement, Voice-To-Text (VTT) Engine Selection & Speech Configuration (Whisper Local, Whisper API, NVIDIA Parakeet v3, Custom Endpoint), Telemetry opt-in (disabled by default). |
 
 ---
 
-## 3. Two-Protocol Provider Architecture & Server-Side Discovery Proxy
+## 3. Provider Architecture, 64-Provider Catalog & Server-Side Discovery Proxy
 
-Step 2 implements a streamlined two-provider protocol architecture paired with a backend daemon proxy to eliminate renderer CORS limitations:
+Step 2 implements a decoupled provider architecture with 64 pre-configured presets paired with a backend daemon proxy to eliminate renderer CORS limitations:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ Step 2A: Protocol Selection Cards                           │
-│ [ OpenAI-Compatible ]             [ Anthropic-Compatible ]   │
-│ (OpenAI, NVIDIA NIM, vLLM,        (Claude 3.7 Sonnet, Haiku,│
-│  Ollama, OpenRouter, Groq)         Anthropic gateways)      │
+│ Step 2A: Protocol Cards & 64-Provider Catalog Presets       │
+│ [ OpenAI-Compatible ]   [ Anthropic-Compatible ]  [ Local ] │
+│ (NVIDIA NIM, Groq,       (Claude 3.7 / 3.5 Sonnet, (Ollama, │
+│  OpenAI, DeepSeek, etc.)  Compatible proxies)       LM Studio)
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
@@ -166,4 +166,14 @@ In the main application command bar (`CommandContextBar.tsx`):
 - The model dropdown is populated from the local model cache (`~/.krypton/models_cache.json`).
 - A **Refresh Models** button (`RotateCw`) embedded in the model selector prompts the user for confirmation before dispatching a network query to the active provider endpoint.
 - Upon user confirmation, `refreshModels()` fetches updated models, refreshes `~/.krypton/models_cache.json`, updates in-memory dropdown options, and provides real-time status feedback.
+
+---
+
+## 7. Setup Window Draggability & Mandatory Lifecycle
+
+During the first-run onboarding sequence:
+- **Unrestricted Window Dragging**: The wizard displays an integrated top window header with `data-tauri-drag-region`, `-webkit-app-region: drag`, and an explicit `window_start_dragging` IPC invocation on left mouse down. Users can freely reposition the window across monitors and desktop workspaces.
+- **Strict Non-Dismissibility**: The top header excludes any Close (`X`) or Cancel button. Onboarding is strictly mandatory to ensure host initialization prerequisites are verified before launching the agent runtime.
+- **Event Isolation**: The wizard card container uses `data-tauri-drag-region="false"` and `app-region-no-drag` to guarantee that interactive inputs, catalog search, and buttons operate without drag interference.
+
 

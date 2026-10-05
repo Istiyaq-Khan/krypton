@@ -21,6 +21,11 @@ pub fn run() {
                 log::warn!("Krypton directory bootstrap warning: {}", err);
             }
 
+            // Ensure background daemon sidecar is automatically spawned on startup
+            if let Err(err) = commands::spawn_daemon() {
+                log::warn!("Daemon auto-spawn notice: {}", err);
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -54,6 +59,7 @@ pub fn run() {
             window_toggle_maximize,
             window_close,
             window_is_maximized,
+            window_start_dragging,
             check_setup_status,
             save_setup_configuration,
             get_cached_models,
