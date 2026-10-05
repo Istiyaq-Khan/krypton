@@ -283,8 +283,9 @@ Krypton adheres to the strict **1 OS = 1 Package** distribution rule (`AGENTS.md
 
 ## 8. Verification & Architectural Governance
 
-All changes to Krypton must adhere to the **Four Golden Operational Rules** in [`AGENTS.md`](../../AGENTS.md):
-1. **Pre-Flight Audit & Planning**: Always read docs in `docs/` and formulate an explicit implementation plan before modifying code.
-2. **Execution & Zero-Error Testing**: All modifications must pass `pnpm run typecheck`, `pnpm run test:all`, and `cargo check`.
-3. **CI/CD Synchronization**: GitHub Actions workflows in `.github/workflows/` must mirror local build standards.
-4. **Mandatory Documentation Maintenance (Zero-Drift Policy)**: All architectural updates must be documented immediately in `docs/` and indexed in `docs/INDEX.md`.
+All changes to Krypton must adhere to the **Five Golden Operational Rules** in [`AGENTS.md`](../../AGENTS.md):
+1. **Pre-Flight Audit & Deep Research**: Always inspect codebase sections and read documentation in `docs/` before modifying code.
+2. **Root Implementation Plan (`IMPLEMENTATION_PLAN.md`)**: Immediately author and maintain a dedicated implementation plan file in the project root before executing code modifications.
+3. **Execution & Zero-Error Testing**: All modifications must pass `pnpm run typecheck`, `pnpm run test:all`, and `cargo check`.
+4. **CI/CD Synchronization**: GitHub Actions workflows in `.github/workflows/` must mirror local build standards.
+5. **Mandatory Documentation Maintenance (Zero-Drift Policy)**: All architectural updates must be documented immediately in `docs/` and indexed in `docs/INDEX.md`.

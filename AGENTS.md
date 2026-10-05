@@ -4,15 +4,19 @@ This document establishes the **mandatory operational standard** that every AI a
 
 ---
 
-## 1. The Four Golden Operational Rules
+## 1. The Five Golden Operational Rules
 
-Every AI agent operating in this repository is bound by these four invariant rules:
+Every AI agent operating in this repository is bound by these five invariant rules:
 
-### 🔴 Rule 1: Pre-Flight Audit & Planning
+### 🔴 Rule 1: Pre-Flight Audit & Deep Research
 1. **Never Guess Architecture or Paths**: Before writing or modifying any code, the agent **MUST** inspect the relevant codebase sections and read the matching modular files in `docs/` (consult [`docs/INDEX.md`](docs/INDEX.md) for routing).
-2. **Explicit Implementation Plan**: Before executing edits, the agent **MUST** formulate and state a concise, explicit Implementation Plan outlining proposed file modifications, dependency impacts, and verification methods.
+2. **State & Environment Discovery**: Inspect git status, active worktree context, type contracts, and runtime states to establish precise boundaries before proposing modifications.
 
-### 🔴 Rule 2: Execution, Verification & Zero-Error Testing
+### 🔴 Rule 2: Root Implementation Plan Artifact (`IMPLEMENTATION_PLAN.md`)
+1. **Mandatory Root Plan File**: Immediately following pre-flight research and **BEFORE** executing edits or modifying codebase files, the agent **MUST** author a dedicated, comprehensive implementation plan file named `IMPLEMENTATION_PLAN.md` in the root of the project.
+2. **Living Ledger & Structure**: The plan file must document task objectives, architectural impacts, concrete file modifications with line references, risk mitigations, verification test criteria, and progress checkpoints. The agent must update this root ledger as phases progress to maintain transparent state across iterations.
+
+### 🔴 Rule 3: Execution, Verification & Zero-Error Testing
 1. **Multi-Tier Verification**: After writing or modifying code, the agent **MUST** execute all relevant verification steps:
    - Type-checking across all monorepo packages: `pnpm run typecheck`
    - Automated unit & integration tests: `pnpm run test:all`
@@ -20,11 +24,11 @@ Every AI agent operating in this repository is bound by these four invariant rul
    - Direct CLI / daemon execution commands when touching runtime components.
 2. **Immediate Error Rectification**: If any compilation error, linter violation, or test failure occurs, the agent **MUST** diagnose the root cause and fix it immediately. Repeat until zero errors and zero diagnostics remain.
 
-### 🔴 Rule 3: CI/CD & GitHub Actions Synchronization
+### 🔴 Rule 4: CI/CD & GitHub Actions Synchronization
 1. **Pipeline Integrity**: Whenever build commands, toolchains, dependencies, CLI binaries, or packaging configurations are changed, the agent **MUST** inspect and update all related workflows in [`.github/workflows/`](.github/workflows/) (`ci.yml`, `release.yml`).
 2. **Remote Parity**: Ensure that remote GitHub Actions matrices mirror local build steps and the single-artifact packaging standard.
 
-### 🔴 Rule 4: Mandatory Documentation Maintenance (Zero-Drift Policy)
+### 🔴 Rule 5: Mandatory Documentation Maintenance (Zero-Drift Policy)
 1. **Real-Time Documentation Updates**: Whenever an agent adds a feature, refactors code, modifies an IPC method, changes a schema, or removes functionality, it **MUST** immediately update the matching modular document in `docs/`.
 2. **New Domain Registration**: If a new technical domain or subsystem is introduced, create a new modular markdown file (~100–250 lines) in the appropriate `docs/` subdirectory and immediately register it with a relative link in [`docs/INDEX.md`](docs/INDEX.md).
 3. **No Stale Context**: Documentation must reflect the exact reality of the codebase at all times so subsequent AI agents never operate on outdated context.
